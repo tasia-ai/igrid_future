@@ -1,0 +1,10 @@
+{
+  "name": "TasiaAddon.AlertNotifications",
+  "version": "1.0.0",
+  "description": "Alert notification service for Robust",
+  "author": "Tasia",
+  "target": "Robust",
+  "entryPoint": "TasiaAddon.AlertNotifications.AlertNotificationsExtension",
+  "enabled": true,
+  "dependencies": []
+}

@@ -1,0 +1,10 @@
+{
+  "name": "TasiaAddon.Marketplace",
+  "version": "1.0.0",
+  "description": "Marketplace prim delivery plugin",
+  "author": "Tasia",
+  "target": "Sim",
+  "entryPoint": "TasiaAddon.Marketplace.MarketplaceExtension",
+  "enabled": true,
+  "dependencies": []
+}

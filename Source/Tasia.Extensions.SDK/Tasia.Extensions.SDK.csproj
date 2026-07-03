@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Tasia.Extensions.SDK</AssemblyName>
+    <RootNamespace>Tasia.Extensions.SDK</RootNamespace>
+    <Company>Tasia Extensions</Company>
+    <Product>Tasia Extensions SDK</Product>
+    <Version>1.0.0</Version>
+    <Description>Stable extension SDK with no OpenSim dependencies</Description>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,25 @@
+<Nini>
+
+  
+  <Section Name="Scripts Library">
+    <Key Name="folderID" Value="30000112-000f-0000-0000-000100bba002" />
+    <Key Name="parentFolderID" Value="f3d4dd1e-f3a4-5fe0-9d34-1a7c4b33c9aa" />
+    <Key Name="name" Value="Scripts Library" />
+    <Key Name="type" Value="10" />
+  </Section>
+  
+  
+  
+  <Section Name="Examples">
+    <Key Name="folderID" Value="30000112-001f-0000-0000-000100bba000" />
+    <Key Name="parentFolderID" Value="30000112-000f-0000-0000-000100bba002" />
+    <Key Name="name" Value="Examples" />
+    <Key Name="type" Value="-1" />
+  </Section>
+  <Section Name="OpenSim Specific">
+    <Key Name="folderID" Value="30000112-001f-0000-0000-000100bba001" />
+    <Key Name="parentFolderID" Value="30000112-001f-0000-0000-000100bba000" />
+    <Key Name="name" Value="OpenSim Specific" />
+    <Key Name="type" Value="-1" />
+  </Section>
+</Nini>

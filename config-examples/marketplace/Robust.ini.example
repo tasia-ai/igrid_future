@@ -1,0 +1,2 @@
+; Marketplace prim delivery (/send) does not require Robust configuration.
+; The add-on is enabled on the simulator (Region/OpenSim.ini).

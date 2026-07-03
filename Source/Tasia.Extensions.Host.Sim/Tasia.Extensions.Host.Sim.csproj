@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Tasia.Extensions.Host.Sim</AssemblyName>
+    <RootNamespace>Tasia.Extensions.Host.Sim</RootNamespace>
+    <Company>Tasia Extensions</Company>
+    <Product>Tasia Extensions Host (Sim)</Product>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="log4net">
+      <HintPath>$(SolutionDir)/bin/log4net.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Nini">
+      <HintPath>$(SolutionDir)/bin/Nini.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Mono.Addins">
+      <HintPath>$(SolutionDir)/bin/Mono.Addins.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim">
+      <HintPath>$(SolutionDir)/bin/OpenSim.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Framework">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Framework.Servers">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.Servers.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Region.Framework">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Region.Framework.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)/Source/Tasia.Extensions.SDK/Tasia.Extensions.SDK.csproj" />
+    <ProjectReference Include="$(SolutionDir)/Source/Tasia.Extensions.Loader/Tasia.Extensions.Loader.csproj" />
+  </ItemGroup>
+</Project>

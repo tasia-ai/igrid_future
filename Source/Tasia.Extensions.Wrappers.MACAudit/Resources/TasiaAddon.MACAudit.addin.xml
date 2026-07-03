@@ -1,0 +1,10 @@
+<Addins>
+  <Addin id="TasiaAddon.MACAudit" namespace="TasiaAddon.MACAudit" name="NGC MAC Audit" version="1.0">
+    <Runtime>
+      <Import assembly="TasiaAddon.MACAudit.dll" />
+    </Runtime>
+    <Extension path="/OpenSim/Services">
+      <Type type="TasiaAddon.MACAudit.MACAuditLoginService" />
+    </Extension>
+  </Addin>
+</Addins>

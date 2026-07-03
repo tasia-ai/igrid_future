@@ -1,0 +1,16 @@
+[Unit]
+Description=Tasia MoneyD XML-RPC server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/build/tasia_release/tools/tasia-moneyd
+ExecStart=/usr/bin/python3 /build/tasia_release/tools/tasia-moneyd/tasia_moneyd.py --config /home/marty/opensim/MoneyServer.ini
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

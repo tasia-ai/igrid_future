@@ -1,0 +1,17 @@
+// :SHOW:
+// :CATEGORY:NPC
+// :NAME:All In One NPC Recorder and Player
+// :AUTHOR:Ferd Frederix
+// :KEYWORDS:
+// :CREATED:2015-07-17 13:14:52
+// :EDITED:2015-07-17  12:14:52
+// :ID:27
+// :NUM:1805
+// :REV:1
+// :WORLD:Opensim 
+// :DESCRIPTION:
+// All-In-One NPC Animator with new commands 
+// :CODE:
+This may help greatly with NPC's.  It's a new version of the All-In-One animator - it has the usualy commands to create a NPC, control it in
+a routine, such as walking, sitting, or animating.  It also accepts the new command, @appearance=Notecard which can switch the appearance at 
+any time.  It also accepts external commands from simple sensors, collision, or touch events that will control the NPC.  

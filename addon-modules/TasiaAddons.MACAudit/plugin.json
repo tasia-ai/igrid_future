@@ -1,0 +1,9 @@
+{
+  "Name": "TasiaAddons.MACAudit",
+  "Version": "1.0.0",
+  "Description": "MAC address audit logging",
+  "Author": "Tasia",
+  "Target": "Sim",
+  "EntryPoint": "TasiaAddons.MACAudit.MacAuditRegionModule",
+  "Enabled": true
+}

@@ -1,0 +1,24 @@
+services:
+  sim-SIM:
+    hostname: SIM
+    image: repo.is-on.click/familygrids/tasiangc:20260304-tasia-ngc-r404v6a
+    network_mode: host
+    volumes:
+    - /mnt/storage/grid/SIM:/home/grid/opensim/bin/Regions/SIM/oar
+    - /home/marty/opensim/regiongen/Regions/SIM:/home/grid/opensim/bin/Regions/SIM
+    - /home/marty/opensim/services2/SIM.ini:/home/grid/opensim/bin/python_config.ini
+    - /home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache
+    - /home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets
+    - /home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml
+    - /home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet
+    - /home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/
+    - /home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory
+      - "/home/marty/opensim/http/http_404_SIM.html:/home/grid/opensim/bin/http_404.html:ro"
+    - /home/marty/opensim/templates:/home/grid/opensim/bin/templates/
+    - /home/marty/opensim/services/python.py:/home/grid/opensim/bin/python.py
+    - /home/marty/opensim/ssh2/SIM.txt:/etc/ssh/sshd_config
+    - /home/marty/opensim/ssh2/runsh/SIM:/var/run/sshd
+    - /home/marty/opensim/bashrc:/root/.bashrc
+    - /home/marty/opensim/bashhistory:/root/.bash_history:ro
+    # secrets mount removed in example:
+    # - /home/marty/opensim/shadow2/SIM.config:/etc/shadow

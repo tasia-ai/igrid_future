@@ -1,0 +1,10 @@
+<Nini>
+
+  
+  <Section Name="Notecards Library">
+    <Key Name="folderID" Value="33cbd240-b9bf-11dc-95ff-0800200c9a66" />
+    <Key Name="parentFolderID" Value="f3d4dd1e-f3a4-5fe0-9d34-1a7c4b33c9aa" />
+    <Key Name="name" Value="Notecards Library" />
+    <Key Name="type" Value="7" />
+  </Section>
+</Nini>

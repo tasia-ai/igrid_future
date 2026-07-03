@@ -1,0 +1,82 @@
+TasiaNGC Licensing Notice (Repository-Level)
+===========================================
+
+This repository contains a mix of:
+
+1) Upstream third-party/open-source components (including OpenSim and other modules)
+2) Tasia-specific additions, wrappers, integrations, and custom modifications
+
+The terms below apply by component scope.
+
+
+Part A - Upstream/OpenSim Components
+------------------------------------
+
+For upstream OpenSim-origin files and other third-party components, original
+licenses remain in force and are not replaced by this file.
+
+OpenSim base license text:
+
+Copyright (c) Contributors, http://opensimulator.org/
+See CONTRIBUTORS.TXT for a full list of copyright holders.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    * Neither the name of the OpenSimulator Project nor the
+      names of its contributors may be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+Part B - Tasia Additions and Tasia Modifications
+------------------------------------------------
+
+Copyright (c) Tasia / EasierIT.
+All rights reserved unless explicitly approved in writing.
+
+For files, modules, and changes authored as Tasia additions/modifications,
+usage is subject to the following mandatory conditions:
+
+1. Attribution (required)
+   Any public or private deployment, fork, derivative, or distribution must
+   visibly attribute Tasia as author of the related additions/modifications.
+
+2. Modification sharing (required)
+   Any modifications based on Tasia additions/modifications must be shared back
+   with Tasia (source form) in a reasonable timeframe.
+
+3. Prior approval for usage (required)
+   Use of Tasia additions/modifications in production, public, commercial,
+   hosted, or redistributed environments requires prior written approval from
+   Tasia/EasierIT, even when repository source is publicly accessible.
+
+4. No implied rights by repository visibility
+   Public visibility of source code does not grant automatic rights to use,
+   sublicense, or commercially exploit Tasia-authored additions/modifications.
+
+5. Warranty and liability
+   Tasia-authored code is provided "AS IS", without warranties of any kind,
+   to the maximum extent permitted by law.
+
+
+Contact and approvals
+---------------------
+
+For usage approval, attribution format, and modification-sharing channel,
+contact Tasia/EasierIT project owner.

@@ -1,0 +1,81 @@
+; Tranquillity additions (Robust)
+; Copy the sections you need into your Robust.ini (or include file).
+
+[ServiceList]
+  ; Profile badges / customer_type storage.
+  UserProfilesServiceConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:UserProfilesConnector"
+
+  ; Alert notifications connector.
+  AlertServiceConnector = "${Const|PublicPort}/TasiaAddon.AlertNotifications.dll:AlertNotificationConnector"
+
+  ; WoWonder OAuth/service connector.
+  WoWonderServiceConnector = "${Const|PublicPort}/TasiaAddon.WoWonder.dll:WoWonderServiceConnector"
+
+  ; WebRTC voice service (os-webrtc-janus).
+  VoiceServiceConnector = "${Const|PrivatePort}/WebRtcVoice.dll:WebRtcVoiceServerConnector"
+
+[UserProfilesService]
+  Enabled = true
+  LocalServiceModule = "OpenSim.Services.UserProfilesService.dll:UserProfilesService"
+  ; ConnectionString = "Data Source=localhost;Database=opensim;User ID=opensim;Password=***;"
+  ; Realm = UserProfiles
+
+[AlertService]
+  Enabled = true
+  EstateService = OpenSim.Data.MySQL.dll:MySqlEstateData
+  GridService = OpenSim.Services.GridService.dll:GridService
+  EstateToken = change-me
+  DefaultFromName = System
+  DefaultFromID = 00000000-0000-0000-0000-000000000000
+  DefaultScopeID = 00000000-0000-0000-0000-000000000000
+  RequireAuthentication = true
+  AuthKey = change-me
+
+[WoWonderService]
+  Enabled = true
+  AllowedClients = client-id:client-secret
+  ScopeID = 00000000-0000-0000-0000-000000000000
+  UserAccountService = OpenSim.Services.UserAccountService.dll:UserAccountService
+  AuthenticationService = OpenSim.Services.AuthenticationService.dll:PasswordAuthenticationService
+  UserProfilesService = OpenSim.Services.UserAccountService.dll:UserProfilesService
+  InstantMessageService = OpenSim.Server.Handlers.dll:InstantMessageServerConnector
+  MoneyServerUrl = https://money.example.com/currency
+  MoneyServerTimeout = 10000
+  AllowOfflineDelivery = true
+  DefaultScope = im im.write profile balance
+  AccessTokenLifetime = 3600
+  RefreshTokenLifetime = 604800
+  AuthorizationCodeLifetime = 300
+
+[LoginService]
+  ; MAC audit decorator for login service.
+  LocalServiceModule = TasiaAddon.MACAudit.MACAuditLoginService
+  InnerLoginService = OpenSim.Services.LLLoginService.dll:LLLoginService
+  ; Dynamic welcome message (fetched on each login) with fallback.
+  MessageUrl = https://example.com/welcome.txt
+  WelcomeMessage = Welcome to Tranquillity!
+
+[NGC.MACAudit]
+  Enable = true
+  LogPath = ./logs/ngc-mac-audit.jsonl
+  RotateDaily = true
+  MaxSizeMB = 256
+  RetentionDays = 30
+  StoreHashedMAC = true
+  HashSalt = change-me-please
+  IncludeIP = true
+  SyslogEndpoint =
+  HTTPSinkEndpoint =
+  HTTPSinkAuthHeader =
+  InnerLoginService = OpenSim.Services.LLLoginService.dll:LLLoginService
+
+[WebRtcVoice]
+  Enabled = true
+  SpatialVoiceService = WebRtcJanusService.dll:WebRtcJanusService
+  NonSpatialVoiceService = WebRtcJanusService.dll:WebRtcJanusService
+
+[JanusWebRtcVoice]
+  JanusGatewayURI = http://janus.example.org:14223/voice
+  APIToken = APITokenToNeverCheckIn
+  JanusGatewayAdminURI = http://janus.example.org/admin
+  AdminAPIToken = AdminAPITokenToNeverCheckIn

@@ -1,0 +1,10 @@
+<Addins>
+  <Addin id="TasiaAddon.RemoteSound" namespace="TasiaAddon.RemoteSound" name="NGC Remote Sound Module" version="1.0">
+    <Runtime>
+      <Import assembly="TasiaAddon.RemoteSound.dll" />
+    </Runtime>
+    <Extension path="/OpenSim/RegionModules">
+      <Type type="TasiaAddon.RemoteSound.RemoteSoundModule" />
+    </Extension>
+  </Addin>
+</Addins>

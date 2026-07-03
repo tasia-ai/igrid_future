@@ -1,0 +1,10 @@
+{
+  "name": "TasiaAddon.WoWonder",
+  "version": "1.0.0",
+  "description": "WoWonder social network integration for Robust",
+  "author": "Tasia",
+  "target": "Robust",
+  "entryPoint": "TasiaAddon.WoWonder.WoWonderExtension",
+  "enabled": true,
+  "dependencies": []
+}

@@ -1,0 +1,9 @@
+; Marketplace prim delivery (/send) add-on (Region)
+
+[Marketplace]
+  Enabled = true
+  ; Required secret for /send requests and the "send" console command.
+  Password = change-me
+
+; Endpoint: http(s)://<sim-host>:<port>/send
+; Required query string: oid=<object-uuid>&uid=<avatar-uuid>&pass=<Password>

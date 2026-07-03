@@ -1,0 +1,12 @@
+services:
+  marketapp:
+    build: .
+    container_name: tasia-marketapp
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    volumes:
+      - ./public:/app/public:ro
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+      - ./storage:/app/storage

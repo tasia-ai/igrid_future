@@ -1,0 +1,36 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+    DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gnupg \
+        apt-transport-https \
+        sqlite3 \
+        mariadb-server \
+        mariadb-client \
+        openssl \
+        procps \
+        libgdiplus \
+    && curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
+    && dpkg -i /tmp/packages-microsoft-prod.deb \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends libmsquic \
+    && rm -rf /var/lib/apt/lists/* /tmp/packages-microsoft-prod.deb
+
+WORKDIR /src
+
+COPY docker/quic-test/entrypoint.sh /usr/local/bin/quic-test-entrypoint
+COPY docker/quic-test/run-all-in-one.sh /usr/local/bin/quic-test-run-all-in-one
+COPY docker/quic-test/http_404.html /src/http_404.html
+RUN chmod +x /usr/local/bin/quic-test-entrypoint
+RUN chmod +x /usr/local/bin/quic-test-run-all-in-one
+
+EXPOSE 8002/tcp 9000/tcp 9000/udp 9001/udp
+
+ENTRYPOINT ["/usr/local/bin/quic-test-entrypoint"]
+CMD ["bash"]

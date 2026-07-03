@@ -1,0 +1,60 @@
+[SharedInventory]
+    ; Enable shared inventory avatar module
+    Enabled = false
+
+    ; UUID of avatar account used as shared-inventory owner
+    SharedAvatarUUID = 00000000-0000-0000-0000-000000000000
+
+    ; Comma/semicolon/space separated manager avatar UUIDs
+    ManagerUUIDs = 00000000-0000-0000-0000-000000000000
+
+    ; Master folder under SharedAvatarUUID inventory
+    RootFolderName = Shared Inventory
+    PendingFolderName = Pending Approval
+    PublishFolderName = Library Publish
+
+    ; User-side folders created under each avatar root inventory:
+    ;   <UserRootFolderName>/<UserUploadFolderName>  => user dropbox (RW upload)
+    ;   <UserRootFolderName>/<UserBrowseFolderName>  => synchronized shared browse folder
+    UserRootFolderName = Shared RW
+    UserUploadFolderName = Upload
+    UserBrowseFolderName = Shared
+
+    ; Automatic background sync period (seconds). 300 = every 5 minutes
+    SyncIntervalSeconds = 300
+
+    ; Also sync immediately when an avatar logs in
+    SyncOnLogin = true
+
+    ; Upload moderation: when true, uploads go to PendingFolderName
+    ; and managers must approve/reject them.
+    RequireManagerApproval = false
+
+    ; Duplicate policies: skip|rename|replace
+    UploadDuplicatePolicy = rename
+    MirrorDuplicatePolicy = skip
+
+    ; Runtime control flags
+    DryRun = false
+    VerboseLogging = false
+
+    ; Optional publish snapshot marker folder under shared root
+    ; (for operator workflows that export to Library separately)
+    PublishLibrarySnapshot = false
+
+    ; Console command enabled (production controls):
+    ; sharedinventory sync [full|uploads|mirror] [all|online|user <avatar-uuid>] [dryrun]
+    ; sharedinventory set dryrun on|off
+    ; sharedinventory set verbose on|off
+    ; sharedinventory moderate <manager-uuid> approve|reject item|folder <uuid>
+    ; sharedinventory stats
+    RegionCommandEnabled = true
+
+    ; Manager in-world control channel/prefix (manager UUIDs only)
+    ; /77 sharedinv sync full
+    ; /77 sharedinv approve item <uuid>
+    ; /77 sharedinv reject folder <uuid>
+    ; /77 sharedinv stats
+    ManagerChatEnabled = true
+    ManagerChatChannel = 77
+    ManagerChatPrefix = sharedinv

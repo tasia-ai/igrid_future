@@ -1,0 +1,9 @@
+{
+  "Name": "TasiaAddons.RemoteSound",
+  "Version": "1.0.0",
+  "Description": "Play remote audio URLs in-world",
+  "Author": "Tasia",
+  "Target": "Sim",
+  "EntryPoint": "TasiaAddons.RemoteSound.RemoteSoundModule",
+  "Enabled": true
+}

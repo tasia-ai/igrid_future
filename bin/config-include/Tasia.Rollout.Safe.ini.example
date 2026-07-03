@@ -1,0 +1,19 @@
+; Safe rollout baseline (no regression mode)
+
+[SharedInventory]
+    Enabled = false
+    DryRun = true
+    VerboseLogging = true
+    RequireManagerApproval = false
+
+[FriendConference]
+    Enabled = false
+    Debug = false
+
+[YEngine]
+    ; Keeps existing scripts behavior unchanged
+    ScriptProtectionMode = off
+
+[XEngine]
+    ; If your setup uses XEngine instead of YEngine
+    ScriptProtectionMode = off

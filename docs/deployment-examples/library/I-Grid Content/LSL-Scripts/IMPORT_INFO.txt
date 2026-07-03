@@ -1,0 +1,8 @@
+Imported from GitHub for OpenSimulator library use.
+
+Source repository: https://github.com/Outworldz/LSL-Scripts.git
+Branch: master
+Files copied: 2065
+
+Next step:
+Run updatelibrary.py to regenerate library XML and import new assets/items.

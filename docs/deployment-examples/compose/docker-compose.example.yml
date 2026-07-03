@@ -1,0 +1,38 @@
+services:
+  grid-main:
+    hostname: grid-main
+    image: repo.is-on.click/familygrids/tasiangc:TAG
+    network_mode: host
+    volumes:
+      - ./services/grid-main-config.ini:/home/grid/opensim/bin/python_config.ini
+      - ./Robust.HG.ini:/home/grid/opensim/bin/Robust.ini
+      - ./MoneyServer.ini:/home/grid/opensim/bin/MoneyServer.ini
+      - ./Regions:/home/grid/opensim/bin/Regions/
+      - ./assetcache:/home/grid/opensim/bin/assetcache
+      - ./fs-assets:/home/grid/opensim/bin/fsassets
+      - ./config-include:/home/grid/opensim/bin/config-include/
+      - ./templates:/home/grid/opensim/bin/templates/
+      - ./services/python.py:/home/grid/opensim/bin/python.py
+      - ./ssh/grid-main.txt:/etc/ssh/sshd_config
+      - ./ssh2/runsh/main:/var/run/sshd
+      # secrets mount removed in example:
+      # - ./shadow/grid-main.config:/etc/shadow
+
+  sim-SIM:
+    hostname: SIM
+    image: repo.is-on.click/familygrids/tasiangc:TAG
+    network_mode: host
+    volumes:
+      - ./logs/SIM:/home/grid/opensim/bin/logs
+      - /mnt/storage/grid/SIM:/home/grid/opensim/bin/Regions/SIM/oar
+      - ./regiongen/Regions/SIM:/home/grid/opensim/bin/Regions/SIM
+      - ./services2/SIM.ini:/home/grid/opensim/bin/python_config.ini
+      - ./assetcache:/home/grid/opensim/bin/assetcache
+      - ./fs-assets:/home/grid/opensim/bin/fsassets
+      - ./config-include:/home/grid/opensim/bin/config-include/
+      - ./templates:/home/grid/opensim/bin/templates/
+      - ./services2/python.py:/home/grid/opensim/bin/python.py
+      - ./ssh2/SIM.txt:/etc/ssh/sshd_config
+      - ./ssh2/runsh/SIM:/var/run/sshd
+      # secrets mount removed in example:
+      # - ./shadow2/SIM.config:/etc/shadow

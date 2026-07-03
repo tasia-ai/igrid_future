@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TasiaNGC Web Viewer</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0a0a0f;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100vh;
+            display: block;
+            touch-action: none;
+        }
+        
+        /* Login Overlay */
+        #login-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        #login-box {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(20px);
+            padding: 40px;
+            border-radius: 24px;
+            text-align: center;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        #login-box h1 {
+            font-size: 2rem;
+            margin-bottom: 5px;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        #login-box .subtitle {
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 25px;
+            font-size: 0.85rem;
+        }
+        
+        #login-box input, #login-box select {
+            display: block;
+            width: 100%;
+            padding: 14px 18px;
+            margin: 10px 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            font-size: 14px;
+            background: rgba(0,0,0,0.3);
+            color: white;
+            transition: all 0.3s;
+        }
+        
+        #login-box input:focus, #login-box select:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 20px rgba(0,212,255,0.2);
+        }
+        
+        #login-box select {
+            cursor: pointer;
+        }
+        
+        #login-box button {
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            color: white;
+            border: none;
+            padding: 16px 40px;
+            border-radius: 30px;
+            font-size: 15px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-weight: bold;
+            transition: all 0.3s;
+            width: 100%;
+        }
+        
+        #login-box button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,212,255,0.3);
+        }
+        
+        #error-msg {
+            color: #ff4757;
+            margin-top: 15px;
+            font-size: 13px;
+            display: none;
+        }
+        
+        /* Top Bar */
+        #top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background: rgba(10,10,20,0.9);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        #top-bar .left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        #top-bar .right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        
+        .btn-icon:hover {
+            background: rgba(0,212,255,0.3);
+        }
+        
+        #user-name {
+            color: white;
+            font-weight: 500;
+        }
+        
+        #ws-status {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.1);
+        }
+        
+        #ws-status.connected { background: rgba(0,255,100,0.2); color: #00ff64; }
+        #ws-status.disconnected { background: rgba(255,0,50,0.2); color: #ff3247; }
+        
+        /* Status */
+        #status {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background: rgba(10,10,20,0.9);
+            border-radius: 10px;
+            color: white;
+            font-size: 13px;
+            display: none;
+            z-index: 100;
+        }
+        
+        #status.connected { border-left: 3px solid #00ff64; }
+        #status.error { border-left: 3px solid #ff3247; }
+        
+        /* Chat Panel */
+        #chat-panel {
+            position: fixed;
+            bottom: 70px;
+            left: 20px;
+            width: 320px;
+            height: 350px;
+            background: rgba(10,10,20,0.95);
+            border-radius: 16px;
+            display: none;
+            flex-direction: column;
+            z-index: 100;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+        
+        #chat-panel .header {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        #chat-messages .message {
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+        
+        #chat-messages .sender {
+            color: #00d4ff;
+            font-weight: 600;
+        }
+        
+        #chat-input-area {
+            padding: 10px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            gap: 10px;
+        }
+        
+        #chat-input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            font-size: 13px;
+        }
+        
+        #chat-input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        
+        /* Users Panel */
+        #users-panel {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            width: 250px;
+            background: rgba(10,10,20,0.95);
+            border-radius: 16px;
+            display: none;
+            z-index: 100;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        #users-panel .header {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-weight: 600;
+        }
+        
+        #users-list {
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        #users-list .user {
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+        }
+        
+        #users-list .user:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        #users-list .avatar-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+        }
+        
+        /* Inventory Panel */
+        #inventory-panel {
+            position: fixed;
+            top: 70px;
+            left: 20px;
+            width: 280px;
+            background: rgba(10,10,20,0.95);
+            border-radius: 16px;
+            display: none;
+            z-index: 100;
+            border: 1px solid rgba(255,255,255,0.1);
+            max-height: 500px;
+            overflow: hidden;
+            flex-direction: column;
+        }
+        
+        #inventory-panel .header {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #inventory-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .inv-folder {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+        
+        .inv-folder:hover { background: rgba(255,255,255,0.05); }
+        
+        .inv-item {
+            padding: 6px 10px;
+            padding-left: 25px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .inv-item:hover { background: rgba(255,255,255,0.05); }
+        
+        /* Build Toolbar */
+        #build-toolbar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10,10,20,0.95);
+            border-radius: 16px;
+            display: none;
+            padding: 10px 20px;
+            gap: 10px;
+            z-index: 100;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        #build-toolbar button {
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        #build-toolbar button:hover {
+            background: rgba(0,212,255,0.3);
+            border-color: #00d4ff;
+        }
+        
+        /* Minimap */
+        #minimap {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            width: 200px;
+            height: 200px;
+            background: rgba(10,10,20,0.95);
+            border-radius: 16px;
+            display: none;
+            z-index: 100;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+        
+        #minimap canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Object Info */
+        #object-info {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 280px;
+            background: rgba(10,10,20,0.95);
+            border-radius: 16px;
+            display: none;
+            z-index: 100;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 15px;
+        }
+        
+        #object-info .title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        #object-info .field {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 8px;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        /* Controls Help */
+        #controls-help {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(10,10,20,0.9);
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.5);
+            display: none;
+            z-index: 50;
+        }
+        
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <!-- Login -->
+    <div id="login-overlay">
+        <div id="login-box">
+            <h1>TasiaNGC</h1>
+            <p class="subtitle">Web 3D Viewer</p>
+            
+            <input type="text" id="first-name" placeholder="First Name">
+            <input type="text" id="last-name" placeholder="Last Name">
+            <input type="password" id="password" placeholder="Password">
+            
+            <select id="start-region">
+                <option value="">Select Region...</option>
+            </select>
+            
+            <button id="login-btn" onclick="doLogin()">Connect</button>
+            <p id="error-msg"></p>
+        </div>
+    </div>
+    
+    <!-- Top Bar -->
+    <div id="top-bar">
+        <div class="left">
+            <span id="user-name">User</span>
+            <span id="ws-status">WS: Disconnected</span>
+        </div>
+        <div class="right">
+            <button class="btn-icon" onclick="toggleInventory()" title="Inventory">📦</button>
+            <button class="btn-icon" onclick="toggleBuild()" title="Build">🔨</button>
+            <button class="btn-icon" onclick="toggleUsers()" title="Users">👥</button>
+            <button class="btn-icon" onclick="toggleMinimap()" title="Map">🗺️</button>
+            <button class="btn-icon" onclick="toggleChat()" title="Chat">💬</button>
+            <button class="btn-icon" onclick="toggleHelp()" title="Help">❓</button>
+            <button class="btn-icon" onclick="doLogout()" title="Logout">🚪</button>
+        </div>
+    </div>
+    
+    <!-- Status -->
+    <div id="status">
+        <span id="status-text">Connecting...</span>
+    </div>
+    
+    <!-- Chat -->
+    <div id="chat-panel">
+        <div class="header">
+            <span>Chat</span>
+            <select id="chat-channel" style="width: auto; padding: 5px; font-size: 12px;">
+                <option value="0">Channel 0</option>
+            </select>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Type message..." onkeypress="handleChatKey(event)">
+            <button class="btn-icon" onclick="sendChat()">➤</button>
+        </div>
+    </div>
+    
+    <!-- Users -->
+    <div id="users-panel">
+        <div class="header">Users in Region</div>
+        <div id="users-list"></div>
+    </div>
+    
+    <!-- Inventory -->
+    <div id="inventory-panel">
+        <div class="header">
+            <span>Inventory</span>
+            <button class="btn-icon" onclick="toggleInventory()" style="width: 24px; height: 24px;">✕</button>
+        </div>
+        <div id="inventory-tree"></div>
+    </div>
+    
+    <!-- Build Toolbar -->
+    <div id="build-toolbar">
+        <button onclick="createPrim('box')">⬜ Box</button>
+        <button onclick="createPrim('sphere')">⚪ Sphere</button>
+        <button onclick="createPrim('cylinder')">🔵 Cylinder</button>
+        <button onclick="createPrim('torus')">🍩 Torus</button>
+        <button onclick="deleteSelected()">🗑️ Delete</button>
+    </div>
+    
+    <!-- Minimap -->
+    <div id="minimap">
+        <canvas id="minimap-canvas"></canvas>
+    </div>
+    
+    <!-- Object Info -->
+    <div id="object-info">
+        <div class="title" id="obj-name">Object</div>
+        <div class="field"><span>Position:</span><span id="obj-pos">0,0,0</span></div>
+        <div class="field"><span>Scale:</span><span id="obj-scale">1,1,1</span></div>
+        <div class="field"><span>Type:</span><span id="obj-type">prim</span></div>
+    </div>
+    
+    <!-- Help -->
+    <div id="controls-help">
+        <b>Controls:</b><br>
+        WASD - Move<br>
+        Arrow Keys - Move<br>
+        Mouse - Look<br>
+        Click - Select<br>
+        E - Sit/Stand<br>
+        Tab - Toggle UI
+    </div>
+
+    <script>
+        // Babylon.js Setup
+        const canvas = document.getElementById('renderCanvas');
+        const engine = new BABYLON.Engine(canvas, true);
+        
+        let scene, camera, avatar, ws;
+        let isConnected = false;
+        let agentId = '', sessionId = '';
+        let objects = new Map();
+        let avatars = new Map();
+        let selectedObject = null;
+        let keys = {};
+        
+        const WS_URL = `ws://${window.location.hostname}:9002`;
+        
+        function initBabylon() {
+            scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0.05, 0.05, 0.1, 1);
+            
+            camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(128, 10, 128), scene);
+            camera.setTarget(new BABYLON.Vector3(128, 0, 130));
+            camera.attachControl(canvas, true);
+            camera.speed = 0.5;
+            camera.angularSensibility = 2000;
+            
+            // Lights
+            const light = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), scene);
+            light.intensity = 0.7;
+            
+            const dirLight = new BABYLON.DirectionalLight('dirLight', new BABYLON.Vector3(-1, -2, -1), scene);
+            dirLight.intensity = 0.5;
+            
+            // Ground
+            const ground = BABYLON.MeshBuilder.CreateGround('ground', {width: 512, height: 512}, scene);
+            const groundMat = new BABYLON.StandardMaterial('groundMat', scene);
+            groundMat.diffuseColor = new BABYLON.Color3(0.1, 0.15, 0.1);
+            groundMat.specularColor = new BABYLON.Color3(0, 0, 0);
+            ground.material = groundMat;
+            
+            // Grid
+            const gridMat = new BABYLON.StandardMaterial('gridMat', scene);
+            gridMat.wireframe = true;
+            gridMat.diffuseColor = new BABYLON.Color3(0.2, 0.3, 0.2);
+            
+            for (let i = 0; i <= 10; i++) {
+                const line = BABYLON.MeshBuilder.CreateLines('grid' + i, {
+                    points: [new BABYLON.Vector3(i * 25 - 125, 0.01, -125), new BABYLON.Vector3(i * 25 - 125, 0.01, 125)]
+                line.color =                }, scene);
+ new BABYLON.Color3(0.3, 0.4, 0.3);
+            }
+            for (let i = 0; i <= 10; i++) {
+                const line = BABYLON.MeshBuilder.CreateLines('gridh' + i, {
+                    points: [new BABYLON.Vector3(-125, 0.01, i * 25 - 125), new BABYLON.Vector3(125, 0.01, i * 25 - 125)]
+                }, scene);
+                line.color = new BABYLON.Color3(0.3, 0.4, 0.3);
+            }
+            
+            // Sky
+            scene.createDefaultSkybox(new BABYLON.Texture('https://playground.babylonjs.com/textures/skybox', scene), true, 1000);
+            
+            // Input
+            window.addEventListener('keydown', e => {
+                keys[e.key.toLowerCase()] = true;
+                if (e.key === 'Tab') { e.preventDefault(); toggleUI(); }
+            });
+            window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+            
+            // Click picking
+            scene.onPointerDown = (evt, pickResult) => {
+                if (pickResult.hit && pickResult.pickedMesh) {
+                    selectObject(pickResult.pickedMesh);
+                }
+            };
+            
+            engine.runRenderLoop(() => {
+                updateMovement();
+                scene.render();
+            });
+            
+            window.addEventListener('resize', () => engine.resize());
+        }
+        
+        function updateMovement() {
+            if (!avatar || !isConnected) return;
+            
+            const speed = 0.2;
+            const pos = avatar.position.clone();
+            
+            if (keys['w'] || keys['arrowup']) pos.z += speed;
+            if (keys['s'] || keys['arrowdown']) pos.z -= speed;
+            if (keys['a'] || keys['arrowleft']) pos.x -= speed;
+            if (keys['d'] || keys['arrowright']) pos.x += speed;
+            
+            if (keys['w'] || keys['s'] || keys['a'] || keys['d'] || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright']) {
+                avatar.position = pos;
+                camera.position = pos.add(new BABYLON.Vector3(0, 2, 0));
+                camera.setTarget(pos);
+                
+                sendAgentUpdate();
+            }
+        }
+        
+        function createAvatarMesh(position, name, color) {
+            if (avatar) avatar.dispose();
+            
+            avatar = new BABYLON.Mesh('avatar_' + name, scene);
+            
+            // Body
+            const body = BABYLON.MeshBuilder.CreateCylinder('body', {height: 1.6, diameter: 0.5}, scene);
+            body.position.y = 0.8;
+            body.parent = avatar;
+            const bodyMat = new BABYLON.StandardMaterial('bodyMat', scene);
+            bodyMat.diffuseColor = color || new BABYLON.Color3(0, 1, 0.5);
+            body.material = bodyMat;
+            
+            // Head
+            const head = BABYLON.MeshBuilder.CreateSphere('head', {diameter: 0.4}, scene);
+            head.position.y = 1.7;
+            head.parent = avatar;
+            const headMat = new BABYLON.StandardMaterial('headMat', scene);
+            headMat.diffuseColor = new BABYLON.Color3(0.9, 0.8, 0.7);
+            head.material = headMat;
+            
+            avatar.position = position;
+            return avatar;
+        }
+        
+        function createObjectMesh(data) {
+            let mesh;
+            const type = data.type || 'prim';
+            
+            switch (type) {
+                case 'box': mesh = BABYLON.MeshBuilder.CreateBox('obj_' + data.local_id, {size: 1}, scene); break;
+                case 'sphere': mesh = BABYLON.MeshBuilder.CreateSphere('obj_' + data.local_id, {diameter: 1}, scene); break;
+                case 'cylinder': mesh = BABYLON.MeshBuilder.CreateCylinder('obj_' + data.local_id, {height: 1, diameter: 1}, scene); break;
+                case 'torus': mesh = BABYLON.MeshBuilder.CreateTorus('obj_' + data.local_id, {diameter: 1, thickness: 0.3}, scene); break;
+                default: mesh = BABYLON.MeshBuilder.CreateBox('obj_' + data.local_id, {size: 1}, scene);
+            }
+            
+            mesh.position = new BABYLON.Vector3(
+                data.position[0], data.position[1], data.position[2]
+            );
+            
+            if (data.scale) {
+                mesh.scaling = new BABYLON.Vector3(data.scale[0], data.scale[1], data.scale[2]);
+            }
+            
+            mesh.metadata = { localId: data.local_id, objectData: data };
+            
+            // Material
+            const mat = new BABYLON.StandardMaterial('mat_' + data.local_id, scene);
+            mat.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.6);
+            if (data.colors && data.colors.length > 0) {
+                const c = data.colors[0];
+                mat.diffuseColor = new BABYLON.Color3(c[0], c[1], c[2]);
+            }
+            mesh.material = mat;
+            
+            objects.set(data.local_id, mesh);
+            return mesh;
+        }
+        
+        function selectObject(mesh) {
+            // Deselect previous
+            if (selectedObject && selectedObject.material) {
+                selectedObject.material.emissiveColor = new BABYLON.Color3(0, 0, 0);
+            }
+            
+            selectedObject = mesh;
+            
+            if (mesh && mesh.material) {
+                mesh.material.emissiveColor = new BABYLON.Color3(0, 0.3, 0.5);
+            }
+            
+            // Show info
+            if (mesh && mesh.metadata) {
+                document.getElementById('object-info').style.display = 'block';
+                document.getElementById('obj-name').textContent = mesh.metadata.objectData.name || 'Object';
+                const pos = mesh.position;
+                document.getElementById('obj-pos').textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+                const scale = mesh.scaling;
+                document.getElementById('obj-scale').textContent = `${scale.x.toFixed(1)}, ${scale.y.toFixed(1)}, ${scale.z.toFixed(1)}`;
+                document.getElementById('obj-type').textContent = mesh.metadata.objectData.type || 'prim';
+                
+                ws.send(JSON.stringify({ cmd: 'object_select', local_id: mesh.metadata.localId }));
+            }
+        }
+        
+        function deleteSelected() {
+            if (selectedObject && selectedObject.metadata) {
+                ws.send(JSON.stringify({ cmd: 'object_delete', local_id: selectedObject.metadata.localId }));
+                selectedObject.dispose();
+                selectedObject = null;
+                document.getElementById('object-info').style.display = 'none';
+            }
+        }
+        
+        function createPrim(type) {
+            ws.send(JSON.stringify({ cmd: 'create_object', type: type }));
+        }
+        
+        // WebSocket
+        function connectWebSocket() {
+            return new Promise((resolve, reject) => {
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = () => {
+                    console.log('WS connected');
+                    isConnected = true;
+                    updateWSStatus('connected');
+                    resolve();
+                };
+                
+                ws.onclose = () => {
+                    isConnected = false;
+                    updateWSStatus('disconnected');
+                    setTimeout(() => { if (!isConnected) connectWebSocket(); }, 3000);
+                };
+                
+                ws.onerror = (e) => {
+                    updateWSStatus('disconnected');
+                    reject(e);
+                };
+                
+                ws.onmessage = (e) => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        handleMessage(data);
+                    } catch (err) { console.error('Parse error:', err); }
+                };
+            });
+        }
+        
+        function updateWSStatus(status) {
+            const el = document.getElementById('ws-status');
+            el.className = status;
+            el.textContent = 'WS: ' + status.charAt(0).toUpperCase() + status.slice(1);
+        }
+        
+        function handleMessage(data) {
+            console.log('Message:', data.type);
+            
+            switch (data.type) {
+                case 'login_success':
+                    agentId = data.agent_id;
+                    document.getElementById('login-overlay').style.display = 'none';
+                    document.getElementById('top-bar').style.display = 'flex';
+                    document.getElementById('user-name').textContent = data.first_name + ' ' + data.last_name;
+                    document.getElementById('status').style.display = 'block';
+                    document.getElementById('status').className = 'connected';
+                    document.getElementById('status-text').textContent = 'Connected to ' + data.region_name;
+                    
+                    const pos = data.position || [128, 0, 128];
+                    avatar = createAvatarMesh(new BABYLON.Vector3(pos[0], pos[1], pos[2]), 'me', new BABYLON.Color3(0, 1, 0.5));
+                    camera.setTarget(avatar.position);
+                    
+                    addChatMessage('System', 'Welcome to TasiaNGC!');
+                    break;
+                    
+                case 'error':
+                    showError(data.message);
+                    break;
+                    
+                case 'chat':
+                    addChatMessage(data.from, data.message);
+                    break;
+                    
+                case 'object_update':
+                    if (data.objects) {
+                        data.objects.forEach(obj => {
+                            if (!objects.has(obj.local_id)) {
+                                createObjectMesh(obj);
+                            }
+                        });
+                    }
+                    break;
+                    
+                case 'object_added':
+                    createObjectMesh(data.obj);
+                    break;
+                    
+                case 'object_removed':
+                    const removed = objects.get(data.local_id);
+                    if (removed) { removed.dispose(); objects.delete(data.local_id); }
+                    break;
+                    
+                case 'object_created':
+                    // Will be added by object_update
+                    break;
+                    
+                case 'object_selected':
+                    // Show object info
+                    break;
+                    
+                case 'update':
+                    // Real-time update for all objects and agents
+                    if (data.agents) {
+                        updateAvatars(data.agents);
+                    }
+                    if (data.objects) {
+                        data.objects.forEach(obj => {
+                            const mesh = objects.get(obj.local_id);
+                            if (mesh) {
+                                mesh.position = new BABYLON.Vector3(obj.position[0], obj.position[1], obj.position[2]);
+                            }
+                        });
+                    }
+                    break;
+                    
+                case 'agent_update':
+                    if (data.agents) updateAvatars(data.agents);
+                    break;
+                    
+                case 'inventory':
+                    updateInventory(data);
+                    break;
+                    
+                case 'regions':
+                    updateRegionList(data.regions);
+                    break;
+                    
+                case 'movement_complete':
+                case 'region_handshake':
+                case 'teleport_success':
+                    document.getElementById('status-text').textContent = data.type.replace('_', ' ');
+                    break;
+                    
+                case 'logout_success':
+                    location.reload();
+                    break;
+            }
+        }
+        
+        function updateAvatars(agents) {
+            const currentIds = new Set();
+            
+            agents.forEach(agent => {
+                currentIds.add(agent.agent_id);
+                
+                if (!avatars.has(agent.agent_id)) {
+                    // New avatar
+                    const pos = agent.position || [128, 0, 128];
+                    const avMesh = createAvatarMesh(
+                        new BABYLON.Vector3(pos[0], pos[1], pos[2]),
+                        agent.name,
+                        new BABYLON.Color3(1, 0.5, 0)
+                    );
+                    avatars.set(agent.agent_id, avMesh);
+                    addChatMessage('System', agent.name + ' entered the region');
+                } else {
+                    // Update position
+                    const avMesh = avatars.get(agent.agent_id);
+                    if (avMesh && agent.position) {
+                        avMesh.position = new BABYLON.Vector3(agent.position[0], agent.position[1], agent.position[2]);
+                    }
+                }
+            });
+            
+            // Remove left avatars
+            avatars.forEach((mesh, id) => {
+                if (!currentIds.has(id)) {
+                    mesh.dispose();
+                    avatars.delete(id);
+                }
+            });
+            
+            // Update users list
+            updateUsersList(agents);
+        }
+        
+        function updateUsersList(agents) {
+            const list = document.getElementById('users-list');
+            list.innerHTML = agents.map(a => `
+                <div class="user">
+                    <div class="avatar-icon"></div>
+                    <span>${a.name || 'Unknown'}</span>
+                </div>
+            `).join('');
+        }
+        
+        function updateInventory(data) {
+            const tree = document.getElementById('inventory-tree');
+            let html = '';
+            
+            if (data.folders) {
+                data.folders.forEach(f => {
+                    html += `<div class="inv-folder" onclick="openFolder('${f.id}')">📁 ${f.name}</div>`;
+                });
+            }
+            
+            if (data.items) {
+                data.items.forEach(i => {
+                    const icon = getItemIcon(i.type);
+                    html += `<div class="inv-item" onclick="useItem('${i.id}')">${icon} ${i.name}</div>`;
+                });
+            }
+            
+            tree.innerHTML = html || '<div style="padding: 20px; color: rgba(255,255,255,0.5)">Empty</div>';
+        }
+        
+        function getItemIcon(type) {
+            const icons = {
+                'Texture': '🖼️', 'Sound': '🔊', 'Animation': '💃',
+                ' Clothing': '👕', ' Body': '👤', ' Object': '📦'
+            };
+            return icons[type] || '📄';
+        }
+        
+        function openFolder(id) {
+            ws.send(JSON.stringify({ cmd: 'request_inventory', folder: id }));
+        }
+        
+        function useItem(id) {
+            ws.send(JSON.stringify({ cmd: 'wear_item', item_id: id }));
+        }
+        
+        function updateRegionList(regions) {
+            const select = document.getElementById('start-region');
+            select.innerHTML = '<option value="">Select Region...</option>';
+            regions.forEach(r => {
+                const opt = document.createElement('option');
+                const regionName = (typeof r === 'string') ? r : r.name;
+                if (!regionName) return;
+                opt.value = regionName;
+                opt.textContent = regionName;
+                select.appendChild(opt);
+            });
+        }
+        
+        // UI Functions
+        function doLogin() {
+            const first = document.getElementById('first-name').value;
+            const last = document.getElementById('last-name').value;
+            const pass = document.getElementById('password').value;
+            const region = document.getElementById('start-region').value;
+            
+            if (!first || !last || !pass) {
+                showError('Please fill all fields');
+                return;
+            }
+            
+            connectWebSocket().then(() => {
+                ws.send(JSON.stringify({
+                    cmd: 'login',
+                    first: first,
+                    last: last,
+                    password: pass,
+                    start: region
+                }));
+                
+                // Request regions
+                setTimeout(() => {
+                    ws.send(JSON.stringify({ cmd: 'request_regions' }));
+                }, 500);
+            }).catch(e => {
+                showError('Cannot connect to server');
+            });
+        }
+        
+        function doLogout() {
+            if (ws) ws.send(JSON.stringify({ cmd: 'logout' }));
+        }
+        
+        function sendAgentUpdate() {
+            if (!ws || !avatar) return;
+            ws.send(JSON.stringify({
+                cmd: 'agent_update',
+                position: [avatar.position.x, avatar.position.y, avatar.position.z]
+            }));
+        }
+        
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (msg && ws) {
+                ws.send(JSON.stringify({ cmd: 'chat', message: msg }));
+                input.value = '';
+            }
+        }
+        
+        function handleChatKey(e) {
+            if (e.key === 'Enter') sendChat();
+        }
+        
+        function addChatMessage(sender, msg) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.innerHTML = `<div class="sender">${sender}</div><div>${msg}</div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function showError(msg) {
+            const el = document.getElementById('error-msg');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+        
+        function toggleChat() {
+            const p = document.getElementById('chat-panel');
+            p.style.display = p.style.display === 'none' ? 'flex' : 'none';
+        }
+        
+        function toggleUsers() {
+            const p = document.getElementById('users-panel');
+            p.style.display = p.style.display === 'none' ? 'block' : 'none';
+            ws.send(JSON.stringify({ cmd: 'request_agents' }));
+        }
+        
+        function toggleInventory() {
+            const p = document.getElementById('inventory-panel');
+            p.style.display = p.style.display === 'none' ? 'flex' : 'none';
+            if (p.style.display !== 'none') ws.send(JSON.stringify({ cmd: 'request_inventory' }));
+        }
+        
+        function toggleMinimap() {
+            const p = document.getElementById('minimap');
+            p.style.display = p.style.display === 'none' ? 'block' : 'none';
+            if (p.style.display !== 'none') updateMinimap();
+        }
+        
+        function toggleBuild() {
+            const p = document.getElementById('build-toolbar');
+            p.style.display = p.style.display === 'none' ? 'flex' : 'none';
+        }
+        
+        function toggleHelp() {
+            const p = document.getElementById('controls-help');
+            p.style.display = p.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function toggleUI() {
+            const ids = ['chat-panel', 'users-panel', 'inventory-panel', 'minimap', 'build-toolbar', 'controls-help'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el.style.display !== 'none') el.style.display = 'none';
+            });
+        }
+        
+        function updateMinimap() {
+            const canvas = document.getElementById('minimap-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 200;
+            canvas.height = 200;
+            
+            ctx.fillStyle = '#0a0a14';
+            ctx.fillRect(0, 0, 200, 200);
+            
+            // Grid
+            ctx.strokeStyle = 'rgba(0,212,255,0.1)';
+            for (let i = 0; i <= 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * 20, 0);
+                ctx.lineTo(i * 20, 200);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * 20);
+                ctx.lineTo(200, i * 20);
+                ctx.stroke();
+            }
+            
+            // Objects
+            ctx.fillStyle = 'rgba(100,100,150,0.5)';
+            objects.forEach(mesh => {
+                const x = (mesh.position.x / 256) * 200;
+                const y = 200 - (mesh.position.z / 256) * 200;
+                ctx.fillRect(x - 2, y - 2, 4, 4);
+            });
+            
+            // Avatars
+            ctx.fillStyle = '#ff9900';
+            avatars.forEach(mesh => {
+                const x = (mesh.position.x / 256) * 200;
+                const y = 200 - (mesh.position.z / 256) * 200;
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            // You
+            if (avatar) {
+                const x = (avatar.position.x / 256) * 200;
+                const y = 200 - (avatar.position.z / 256) * 200;
+                ctx.fillStyle = '#00ff64';
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // Init
+        window.addEventListener('DOMContentLoaded', initBabylon);
+        
+        // Minimap update loop
+        setInterval(() => {
+            if (document.getElementById('minimap').style.display !== 'none') {
+                updateMinimap();
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

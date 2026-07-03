@@ -1,0 +1,10 @@
+{
+  "name": "TasiaAddon.ChatAudit",
+  "version": "1.0.0",
+  "description": "Chat audit logging and API",
+  "author": "Tasia",
+  "target": "Sim",
+  "entryPoint": "TasiaAddon.ChatAudit.ChatAuditExtension",
+  "enabled": true,
+  "dependencies": []
+}

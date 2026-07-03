@@ -1,0 +1,91 @@
+services:
+  opensim-quic-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.quic-test
+    image: opensim-quic-test:local
+    container_name: opensim-quic-test
+    working_dir: /src
+    volumes:
+      - .:/src
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    environment:
+      CONFIGURATION: Release
+      GRID_HOST: ${GRID_HOST:-localhost}
+      DB_NAME: ${DB_NAME:-opensim}
+      DB_USER: ${DB_USER:-opensim}
+      DB_PASS: ${DB_PASS:-opensim}
+      TEST_FIRST: ${TEST_FIRST:-Test}
+      TEST_LAST: ${TEST_LAST:-User}
+      TEST_PASS: ${TEST_PASS:-test123}
+      TEST_EMAIL: ${TEST_EMAIL:-test@example.com}
+      TEST_UUID: ${TEST_UUID:-11111111-1111-1111-1111-111111111111}
+      REGION_NAME: ${REGION_NAME:-Test Region}
+      REGION_PORT: ${REGION_PORT:-9000}
+      REGION_SSL_PORT: ${REGION_SSL_PORT:-9002}
+      QUIC_PORT: ${QUIC_PORT:-9001}
+      PUBLIC_HTTPS_PORT: ${PUBLIC_HTTPS_PORT:-8443}
+      HTTPS_CERT_PASS: ${HTTPS_CERT_PASS:-opensim-quic-test}
+    # No host port mappings needed — this is a backend sidecar for DB + shared volume.
+    ports: []
+    storage_opt:
+      size: 12G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    stdin_open: true
+    tty: true
+    command: bash
+
+  opensim-all-in-one:
+    build:
+      context: .
+      dockerfile: Dockerfile.quic-test
+    image: opensim-quic-test:local
+    container_name: opensim-all-in-one
+    working_dir: /src
+    volumes:
+      - .:/src
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - mariadb-data:/var/lib/mysql
+    environment:
+      CONFIGURATION: Release
+      GRID_HOST: ${GRID_HOST:-localhost}
+      DB_NAME: ${DB_NAME:-opensim}
+      DB_USER: ${DB_USER:-opensim}
+      DB_PASS: ${DB_PASS:-opensim}
+      TEST_FIRST: ${TEST_FIRST:-Test}
+      TEST_LAST: ${TEST_LAST:-User}
+      TEST_PASS: ${TEST_PASS:-test123}
+      TEST_EMAIL: ${TEST_EMAIL:-test@example.com}
+      TEST_UUID: ${TEST_UUID:-11111111-1111-1111-1111-111111111111}
+      REGION_NAME: ${REGION_NAME:-Test Region}
+      REGION_PORT: ${REGION_PORT:-9000}
+      REGION_SSL_PORT: ${REGION_SSL_PORT:-9002}
+      QUIC_PORT: ${QUIC_PORT:-9001}
+      PUBLIC_HTTPS_PORT: ${PUBLIC_HTTPS_PORT:-8443}
+      HTTPS_CERT_PASS: ${HTTPS_CERT_PASS:-opensim-quic-test}
+      INIT_USER: "1"
+      FORCE_CONFIG: "1"
+    ports:
+      - "8002:8002/tcp"   # ROBUST/Grid HTTPS login + GridInfo
+      - "8443:8443/tcp"   # ROBUST/Grid HTTPS auxiliary endpoint
+      - "9000:9000/tcp"   # OpenSim HTTP/caps fallback
+      - "9000:9000/udp"
+      - "9002:9002/tcp"   # OpenSim HTTPS/caps
+      - "9001:9001/udp"
+    storage_opt:
+      size: 12G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    stdin_open: true
+    tty: true
+    command: run-all-in-one
+
+volumes:
+  mariadb-data:

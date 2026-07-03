@@ -1,0 +1,84 @@
+[Startup]
+PIDFile = "/home/grid/opensim/bin/MoneyServer.pid"
+NoVerifyCertChain = true
+NoVerifyCertHostname = true
+
+[MySql]
+hostname = CHANGE_ME_DB_HOST
+database = money
+username = CHANGE_ME_DB_USER
+password = CHANGE_ME_DB_PASSWORD
+pooling = false
+port = 3306
+MaxConnection = 10
+
+[MoneyServer]
+ServerPort = 1026
+DefaultBalance = 1000
+EnableAmountZero = true
+
+; "00000000-0000-0000-0000-000000000000" means all avatars can receive system money.
+BankerAvatar = "00000000-0000-0000-0000-000000000000"
+
+EnableForceTransfer = true
+EnableScriptSendMoney = true
+MoneyScriptAccessKey = "CHANGE_ME_SCRIPT_ACCESS_KEY"
+MoneyScriptIPaddress = "CHANGE_ME_PUBLIC_IP"
+
+EnableHGAvatar = true
+HGAvatarDefaultBalance = 0
+EnableGuestAvatar = false
+GuestAvatarDefaultBalance = 0
+
+BalanceMessageSendGift     = "Sent {0} Dorito to {1}."
+BalanceMessageReceiveGift  = "Received {0} Dorito from {1}."
+BalanceMessagePayCharge    = ""
+BalanceMessageBuyObject    = "Bought the Object {2} from {1} by {0} Dorito."
+BalanceMessageSellObject   = "{1} bought the Object {2} by {0} Dorito."
+BalanceMessageLandSale     = "Paid the Money {0} Dorito for Land."
+BalanceMessageGetMoney     = "Got the Money {0} Dorito from {1}."
+BalanceMessageBuyMoney     = "Bought {0} Dorito."
+BalanceMessageRollBack     = "RollBack the Transaction: {0} Dorito from/to {1}."
+BalanceMessageSendMoney    = "Paid Dorito {0} to {1}."
+BalanceMessageReceiveMoney = "Received Dorito {0} from {1}."
+Currency = "Dorito"
+ClassifiedFee = 100
+
+[MoneyDNotifications]
+Enabled = true
+AutoReloadSeconds = 3
+MuteAll = false
+
+; Optional strict allow-list by type. Empty means all types are allowed.
+; OnlyTypes = 5001,5008,5009,5010
+
+; Optional suppress list by type.
+; SuppressTypes = 5009
+
+; Optional allow-list (overrides suppress rules)
+; AllowSenderNames =
+; AllowReceiverNames =
+; AllowSenderUUIDs =
+; AllowReceiverUUIDs =
+
+; Optional suppress by identity
+; SuppressSenderNames =
+; SuppressReceiverNames =
+; SuppressSenderUUIDs =
+; SuppressReceiverUUIDs =
+
+; Optional suppress by object name (substring / regex)
+; SuppressObjectNameContains = Vendor,Tip Jar
+; SuppressObjectNameRegex = ^\[AV\].*,^Clubmaster .*
+
+SuppressWhenSenderEqualsReceiver = false
+
+[Certificate]
+;CACertFilename = ""
+;ServerCertFilename = ""
+;ServerCertPassword = ""
+;CheckClientCert = false
+;ClientCrlFilename = ""
+;CheckServerCert = false
+;ClientCertFilename = ""
+;ClientCertPassword = ""

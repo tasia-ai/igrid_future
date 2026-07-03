@@ -1,0 +1,15 @@
+; Profile badge / customer_type (Region)
+
+[UserProfiles]
+  ; URL to the UserProfilesService (usually Robust).
+  ProfileServiceURL = ${Const|BaseURL}:${Const|PublicPort}
+  ; AllowUserProfileWebURLs = true
+
+  ; Enable the SetBadge capability for profile updates.
+  EnableSetBadge = true
+
+  ; Optional: allow administrators/gods to update other avatars via SetBadge.
+  ; Default is false (deny).
+  AllowSetBadgeAdminOverride = false
+
+  ; customer_type values are arbitrary strings (examples: free, premium, founder).

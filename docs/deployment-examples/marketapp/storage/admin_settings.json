@@ -1,0 +1,10 @@
+{
+    "delivery_api_password": "martyadmin",
+    "timeout_seconds": 25,
+    "auth_backup_enabled": true,
+    "auth_backup_password": "marty",
+    "auth_backup_allowed_uuid": "",
+    "admin_uuids": [
+        "43827618-1993-43d8-bf6b-fc966a943381"
+    ]
+}

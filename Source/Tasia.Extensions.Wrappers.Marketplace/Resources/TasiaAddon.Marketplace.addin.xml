@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Addin id="TasiaAddon.Marketplace">
+  <Dependencies>
+    <Addin id="OpenSim.Region.Framework" />
+  </Dependencies>
+  <Extension path="/OpenSim/Startup">
+    <Plugin id="MarketplacePrimDeliveryPlugin" type="TasiaAddon.Marketplace.MarketplacePrimDeliveryPlugin" />
+  </Extension>
+</Addin>

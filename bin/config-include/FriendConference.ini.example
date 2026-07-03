@@ -1,0 +1,13 @@
+[FriendConference]
+    Enabled = false
+
+    ; Require inviter and invitee to be friends
+    RequireFriendship = true
+
+    ; Conference safety limits
+    MaxParticipants = 20
+    SessionIdleSeconds = 3600
+    InviteThrottleMs = 500
+
+    ; Verbose module logging
+    Debug = false

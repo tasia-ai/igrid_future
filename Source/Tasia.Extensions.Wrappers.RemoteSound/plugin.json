@@ -1,0 +1,10 @@
+{
+  "name": "TasiaAddon.RemoteSound",
+  "version": "1.0.0",
+  "description": "Remote sound module for playing sounds across regions",
+  "author": "Tasia",
+  "target": "Sim",
+  "entryPoint": "TasiaAddon.RemoteSound.RemoteSoundExtension",
+  "enabled": true,
+  "dependencies": []
+}

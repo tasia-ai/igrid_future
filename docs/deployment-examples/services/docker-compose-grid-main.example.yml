@@ -1,0 +1,24 @@
+services:
+  grid-main:
+    hostname: grid-main
+    image: repo.is-on.click/familygrids/tasiangc:20260304-tasia-ngc-r404v6a
+    network_mode: host
+    volumes:
+    - ./services/grid-main-config.ini:/home/grid/opensim/bin/python_config.ini
+    - ./Robust.HG.ini:/home/grid/opensim/bin/Robust.ini
+    - ./MoneyServer.ini:/home/grid/opensim/bin/MoneyServer.ini
+    - ./Regions:/home/grid/opensim/bin/Regions/
+    - ./assetcache:/home/grid/opensim/bin/assetcache
+    - ./fs-assets:/home/grid/opensim/bin/fsassets
+    - /home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml
+    - /home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet
+    - ./config-include:/home/grid/opensim/bin/config-include/
+    - /home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory
+    - ./services/python.py:/home/grid/opensim/bin/python.py
+    - ./templates:/home/grid/opensim/bin/templates/
+    - /home/marty/opensim/ssh2/runsh/main:/var/run/sshd
+    - /home/marty/opensim/bashrc:/root/.bashrc
+    - ./ssh/grid-main.txt:/etc/ssh/sshd_config
+    - /home/marty/opensim/bashhistory:/root/.bash_history:ro
+    # secrets mount removed in example:
+    # - /home/marty/opensim/shadow/grid-main.config:/etc/shadow

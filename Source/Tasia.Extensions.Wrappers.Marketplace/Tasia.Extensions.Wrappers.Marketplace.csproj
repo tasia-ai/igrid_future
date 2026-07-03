@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>TasiaAddon.Marketplace</AssemblyName>
+    <RootNamespace>TasiaAddon.Marketplace</RootNamespace>
+    <Company>Tasia Extensions</Company>
+    <Product>Marketplace Extension</Product>
+    <Version>1.0.0</Version>
+    <OutputPath>$(MSBuildProjectDirectory)/../../../bin/extensions/Marketplace</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="log4net">
+      <HintPath>$(SolutionDir)/bin/log4net.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Nini">
+      <HintPath>$(SolutionDir)/bin/Nini.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Framework">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Region.Framework">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Region.Framework.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)/Source/Tasia.Extensions.SDK/Tasia.Extensions.SDK.csproj" />
+  </ItemGroup>
+</Project>

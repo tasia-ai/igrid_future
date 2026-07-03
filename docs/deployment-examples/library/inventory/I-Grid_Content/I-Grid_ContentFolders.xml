@@ -1,0 +1,80 @@
+<Nini>
+
+  <Section Name="I-Grid Content">
+    <Key Name="folderID" Value="b8462a4d-55b8-596e-8c35-b825675339dd" />
+    <Key Name="parentFolderID" Value="00000112-000f-0000-0000-000100bba000" />
+    <Key Name="name" Value="I-Grid Content" />
+    <Key Name="type" Value="0" />
+  </Section>
+
+  <Section Name="Scripts Library">
+    <Key Name="folderID" Value="c22e8a8e-e49d-53d8-8b51-44ea358648ee" />
+    <Key Name="parentFolderID" Value="b8462a4d-55b8-596e-8c35-b825675339dd" />
+    <Key Name="name" Value="Scripts Library" />
+    <Key Name="type" Value="10" />
+  </Section>
+
+  <Section Name="Avatar Basics">
+    <Key Name="folderID" Value="ef5cd21d-bda0-5d56-876a-8a79cc113df1" />
+    <Key Name="parentFolderID" Value="b8462a4d-55b8-596e-8c35-b825675339dd" />
+    <Key Name="name" Value="Avatar Basics" />
+    <Key Name="type" Value="-1" />
+  </Section>
+
+  <Section Name="Clothes Pack">
+    <Key Name="folderID" Value="e2d76916-0b06-5371-a24d-25fb75ad39ac" />
+    <Key Name="parentFolderID" Value="b8462a4d-55b8-596e-8c35-b825675339dd" />
+    <Key Name="name" Value="Clothes Pack" />
+    <Key Name="type" Value="-1" />
+  </Section>
+
+  <Section Name="Avatar Basics/.: Nathan Hair :.">
+    <Key Name="folderID" Value="e75c3515-bc8f-5423-b8c2-02ad4ac85b02" />
+    <Key Name="parentFolderID" Value="ef5cd21d-bda0-5d56-876a-8a79cc113df1" />
+    <Key Name="name" Value=".: Nathan Hair :." />
+    <Key Name="type" Value="-1" />
+  </Section>
+
+  <Section Name="Avatar Basics/Abody -demo shirt - lee">
+    <Key Name="folderID" Value="b8171057-26fb-5090-b446-bc0926b2ac9b" />
+    <Key Name="parentFolderID" Value="ef5cd21d-bda0-5d56-876a-8a79cc113df1" />
+    <Key Name="name" Value="Abody -demo shirt - lee" />
+    <Key Name="type" Value="-1" />
+  </Section>
+
+  <Section Name="Avatar Basics/girlhair">
+    <Key Name="folderID" Value="cc8b1ad1-8a55-5e04-b405-852c75caf99e" />
+    <Key Name="parentFolderID" Value="ef5cd21d-bda0-5d56-876a-8a79cc113df1" />
+    <Key Name="name" Value="girlhair" />
+    <Key Name="type" Value="-1" />
+  </Section>
+
+  <Section Name="Clothes Pack/Dress">
+    <Key Name="folderID" Value="d278df37-b3e5-5023-96d6-264061557e82" />
+    <Key Name="parentFolderID" Value="e2d76916-0b06-5371-a24d-25fb75ad39ac" />
+    <Key Name="name" Value="Dress" />
+    <Key Name="type" Value="-1" />
+  </Section>
+
+  <Section Name="Clothes Pack/Gym Olimpic Outfit">
+    <Key Name="folderID" Value="11278558-e169-508b-8439-5b8400189c22" />
+    <Key Name="parentFolderID" Value="e2d76916-0b06-5371-a24d-25fb75ad39ac" />
+    <Key Name="name" Value="Gym Olimpic Outfit" />
+    <Key Name="type" Value="-1" />
+  </Section>
+
+  <Section Name="Clothes Pack/pajama">
+    <Key Name="folderID" Value="15312ae4-23e9-5c14-bbf1-c7384b50fc0d" />
+    <Key Name="parentFolderID" Value="e2d76916-0b06-5371-a24d-25fb75ad39ac" />
+    <Key Name="name" Value="pajama" />
+    <Key Name="type" Value="-1" />
+  </Section>
+
+  <Section Name="Clothes Pack/Towel">
+    <Key Name="folderID" Value="44eb8a5f-18f0-5209-a65b-2f3f17ed575d" />
+    <Key Name="parentFolderID" Value="e2d76916-0b06-5371-a24d-25fb75ad39ac" />
+    <Key Name="name" Value="Towel" />
+    <Key Name="type" Value="-1" />
+  </Section>
+
+</Nini>

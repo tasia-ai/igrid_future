@@ -1,0 +1,7 @@
+RewriteEngine On
+
+RewriteRule ^authorize$ authorize.php [L,QSA]
+RewriteRule ^token$ token.php [L,QSA]
+RewriteRule ^userinfo$ userinfo.php [L,QSA]
+RewriteRule ^jwks$ jwks.php [L,QSA]
+RewriteRule ^\.well-known/openid-configuration$ discovery.php [L,QSA]

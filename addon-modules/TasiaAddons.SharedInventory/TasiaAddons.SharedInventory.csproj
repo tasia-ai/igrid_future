@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>TasiaAddons.SharedInventory</AssemblyName>
+    <RootNamespace>TasiaAddons.SharedInventory</RootNamespace>
+    <Company>Tasia Extensions</Company>
+    <Product>Tasia Addons - Shared Inventory</Product>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="log4net">
+      <HintPath>$(SolutionDir)/bin/log4net.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Nini">
+      <HintPath>$(SolutionDir)/bin/Nini.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenMetaverse">
+      <HintPath>$(SolutionDir)/bin/OpenMetaverse.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenMetaverseTypes">
+      <HintPath>$(SolutionDir)/bin/OpenMetaverseTypes.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Framework">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Framework.Console">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.Console.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Region.Framework">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Region.Framework.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Services.Interfaces">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Services.Interfaces.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim">
+      <HintPath>$(SolutionDir)/bin/OpenSim.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Mono.Addins" Version="1.4.1" />
+  </ItemGroup>
+</Project>

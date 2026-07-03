@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reset hasła OpenSim</title>
+  <meta charset="utf-8" />
+</head>
+<body>
+  <h1>Reset hasła OpenSim</h1>
+
+  <h2>Krok 1: Poproś o kod</h2>
+  <input id="first" placeholder="Imię" />
+  <input id="last" placeholder="Nazwisko" />
+  <button onclick="requestCode()">Wyślij kod</button>
+
+  <h2>Krok 2: Potwierdź i ustaw nowe hasło</h2>
+  <input id="code" placeholder="Kod z maila" />
+  <input id="newpass" type="password" placeholder="Nowe hasło" />
+  <button onclick="confirmReset()">Resetuj hasło</button>
+
+  <pre id="result"></pre>
+
+  <script>
+    const apiUrl = "http://twoj-serwer/reset_password.php";
+
+    function requestCode() {
+      const first = document.getElementById('first').value;
+      const last = document.getElementById('last').value;
+
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'request', first, last})
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+      });
+    }
+
+    function confirmReset() {
+      const first = document.getElementById('first').value;
+      const last = document.getElementById('last').value;
+      const code = document.getElementById('code').value;
+      const newPassword = document.getElementById('newpass').value;
+
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'confirm', first, last, code, newPassword})
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+      });
+    }
+  </script>
+</body>
+</html>

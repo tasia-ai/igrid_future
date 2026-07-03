@@ -1,0 +1,1105 @@
+diff --git a/Docs/Designs/WoWonderIntegration.md b/Docs/Designs/WoWonderIntegration.md
+new file mode 100644
+index 00000000..43675781
+--- /dev/null
++++ b/Docs/Designs/WoWonderIntegration.md
+@@ -0,0 +1,184 @@
++# WoWonder Integration Proposal
++
++## Background
++WoWonder ships with a REST-style API and mobile clients that authenticate via short-lived access tokens before posting chat, wallet, and profile updates to the platform.[^wowonder-dev][^wowonder-messenger]
++To let the OpenSimulator grid interoperate with WoWonder-based community portals, we need HTTP endpoints inside the Robust service stack that speak modern JSON over HTTPS and expose the specific data WoWonder expects (OAuth 2.0 tokens, instant message payloads, and wallet balances).
++
++[^wowonder-dev]: https://www.wowonder.com/developers
++[^wowonder-messenger]: https://raw.githubusercontent.com/ScriptSun/Xamarin_Forms_Wowonder-Messenger-v1.3/master/README.md
++
++## Goals
++- Deliver a JSON-based `send_im` endpoint under Robust so web properties can deliver instant messages to grid residents without XML-RPC dependencies.
++- Provide OAuth 2.0 compliant authorize/token/userinfo endpoints that issue Bearer tokens for WoWonder add-ons and other third-party sites.
++- Offer a secure money balance API so WoWonder-driven shops can display and reconcile avatar wallet balances.
++- Supply a PHP add-on skeleton that demonstrates how a WoWonder module exchanges tokens and syncs balances with the new Robust APIs.
++
++## Architectural Overview
++The work extends Robust with three HTTP handler bundles and introduces a new shared OAuth/personal access token store:
++
++```
+++--------------------+     +-------------------+
++| WoWonder Add-on    |<--->| Robust OAuth REST |
++| (PHP)              |     +-------------------+
++|                    |             |
++|  OAuth 2.0         |             v
++|  Send IM JSON      |     +-------------------+
++|  Wallet Sync       |<--->| Robust Profile &  |
+++--------------------+     | Money Services    |
++                           +-------------------+
++```
++
++### Data Storage
++Create three new tables managed through `OpenSim.Data` connectors and migrations:
++
++1. `oauth_clients`: `id` (PK), `secret` (hashed), `name`, `redirect_uris` (JSON array), `scopes`, `created`.
++2. `oauth_codes`: `code`, `client_id`, `agent_id`, `expires`, `redirect_uri`, `scopes`, `code_challenge` (for PKCE), `created`.
++3. `oauth_tokens`: `token_id` (UUID), `client_id`, `agent_id`, `scope`, `issued`, `expires`, `refresh_token`, `refresh_expires`, `revoked`.
++
++Use the existing pattern from `OpenSim/Data/MySQL/*`/`SQLite`/`PGSQL` for migrations and connectors so all supported databases stay in sync. Tokens should be stored using SHA-256 hashed refresh tokens and AES-encrypted access token payloads (leveraging `OpenSim.Framework.Util` AES helpers) to limit disclosure if the database leaks.
++
++## Robust OAuth Service
++
++### Endpoints
++| Verb | Path | Purpose |
++| ---- | ---- | ------- |
++| `GET` | `/oauth/authorize` | Interactive login + consent screen for human users. Supports `response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`, and PKCE (`code_challenge`/`code_challenge_method`). |
++| `POST` | `/oauth/token` | Exchanges authorization codes or refresh tokens for short-lived (e.g., 10 minute) Bearer tokens and long-lived refresh tokens. |
++| `GET` | `/oauth/userinfo` | Returns avatar UUID, username, primary email, and granted scopes for display on WoWonder profiles. Requires Bearer token. |
++| `POST` | `/oauth/introspect` | Optional endpoint for server-to-server token validation. |
++
++### Implementation Notes
++- Add a new `OpenSim.Server.Handlers.Authentication.OAuthServerConnector` that registers routes through `BaseHttpServer.AddHTTPHandler`. Reuse `PasswordAuthenticationService` to verify credentials when presenting the authorize form.
++- Introduce `IOAuthStore` in `OpenSim/Framework` and provide MySQL/PGSQL/SQLite implementations parallel to other connectors.
++- Implement PKCE and state verification per RFC 7636 and RFC 6749 to prevent interception.
++- Expose configuration inside `Robust.HG.ini` and `Robust.ini`:
++
++```ini
++[OAuth]
++    Enabled = true
++    AccessTokenLifetime = 00:10:00
++    RefreshTokenLifetime = 7.00:00:00
++    AllowedOrigins = https://your-wowonder-site.example
++```
++
++- Hook the OAuth module into `Robust` by updating `OpenSim/Server/Robust.csproj` and `Robust.ini.example` with the new handler assembly.
++- Use TLS termination in the front-end proxy (nginx/Apache) and require `X-Forwarded-Proto=https` before issuing tokens.
++
++## Robust JSON `send_im` Endpoint
++
++### Endpoint Shape
++- **Path:** `POST /api/v1/im/send`
++- **Authentication:** OAuth Bearer token with `im.write` scope.
++- **Request Body:**
++  ```json
++  {
++    "from_agent_id": "${uuid}",
++    "to_agent_id": "${uuid}",
++    "message": "string",
++    "dialog": 0,
++    "session_id": "${uuid}",
++    "position": { "x": 128.0, "y": 128.0, "z": 25.5 },
++    "region_id": "${uuid}",
++    "binary_bucket": "base64",
++    "offline": false
++  }
++  ```
++- **Response:**
++  ```json
++  { "delivered": true, "offline": false, "timestamp": 1713301923 }
++  ```
++
++### Server Flow
++1. Resolve the Bearer token using `IOAuthStore` and verify `from_agent_id` matches the subject.
++2. Deserialize into `GridInstantMessage` and pass it to `IMessageTransferModule` (`Scene.MessageTransferModule`) using the existing `HGMessageTransferModule`/`MessageTransferModule` connectors.
++3. If the recipient is offline, persist via the existing offline messaging connector so it is delivered on next login.
++4. Emit structured logging entries (correlation ID, agent IDs, success/failure) using `log4net`.
++5. Rate-limit via `LeakyBucketLimiter` (new helper) tied to token + target to prevent abuse (e.g., 20 IMs / 10 seconds).
++
++### Required Code Touch Points
++- `OpenSim/Server/Handlers/Hypergrid/InstantMessageServerConnector`: extend to register the JSON handler alongside the legacy XML-RPC endpoint, using `IHttpServer.AddSimpleStreamHandler`.
++- `OpenSim/Services/Interfaces/IInstantMessage`: add an overload returning richer status (delivered/offline).
++- Update `OpenSim/Region/CoreModules/Avatar/InstantMessage/MessageTransferModule` to return offline/delivery state without breaking existing call sites.
++
++## Money Balance REST Endpoint
++
++### Endpoint Shape
++| Verb | Path | Scope | Description |
++| ---- | ---- | ----- | ----------- |
++| `GET` | `/api/v1/money/balance` | `wallet.read` | Returns the avatar's grid currency balance and last transaction timestamp. |
++| `POST` | `/api/v1/money/reconcile` | `wallet.write` | Accepts signed balance updates from WoWonder (e.g., purchases) and enqueues them for processing by the existing economy service. |
++
++- **GET Response:**
++  ```json
++  {
++    "agent_id": "${uuid}",
++    "balance": 1250,
++    "pending": 50,
++    "currency": "G$",
++    "updated_at": "2025-10-23T21:30:55Z"
++  }
++  ```
++- **POST Request:**
++  ```json
++  {
++    "agent_id": "${uuid}",
++    "external_txn_id": "wowonder:order:982334",
++    "amount": -199,
++    "memo": "WoWonder marketplace order #982334",
++    "nonce": "${uuid}",
++    "signature": "base64-ed25519",
++    "timestamp": "2025-10-23T21:31:33Z"
++  }
++  ```
++
++### Implementation Notes
++- Add `IMoneySyncService` interface in `OpenSim/Services/Interfaces` exposing `GetBalanceAsync` and `ApplyExternalTransactionAsync`.
++- Reuse the existing grid economy service connectors (`OpenSim/Services/MoneyServer`) to apply credits/debits. Record `external_txn_id` and `nonce` in a new table `money_external_transactions` to prevent replay.
++- Validate Ed25519 signatures using libsodium via P/Invoke (already bundled for `OpenSim.Services.LLLoginService` in some grids) or fallback to HMAC-SHA256 with per-client secrets.
++- Publish balance change events through the event queue so in-world viewers see updates immediately.
++
++## PHP WoWonder Add-on Skeleton
++
++Place the add-on under `wowonder/requests/opentosim/` and register it in `wowonder/admin-panel/pages/addons`. Key components:
++
++1. **Configuration (`openim/config.php`):**
++   ```php
++   return [
++       'client_id' => getenv('OPENSIM_CLIENT_ID'),
++       'client_secret' => getenv('OPENSIM_CLIENT_SECRET'),
++       'redirect_uri' => $wo['config']['site_url'] . '/openim/callback',
++       'scopes' => 'im.write wallet.read wallet.write profile.read'
++   ];
++   ```
++
++2. **Login Controller (`openim/login.php`):** Redirect users to `/oauth/authorize` with `state` stored in WoWonder session and PKCE verifier saved in `$_SESSION['openim_pkce']`.
++
++3. **Callback Handler (`openim/callback.php`):**
++   ```php
++   $token = OpenSimClient::exchangeCode($_GET['code'], $_SESSION['openim_pkce']);
++   Wo_SetUserSession('opensim_token', $token);
++   $profile = OpenSimClient::getUserInfo($token['access_token']);
++   Wo_UpdateUserData($wo['user']['user_id'], [
++       'opensim_avatar' => $profile['agent_id'],
++       'opensim_balance' => OpenSimClient::getBalance($token['access_token'])
++   ]);
++   ```
++
++4. **Background Cron (`openim/cron.php`):** Refresh tokens nightly, push wallet transactions to `/api/v1/money/reconcile`, and store WoWonder order IDs mapped to `external_txn_id`.
++
++5. **Client Helper (`openim/OpenSimClient.php`):** Thin Guzzle-based wrapper that signs requests with Bearer tokens, retries on HTTP 429, and surfaces JSON decoding errors.
++
++Expose a settings page in the WoWonder admin panel so operators can paste the Robust base URL, client credentials, and choose which scopes to enable. Use WoWonder's `Wo_CreateSession()` to protect routes and respect CSRF tokens when posting settings.
++
++## Deployment Considerations
++- Run the new OAuth and REST handlers behind the same `Robust.exe` host to reuse logging and metrics; confirm the port block in `Robust.ini` is exposed through nginx.
++- Update firewall rules to allow only the WoWonder host IPs to hit `/api/v1/money/reconcile`; other endpoints require OAuth tokens anyway.
++- Document the migration path: stop Robust, apply database migrations, restart Robust, then install the WoWonder add-on.
++- Add integration tests under `Tests/OpenSim.Server.Handlers.Tests` verifying OAuth flows and IM delivery using the `TestClient` harness.
++
++## Next Steps
++1. Implement the database migrations and connector interfaces for `IOAuthStore` and `IMoneySyncService`.
++2. Build the OAuth HTTP handlers and Razor-lite templates for the authorization UI.
++3. Extend the instant message service pipeline to surface delivery metadata.
++4. Add REST controllers, integrate logging/metrics, and document the APIs via OpenAPI 3.0 under `Docs/api/robust-wowonder.yaml`.
++5. Publish the WoWonder add-on with packaging instructions and automated tests (PHPUnit) covering token refresh and wallet reconciliation.
+diff --git a/OpenSim/Data/MySQL/MySQLUserProfilesData.cs b/OpenSim/Data/MySQL/MySQLUserProfilesData.cs
+index 67315b5c..b174c21d 100644
+--- a/OpenSim/Data/MySQL/MySQLUserProfilesData.cs
++++ b/OpenSim/Data/MySQL/MySQLUserProfilesData.cs
+@@ -616,6 +616,15 @@ namespace OpenSim.Data.MySQL
+                                 props.SkillsMask = (int)reader["profileSkillsMask"];
+                                 props.SkillsText = (string)reader["profileSkillsText"];
+                                 props.Language = (string)reader["profileLanguages"];
++                                try
++                                {
++                                    int idx = reader.GetOrdinal("profileCustomerType");
++                                    props.CustomerType = reader.IsDBNull(idx) ? string.Empty : (string)reader["profileCustomerType"];
++                                }
++                                catch (IndexOutOfRangeException)
++                                {
++                                    props.CustomerType = string.Empty;
++                                }
+                             }
+                             else
+                             {
+@@ -633,6 +642,7 @@ namespace OpenSim.Data.MySQL
+                                 props.SkillsMask = 0;
+                                 props.SkillsText = string.Empty;
+                                 props.Language = string.Empty;
++                                props.CustomerType = string.Empty;
+                                 props.PublishProfile = false;
+                                 props.PublishMature = false;
+ 
+@@ -650,7 +660,8 @@ namespace OpenSim.Data.MySQL
+                                     + "profileImage, "
+                                     + "profileAboutText, "
+                                     + "profileFirstImage, "
+-                                    + "profileFirstText) VALUES ("
++                                    + "profileFirstText, "
++                                    + "profileCustomerType) VALUES ("
+                                     + "?userId, "
+                                     + "?profilePartner, "
+                                     + "?profileAllowPublish, "
+@@ -664,7 +675,8 @@ namespace OpenSim.Data.MySQL
+                                     + "?profileImage, "
+                                     + "?profileAboutText, "
+                                     + "?profileFirstImage, "
+-                                    + "?profileFirstText)"
++                                    + "?profileFirstText, "
++                                    + "?profileCustomerType)"
+                                     ;
+ 
+                                 dbcon.Close();
+@@ -686,6 +698,7 @@ namespace OpenSim.Data.MySQL
+                                     put.Parameters.AddWithValue("?profileAboutText", props.AboutText);
+                                     put.Parameters.AddWithValue("?profileFirstImage", props.FirstLifeImageId.ToString());
+                                     put.Parameters.AddWithValue("?profileFirstText", props.FirstLifeText);
++                                    put.Parameters.AddWithValue("?profileCustomerType", props.CustomerType ?? string.Empty);
+ 
+                                     put.ExecuteNonQuery();
+                                 }
+@@ -708,7 +721,8 @@ namespace OpenSim.Data.MySQL
+         {
+             const string query = "UPDATE userprofile SET profileURL=?profileURL,"
+                 + "profileImage=?image, profileAboutText=?abouttext,"
+-                + "profileFirstImage=?firstlifeimage, profileFirstText=?firstlifetext "
++                + "profileFirstImage=?firstlifeimage, profileFirstText=?firstlifetext, "
++                + "profileCustomerType=?customerType "
+                 + "WHERE useruuid=?uuid";
+ 
+             try
+@@ -723,6 +737,7 @@ namespace OpenSim.Data.MySQL
+                         cmd.Parameters.AddWithValue("?abouttext", props.AboutText);
+                         cmd.Parameters.AddWithValue("?firstlifeimage", props.FirstLifeImageId.ToString());
+                         cmd.Parameters.AddWithValue("?firstlifetext", props.FirstLifeText);
++                        cmd.Parameters.AddWithValue("?customerType", props.CustomerType ?? string.Empty);
+                         cmd.Parameters.AddWithValue("?uuid", props.UserId.ToString());
+ 
+                         cmd.ExecuteNonQuery();
+diff --git a/OpenSim/Data/MySQL/Resources/UserProfiles.migrations b/OpenSim/Data/MySQL/Resources/UserProfiles.migrations
+index cfcc18b4..a7e84591 100644
+--- a/OpenSim/Data/MySQL/Resources/UserProfiles.migrations
++++ b/OpenSim/Data/MySQL/Resources/UserProfiles.migrations
+@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS `userprofile` (
+   `profileAboutText` text NOT NULL,
+   `profileFirstImage` varchar(36) NOT NULL,
+   `profileFirstText` text NOT NULL,
++  `profileCustomerType` varchar(64) NOT NULL DEFAULT '',
+   PRIMARY KEY (`useruuid`)
+ ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+ 
+@@ -84,3 +85,12 @@ CREATE TABLE IF NOT EXISTS `usersettings` (
+ ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+ 
+ commit;
++
++:VERSION 6         # -------------------------------
++
++begin;
++
++ALTER TABLE `userprofile`
++    ADD COLUMN `profileCustomerType` varchar(64) NOT NULL DEFAULT '';
++
++commit;
+diff --git a/OpenSim/Data/PGSQL/PGSQLUserProfilesData.cs b/OpenSim/Data/PGSQL/PGSQLUserProfilesData.cs
+index 099b21b7..89cae6ce 100644
+--- a/OpenSim/Data/PGSQL/PGSQLUserProfilesData.cs
++++ b/OpenSim/Data/PGSQL/PGSQLUserProfilesData.cs
+@@ -617,6 +617,15 @@ namespace OpenSim.Data.PGSQL
+                                 props.SkillsMask = (int)reader["profileSkillsMask"];
+                                 props.SkillsText = (string)reader["profileSkillsText"];
+                                 props.Language = (string)reader["profileLanguages"];
++                                try
++                                {
++                                    int idx = reader.GetOrdinal("profileCustomerType");
++                                    props.CustomerType = reader.IsDBNull(idx) ? string.Empty : (string)reader["profileCustomerType"];
++                                }
++                                catch (IndexOutOfRangeException)
++                                {
++                                    props.CustomerType = string.Empty;
++                                }
+                             }
+                             else
+                             {
+@@ -634,6 +643,7 @@ namespace OpenSim.Data.PGSQL
+                                 props.SkillsMask = 0;
+                                 props.SkillsText = string.Empty;
+                                 props.Language = string.Empty;
++                                props.CustomerType = string.Empty;
+                                 props.PublishProfile = false;
+                                 props.PublishMature = false;
+ 
+@@ -651,7 +661,8 @@ namespace OpenSim.Data.PGSQL
+                                 query += "\"profileImage\", ";
+                                 query += "\"profileAboutText\", ";
+                                 query += "\"profileFirstImage\", ";
+-                                query += "\"profileFirstText\") VALUES (";
++                                query += "\"profileFirstText\", ";
++                                query += "\"profileCustomerType\") VALUES (";
+                                 query += ":userId, ";
+                                 query += ":profilePartner, ";
+                                 query += ":profileAllowPublish, ";
+@@ -665,7 +676,8 @@ namespace OpenSim.Data.PGSQL
+                                 query += ":profileImage, ";
+                                 query += ":profileAboutText, ";
+                                 query += ":profileFirstImage, ";
+-                                query += ":profileFirstText)";
++                                query += ":profileFirstText, ";
++                                query += ":profileCustomerType)";
+ 
+                                 dbcon.Close();
+                                 dbcon.Open();
+@@ -689,6 +701,7 @@ namespace OpenSim.Data.PGSQL
+                                     put.Parameters.Add(m_database.CreateParameter("profileAboutText", props.AboutText));
+                                     put.Parameters.Add(m_database.CreateParameter("profileFirstImage", props.FirstLifeImageId));
+                                     put.Parameters.Add(m_database.CreateParameter("profileFirstText", props.FirstLifeText));
++                                    put.Parameters.Add(m_database.CreateParameter("profileCustomerType", props.CustomerType ?? string.Empty));
+ 
+                                     put.ExecuteNonQuery();
+                                 }
+@@ -716,7 +729,8 @@ namespace OpenSim.Data.PGSQL
+             query += "\"profileImage\"=:image, ";
+             query += "\"profileAboutText\"=:abouttext,";
+             query += "\"profileFirstImage\"=:firstlifeimage,";
+-            query += "\"profileFirstText\"=:firstlifetext ";
++            query += "\"profileFirstText\"=:firstlifetext, ";
++            query += "\"profileCustomerType\"=:customerType ";
+             query += "WHERE \"useruuid\"=:uuid";
+ 
+             try
+@@ -731,6 +745,7 @@ namespace OpenSim.Data.PGSQL
+                         cmd.Parameters.Add(m_database.CreateParameter("abouttext", props.AboutText));
+                         cmd.Parameters.Add(m_database.CreateParameter("firstlifeimage", props.FirstLifeImageId));
+                         cmd.Parameters.Add(m_database.CreateParameter("firstlifetext", props.FirstLifeText));
++                        cmd.Parameters.Add(m_database.CreateParameter("customerType", props.CustomerType ?? string.Empty));
+                         cmd.Parameters.Add(m_database.CreateParameter("uuid", props.UserId));
+ 
+                         cmd.ExecuteNonQuery();
+diff --git a/OpenSim/Data/PGSQL/Resources/UserProfiles.migrations b/OpenSim/Data/PGSQL/Resources/UserProfiles.migrations
+index 26104c09..2e926903 100644
+--- a/OpenSim/Data/PGSQL/Resources/UserProfiles.migrations
++++ b/OpenSim/Data/PGSQL/Resources/UserProfiles.migrations
+@@ -63,6 +63,7 @@ CREATE TABLE userprofile (
+   "profileAboutText" text NOT NULL,
+   "profileFirstImage" varchar(36) NOT NULL,
+   "profileFirstText" text NOT NULL,
++  "profileCustomerType" varchar(64) NOT NULL DEFAULT '',
+   PRIMARY KEY ("useruuid")
+ );
+ 
+@@ -161,3 +162,11 @@ BEGIN TRANSACTION;
+ ALTER TABLE userpicks ADD "gatekeeper" varchar(255) COLLATE "default";
+ 
+ COMMIT;
++
++:VERSION 7         # -------------------------------
++
++BEGIN;
++
++ALTER TABLE userprofile ADD "profileCustomerType" varchar(64) NOT NULL DEFAULT '';
++
++COMMIT;
+diff --git a/OpenSim/Data/SQLite/Resources/UserProfiles.migrations b/OpenSim/Data/SQLite/Resources/UserProfiles.migrations
+index 207dde08..2924ceff 100644
+--- a/OpenSim/Data/SQLite/Resources/UserProfiles.migrations
++++ b/OpenSim/Data/SQLite/Resources/UserProfiles.migrations
+@@ -69,7 +69,8 @@ CREATE TABLE IF NOT EXISTS userprofile (
+   profileImage varchar(36) NOT NULL,
+   profileAboutText text NOT NULL,
+   profileFirstImage varchar(36) NOT NULL,
+-  profileFirstText text NOT NULL
++  profileFirstText text NOT NULL,
++  profileCustomerType text NOT NULL DEFAULT ''
+ );
+ 
+ commit;
+@@ -90,7 +91,7 @@ commit;
+ 
+ 
+ :VERSION 3         # -------------------------------
+- 
++
+ begin;
+ CREATE TABLE IF NOT EXISTS usersettings (
+   useruuid char(36) NOT NULL,
+@@ -100,3 +101,11 @@ CREATE TABLE IF NOT EXISTS usersettings (
+   PRIMARY KEY (useruuid)
+ )
+ commit;
++
++:VERSION 4         # -------------------------------
++
++begin;
++
++ALTER TABLE userprofile ADD COLUMN profileCustomerType text NOT NULL DEFAULT '';
++
++commit;
+diff --git a/OpenSim/Data/SQLite/SQLiteUserProfilesData.cs b/OpenSim/Data/SQLite/SQLiteUserProfilesData.cs
+index 36300275..57ff574e 100644
+--- a/OpenSim/Data/SQLite/SQLiteUserProfilesData.cs
++++ b/OpenSim/Data/SQLite/SQLiteUserProfilesData.cs
+@@ -589,6 +589,15 @@ namespace OpenSim.Data.SQLite
+                             props.SkillsMask = (int)reader["profileSkillsMask"];
+                             props.SkillsText = (string)reader["profileSkillsText"];
+                             props.Language = (string)reader["profileLanguages"];
++                            try
++                            {
++                                int idx = reader.GetOrdinal("profileCustomerType");
++                                props.CustomerType = reader.IsDBNull(idx) ? string.Empty : (string)reader["profileCustomerType"];
++                            }
++                            catch (IndexOutOfRangeException)
++                            {
++                                props.CustomerType = string.Empty;
++                            }
+                         }
+                         else
+                         {
+@@ -603,6 +612,7 @@ namespace OpenSim.Data.SQLite
+                             props.SkillsMask = 0;
+                             props.SkillsText = string.Empty;
+                             props.Language = string.Empty;
++                            props.CustomerType = string.Empty;
+                             props.PublishProfile = false;
+                             props.PublishMature = false;
+ 
+@@ -620,7 +630,8 @@ namespace OpenSim.Data.SQLite
+                             query += "profileImage, ";
+                             query += "profileAboutText, ";
+                             query += "profileFirstImage, ";
+-                            query += "profileFirstText) VALUES (";
++                            query += "profileFirstText, ";
++                            query += "profileCustomerType) VALUES (";
+                             query += ":userId, ";
+                             query += ":profilePartner, ";
+                             query += ":profileAllowPublish, ";
+@@ -634,7 +645,8 @@ namespace OpenSim.Data.SQLite
+                             query += ":profileImage, ";
+                             query += ":profileAboutText, ";
+                             query += ":profileFirstImage, ";
+-                            query += ":profileFirstText)";
++                            query += ":profileFirstText, ";
++                            query += ":profileCustomerType)";
+ 
+                             using (SQLiteCommand put = (SQLiteCommand)m_connection.CreateCommand())
+                             {
+@@ -653,6 +665,7 @@ namespace OpenSim.Data.SQLite
+                                 put.Parameters.AddWithValue(":profileAboutText", props.AboutText);
+                                 put.Parameters.AddWithValue(":profileFirstImage", props.FirstLifeImageId.ToString());
+                                 put.Parameters.AddWithValue(":profileFirstText", props.FirstLifeText);
++                                put.Parameters.AddWithValue(":profileCustomerType", props.CustomerType ?? string.Empty);
+ 
+                                 put.ExecuteNonQuery();
+                             }
+@@ -670,7 +683,8 @@ namespace OpenSim.Data.SQLite
+             query += "profileImage=:image, ";
+             query += "profileAboutText=:abouttext,";
+             query += "profileFirstImage=:firstlifeimage,";
+-            query += "profileFirstText=:firstlifetext ";
++            query += "profileFirstText=:firstlifetext, ";
++            query += "profileCustomerType=:customerType ";
+             query += "WHERE useruuid=:uuid";
+ 
+             try
+@@ -683,6 +697,7 @@ namespace OpenSim.Data.SQLite
+                     cmd.Parameters.AddWithValue(":abouttext", props.AboutText);
+                     cmd.Parameters.AddWithValue(":firstlifeimage", props.FirstLifeImageId.ToString());
+                     cmd.Parameters.AddWithValue(":firstlifetext", props.FirstLifeText);
++                    cmd.Parameters.AddWithValue(":customerType", props.CustomerType ?? string.Empty);
+                     cmd.Parameters.AddWithValue(":uuid", props.UserId.ToString());
+ 
+                     cmd.ExecuteNonQuery();
+diff --git a/OpenSim/Framework/IClientAPI.cs b/OpenSim/Framework/IClientAPI.cs
+index 61ee384e..e02bc968 100755
+--- a/OpenSim/Framework/IClientAPI.cs
++++ b/OpenSim/Framework/IClientAPI.cs
+@@ -1253,7 +1253,8 @@ namespace OpenSim.Framework
+         void SendViewerEffect(ViewerEffectPacket.EffectBlock[] effectBlocks);
+ 
+         void SendAvatarProperties(UUID avatarID, string aboutText, string bornOn, Byte[] membershipType, string flAbout,
+-                                  uint flags, UUID flImageID, UUID imageID, string profileURL, UUID partnerID);
++                                  uint flags, UUID flImageID, UUID imageID, string profileURL, UUID partnerID,
++                                  string customerType);
+ 
+         void SendScriptQuestion(UUID taskID, string taskName, string ownerName, UUID itemID, int question, UUID experience);
+         void SendHealth(float health);
+diff --git a/OpenSim/Framework/UserProfiles.cs b/OpenSim/Framework/UserProfiles.cs
+index 16982de8..a97f4dd0 100644
+--- a/OpenSim/Framework/UserProfiles.cs
++++ b/OpenSim/Framework/UserProfiles.cs
+@@ -67,6 +67,7 @@ namespace OpenSim.Framework
+         public string AboutText = string.Empty;
+         public UUID FirstLifeImageId;
+         public string FirstLifeText = string.Empty;
++        public string CustomerType = string.Empty;
+     }
+ 
+     public class UserProfilePick
+diff --git a/OpenSim/Region/ClientStack/Linden/Caps/BadgeModule.cs b/OpenSim/Region/ClientStack/Linden/Caps/BadgeModule.cs
+new file mode 100644
+index 00000000..8101e3af
+--- /dev/null
++++ b/OpenSim/Region/ClientStack/Linden/Caps/BadgeModule.cs
+@@ -0,0 +1,164 @@
++using System;
++using System.Net;
++using System.Reflection;
++using log4net;
++using Mono.Addins;
++using Nini.Config;
++using OpenMetaverse;
++using OpenMetaverse.StructuredData;
++using OpenSim.Framework.Servers.HttpServer;
++using OpenSim.Region.Framework.Interfaces;
++using OpenSim.Region.Framework.Scenes;
++using Caps = OpenSim.Framework.Capabilities.Caps;
++
++namespace OpenSim.Region.ClientStack.LindenCaps
++{
++    [Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "BadgeModule")]
++    public class BadgeModule : INonSharedRegionModule
++    {
++        private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
++
++        private Scene m_scene;
++        private bool m_enabled;
++        private IAvatarBadgeModule m_badgeModule;
++
++        public void Initialise(IConfigSource source)
++        {
++            IConfig config = source.Configs["ClientStack.LindenCaps"];
++            if (config == null)
++                return;
++
++            string setting = config.GetString("Cap_SetBadge", string.Empty);
++            if (setting == "localhost")
++                m_enabled = true;
++
++            if (m_enabled)
++                m_log.Info("[BADGES] Viewer badge capability enabled.");
++        }
++
++        public void AddRegion(Scene scene)
++        {
++            if (!m_enabled)
++                return;
++
++            m_scene = scene;
++        }
++
++        public void RegionLoaded(Scene scene)
++        {
++            if (!m_enabled)
++                return;
++
++            m_badgeModule = scene.RequestModuleInterface<IAvatarBadgeModule>();
++            if (m_badgeModule is null)
++            {
++                m_log.Warn("[BADGES] Disabling badge capability - profile module does not provide badge support.");
++                m_enabled = false;
++                return;
++            }
++
++            scene.EventManager.OnRegisterCaps += OnRegisterCaps;
++        }
++
++        public void RemoveRegion(Scene scene)
++        {
++            if (!m_enabled)
++                return;
++
++            scene.EventManager.OnRegisterCaps -= OnRegisterCaps;
++            m_scene = null;
++            m_badgeModule = null;
++        }
++
++        public void PostInitialise() { }
++
++        public void Close() { }
++
++        public string Name => "BadgeModule";
++
++        public Type ReplaceableInterface => null;
++
++        private void OnRegisterCaps(UUID agentId, Caps caps)
++        {
++            if (m_scene is null)
++                return;
++
++            if (!m_scene.UserManagementModule.IsLocalGridUser(agentId))
++                return;
++
++            caps.RegisterSimpleHandler("SetBadge", new SimpleStreamHandler($"/{UUID.Random()}", (req, resp) => HandleSetBadge(agentId, req, resp)));
++        }
++
++        private void HandleSetBadge(UUID agentId, IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
++        {
++            if (httpRequest.HttpMethod != "POST")
++            {
++                httpResponse.StatusCode = (int)HttpStatusCode.NotFound;
++                return;
++            }
++
++            if (m_badgeModule is null)
++            {
++                httpResponse.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
++                return;
++            }
++
++            OSD body;
++            try
++            {
++                body = OSDParser.DeserializeLLSDXml(httpRequest.InputStream);
++            }
++            catch
++            {
++                httpResponse.StatusCode = (int)HttpStatusCode.BadRequest;
++                return;
++            }
++
++            if (body is not OSDMap requestMap)
++            {
++                httpResponse.StatusCode = (int)HttpStatusCode.BadRequest;
++                return;
++            }
++
++            UUID targetId = agentId;
++            if (requestMap.TryGetValue("target_id", out OSD targetOsd) && targetOsd.Type == OSDType.UUID)
++                targetId = targetOsd.AsUUID();
++
++            if (!requestMap.TryGetValue("customer_type", out OSD typeOsd)
++                && !requestMap.TryGetValue("CustomerType", out typeOsd)
++                && !requestMap.TryGetValue("badge", out typeOsd))
++            {
++                httpResponse.StatusCode = (int)HttpStatusCode.BadRequest;
++                return;
++            }
++
++            string desiredType = typeOsd.AsString() ?? string.Empty;
++
++            if (!m_badgeModule.TrySetCustomerType(agentId, targetId, desiredType, out string message))
++            {
++                var error = new OSDMap
++                {
++                    ["status"] = OSD.FromInteger((int)HttpStatusCode.BadRequest),
++                    ["reason"] = OSD.FromString(message ?? string.Empty)
++                };
++
++                httpResponse.ContentType = "application/llsd+xml";
++                httpResponse.RawBuffer = OSDParser.SerializeLLSDXmlBytes(error);
++                httpResponse.StatusCode = (int)HttpStatusCode.BadRequest;
++                return;
++            }
++
++            var response = new OSDMap
++            {
++                ["status"] = OSD.FromInteger((int)HttpStatusCode.OK),
++                ["customer_type"] = OSD.FromString(desiredType),
++                ["target_id"] = OSD.FromUUID(targetId)
++            };
++
++            httpResponse.ContentType = "application/llsd+xml";
++            httpResponse.RawBuffer = OSDParser.SerializeLLSDXmlBytes(response);
++            httpResponse.StatusCode = (int)HttpStatusCode.OK;
++        }
++    }
++}
++
+diff --git a/OpenSim/Region/ClientStack/Linden/UDP/LLClientView.cs b/OpenSim/Region/ClientStack/Linden/UDP/LLClientView.cs
+index a1aac735..202b63d0 100755
+--- a/OpenSim/Region/ClientStack/Linden/UDP/LLClientView.cs
++++ b/OpenSim/Region/ClientStack/Linden/UDP/LLClientView.cs
+@@ -3298,8 +3298,9 @@ namespace OpenSim.Region.ClientStack.LindenUDP
+ 
+         public void SendAvatarProperties(UUID avatarID, string aboutText, string bornOn, Byte[] membershipType,
+                                          string flAbout, uint flags, UUID flImageID, UUID imageID, string profileURL,
+-                                         UUID partnerID)
++                                         UUID partnerID, string customerType)
+         {
++            _ = customerType;
+             AvatarPropertiesReplyPacket avatarReply = (AvatarPropertiesReplyPacket)PacketPool.Instance.GetPacket(PacketType.AvatarPropertiesReply);
+             avatarReply.AgentData.AgentID = m_agentId;
+             avatarReply.AgentData.AvatarID = avatarID;
+diff --git a/OpenSim/Region/CoreModules/Avatar/Profile/BasicProfileModule.cs b/OpenSim/Region/CoreModules/Avatar/Profile/BasicProfileModule.cs
+index 1e1cacac..0ce9c37a 100644
+--- a/OpenSim/Region/CoreModules/Avatar/Profile/BasicProfileModule.cs
++++ b/OpenSim/Region/CoreModules/Avatar/Profile/BasicProfileModule.cs
+@@ -43,7 +43,7 @@ using OpenSim.Services.Interfaces;
+ namespace OpenSim.Region.CoreModules.Avatar.Profile
+ {
+     [Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "BasicProfileModule")]
+-    public class BasicProfileModule : IProfileModule, ISharedRegionModule
++    public class BasicProfileModule : IProfileModule, IAvatarBadgeModule, ISharedRegionModule
+     {
+         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+ 
+@@ -77,6 +77,7 @@ namespace OpenSim.Region.CoreModules.Avatar.Profile
+                     // Hook up events
+                     scene.EventManager.OnNewClient += OnNewClient;
+                     scene.RegisterModuleInterface<IProfileModule>(this);
++                    scene.RegisterModuleInterface<IAvatarBadgeModule>(this);
+                 }
+             }
+         }
+@@ -168,12 +169,22 @@ namespace OpenSim.Region.CoreModules.Avatar.Profile
+                                 "M/d/yyyy", CultureInfo.InvariantCulture),
+                         membershipType, firstLifeAboutText,
+                         (uint)(0 & 0xff),
+-                        firstLifeImage, image, profileUrl, partner);
++                        firstLifeImage, image, profileUrl, partner, string.Empty);
+ 
+             //Viewer expects interest data when it asks for properties.
+             remoteClient.SendAvatarInterestsReply(avatarID, wantMask, wantText,
+                                                     skillsMask, skillsText, languages);
+         }
+ 
++        public bool TrySetCustomerType(UUID requestingAgent, UUID targetAgent, string customerType, out string message)
++        {
++            message = "Badge updates are not supported by the basic profile module.";
++            return false;
++        }
++
++        public string GetCustomerType(UUID avatarId)
++        {
++            return string.Empty;
++        }
+     }
+ }
+diff --git a/OpenSim/Region/CoreModules/Avatar/UserProfiles/UserProfileModule.cs b/OpenSim/Region/CoreModules/Avatar/UserProfiles/UserProfileModule.cs
+index 756f29ed..a59ab6cd 100644
+--- a/OpenSim/Region/CoreModules/Avatar/UserProfiles/UserProfileModule.cs
++++ b/OpenSim/Region/CoreModules/Avatar/UserProfiles/UserProfileModule.cs
+@@ -50,7 +50,7 @@ using OpenSim.Region.CoreModules.Avatar.Friends;
+ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+ {
+     [Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "UserProfilesModule")]
+-    public class UserProfileModule : IProfileModule, INonSharedRegionModule
++    public class UserProfileModule : IProfileModule, IAvatarBadgeModule, INonSharedRegionModule
+     {
+         const double PROFILECACHEEXPIRE = 300;
+         /// <summary>
+@@ -158,7 +158,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+                             if (clients is null)
+                             {
+                                 client.SendAvatarProperties(props.UserId, props.AboutText, born, membershipType, props.FirstLifeText, flags,
+-                                                              props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId);
++                                                              props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId, props.CustomerType);
+ 
+                                 client.SendAvatarInterestsReply(props.UserId, (uint)props.WantToMask, props.WantToText,
+                                                              (uint)props.SkillsMask, props.SkillsText, props.Language);
+@@ -170,7 +170,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+                                 if (!clients.Contains(client) && client.IsActive)
+                                 {
+                                     client.SendAvatarProperties(props.UserId, props.AboutText, born, membershipType, props.FirstLifeText, flags,
+-                                                                  props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId);
++                                                                  props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId, props.CustomerType);
+ 
+                                     client.SendAvatarInterestsReply(props.UserId, (uint)props.WantToMask, props.WantToText,
+                                                                  (uint)props.SkillsMask, props.SkillsText, props.Language);
+@@ -182,7 +182,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+                                     if (!cli.IsActive)
+                                         continue;
+                                     cli.SendAvatarProperties(props.UserId, props.AboutText, born, membershipType, props.FirstLifeText, flags,
+-                                                                props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId);
++                                                                props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId, props.CustomerType);
+ 
+                                     cli.SendAvatarInterestsReply(props.UserId, (uint)props.WantToMask, props.WantToText,
+                                                                 (uint)props.SkillsMask, props.SkillsText, props.Language);
+@@ -318,6 +318,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+             Scene = scene;
+             m_thisGridInfo ??= scene.SceneGridInfo;
+             Scene.RegisterModuleInterface<IProfileModule>(this);
++            Scene.RegisterModuleInterface<IAvatarBadgeModule>(this);
+             Scene.EventManager.OnNewClient += OnNewClient;
+             Scene.EventManager.OnClientClosed += OnClientClosed;
+ 
+@@ -1578,7 +1579,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+             {
+                 remoteClient.SendAvatarProperties(avatarID, "Creator of OpenSimulator shared assets library", Constants.m_MrOpenSimBorn.ToString(),
+                       Utils.StringToBytes("System agent"), "MrOpenSim has no life", 0x10,
+-                      UUID.Zero, UUID.Zero, "", UUID.Zero);
++                      UUID.Zero, UUID.Zero, "", UUID.Zero, string.Empty);
+                 remoteClient.SendAvatarInterestsReply(avatarID, 0, "",
+                           0, "Getting into trouble", "Droidspeak");
+                 return;
+@@ -1588,7 +1589,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+             {
+                 remoteClient.SendAvatarProperties(avatarID, ((INPC)(p.ControllingClient)).profileAbout, ((INPC)(p.ControllingClient)).Born,
+                       Utils.StringToBytes("Non Player Character (NPC)"), "NPCs have no life", 0x10,
+-                      UUID.Zero, ((INPC)(p.ControllingClient)).profileImage, "", UUID.Zero);
++                      UUID.Zero, ((INPC)(p.ControllingClient)).profileImage, "", UUID.Zero, string.Empty);
+                 remoteClient.SendAvatarInterestsReply(avatarID, 0, "",
+                           0, "Getting into trouble", "Droidspeak");
+                 return;
+@@ -1610,7 +1611,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+ 
+                         remoteClient.SendAvatarProperties(props.UserId, props.AboutText,
+                             uce.born, uce.membershipType , props.FirstLifeText, cflags,
+-                            props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId);
++                            props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId, props.CustomerType);
+ 
+                         remoteClient.SendAvatarInterestsReply(props.UserId, (uint)props.WantToMask,
+                             props.WantToText, (uint)props.SkillsMask,
+@@ -1740,7 +1741,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+             if(clients == null)
+             {
+                 remoteClient.SendAvatarProperties(props.UserId, props.AboutText, born, membershipType , props.FirstLifeText, flags,
+-                                              props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId);
++                                              props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId, props.CustomerType);
+ 
+                 remoteClient.SendAvatarInterestsReply(props.UserId, (uint)props.WantToMask, props.WantToText,
+                                              (uint)props.SkillsMask, props.SkillsText, props.Language);
+@@ -1754,7 +1755,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+                     if(!cli.IsActive)
+                         continue;
+                     cli.SendAvatarProperties(props.UserId, props.AboutText, born, membershipType , props.FirstLifeText, flags,
+-                                              props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId);
++                                              props.FirstLifeImageId, props.ImageId, props.WebUrl, props.PartnerId, props.CustomerType);
+ 
+                     cli.SendAvatarInterestsReply(props.UserId, (uint)props.WantToMask, props.WantToText,
+                                              (uint)props.SkillsMask, props.SkillsText, props.Language);
+@@ -1849,6 +1850,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+             }
+ 
+             properties = (UserProfileProperties)Prop;
++            properties.CustomerType ??= string.Empty;
+             if(foreign)
+             {
+                 cacheForeignImage(properties.UserId, properties.ImageId);
+@@ -1999,7 +2001,87 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
+ 
+             return false;
+          }
+-   
++
++        public string GetCustomerType(UUID avatarId)
++        {
++            lock (m_profilesCache)
++            {
++                if (m_profilesCache.TryGetValue(avatarId, out UserProfileCacheEntry uce) && uce?.props is not null)
++                    return uce.props.CustomerType ?? string.Empty;
++            }
++
++            bool foreign = GetUserProfileServerURI(avatarId, out string serverURI);
++            if (foreign || string.IsNullOrWhiteSpace(serverURI))
++                return string.Empty;
++
++            UserProfileProperties props = new() { UserId = avatarId };
++            if (!GetProfileData(ref props, false, serverURI, out _))
++                return string.Empty;
++
++            return props.CustomerType ?? string.Empty;
++        }
++
++        public bool TrySetCustomerType(UUID requestingAgent, UUID targetAgent, string customerType, out string message)
++        {
++            message = string.Empty;
++
++            bool foreign = GetUserProfileServerURI(targetAgent, out string serverURI);
++            if (string.IsNullOrWhiteSpace(serverURI))
++            {
++                message = "Profile service unavailable.";
++                return false;
++            }
++
++            if (foreign)
++            {
++                message = "Cannot update badges for foreign avatars.";
++                return false;
++            }
++
++            ScenePresence requesterPresence = Scene.GetScenePresence(requestingAgent);
++            bool isSelfUpdate = requestingAgent == targetAgent;
++            bool isGodLike = requesterPresence is not null && !requesterPresence.IsDeleted && requesterPresence.IsViewerUIGod;
++            if (!isSelfUpdate && !isGodLike)
++            {
++                message = "Insufficient permissions to update badge.";
++                return false;
++            }
++
++            UserProfileProperties props = new() { UserId = targetAgent };
++            if (!GetProfileData(ref props, false, serverURI, out message))
++                return false;
++
++            props.CustomerType = customerType ?? string.Empty;
++
++            object payload = props;
++            if (!rpc.JsonRpcRequest(ref payload, "avatar_properties_update", serverURI, UUID.Random().ToString()))
++            {
++                message = "Failed to update profile data.";
++                return false;
++            }
++
++            lock (m_profilesCache)
++            {
++                if (m_profilesCache.TryGetValue(targetAgent, out UserProfileCacheEntry uce) && uce is not null)
++                {
++                    uce.props = null;
++                    uce.ClientsWaitingProps = null;
++                }
++            }
++
++            ScenePresence targetPresence = Scene.GetScenePresence(targetAgent);
++            if (targetPresence is not null && !targetPresence.IsChildAgent && !targetPresence.IsDeleted)
++                RequestAvatarProperties(targetPresence.ControllingClient, targetAgent);
++
++            if (!isSelfUpdate && requesterPresence is not null && !requesterPresence.IsChildAgent && !requesterPresence.IsDeleted)
++                RequestAvatarProperties(requesterPresence.ControllingClient, targetAgent);
++
++            m_log.InfoFormat("[PROFILES]: {0} updated badge for {1} to '{2}'", requestingAgent, targetAgent, props.CustomerType ?? string.Empty);
++
++            message = "OK";
++            return true;
++        }
++
+     #endregion Util
+ 
+     #region Web Util
+diff --git a/OpenSim/Region/Framework/Interfaces/IAvatarBadgeModule.cs b/OpenSim/Region/Framework/Interfaces/IAvatarBadgeModule.cs
+new file mode 100644
+index 00000000..04ee74f1
+--- /dev/null
++++ b/OpenSim/Region/Framework/Interfaces/IAvatarBadgeModule.cs
+@@ -0,0 +1,56 @@
++/*
++ * Copyright (c) Contributors, http://opensimulator.org/
++ * See CONTRIBUTORS.TXT for a full list of copyright holders.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above copyright
++ *       notice, this list of conditions and the following disclaimer in the
++ *       documentation and/or other materials provided with the distribution.
++ *     * Neither the name of the OpenSimulator Project nor the
++ *       names of its contributors may be used to endorse or promote products
++ *       derived from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY
++ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
++ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
++ * DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
++ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
++ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
++ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
++ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++using OpenMetaverse;
++
++namespace OpenSim.Region.Framework.Interfaces
++{
++    /// <summary>
++    /// Exposes helpers for retrieving and updating viewer badge (customer type)
++    /// information for avatars.
++    /// </summary>
++    public interface IAvatarBadgeModule
++    {
++        /// <summary>
++        /// Try to update the badge for the target avatar.
++        /// </summary>
++        /// <param name="requestingAgent">The agent requesting the change.</param>
++        /// <param name="targetAgent">The avatar to update.</param>
++        /// <param name="customerType">The new customer type string.</param>
++        /// <param name="message">Optional human readable status message.</param>
++        /// <returns>True on success.</returns>
++        bool TrySetCustomerType(UUID requestingAgent, UUID targetAgent, string customerType, out string message);
++
++        /// <summary>
++        /// Gets the cached customer type for the given avatar if available.
++        /// </summary>
++        /// <param name="avatarId">The avatar identifier.</param>
++        /// <returns>The last known customer type or an empty string.</returns>
++        string GetCustomerType(UUID avatarId);
++    }
++}
++
+diff --git a/OpenSim/Region/OptionalModules/Agent/InternetRelayClientView/Server/IRCClientView.cs b/OpenSim/Region/OptionalModules/Agent/InternetRelayClientView/Server/IRCClientView.cs
+index 81ff4da5..f825be1d 100755
+--- a/OpenSim/Region/OptionalModules/Agent/InternetRelayClientView/Server/IRCClientView.cs
++++ b/OpenSim/Region/OptionalModules/Agent/InternetRelayClientView/Server/IRCClientView.cs
+@@ -1246,8 +1246,9 @@ namespace OpenSim.Region.OptionalModules.Agent.InternetRelayClientView.Server
+         {
+         }
+ 
+-        public void SendAvatarProperties(UUID avatarID, string aboutText, string bornOn, byte[] membershipType, string flAbout, uint flags, UUID flImageID, UUID imageID, string profileURL, UUID partnerID)
++        public void SendAvatarProperties(UUID avatarID, string aboutText, string bornOn, byte[] membershipType, string flAbout, uint flags, UUID flImageID, UUID imageID, string profileURL, UUID partnerID, string customerType)
+         {
++            _ = customerType;
+ 
+         }
+ 
+diff --git a/OpenSim/Region/OptionalModules/World/NPC/NPCAvatar.cs b/OpenSim/Region/OptionalModules/World/NPC/NPCAvatar.cs
+index ef0f099f..cf099462 100755
+--- a/OpenSim/Region/OptionalModules/World/NPC/NPCAvatar.cs
++++ b/OpenSim/Region/OptionalModules/World/NPC/NPCAvatar.cs
+@@ -999,8 +999,9 @@ namespace OpenSim.Region.OptionalModules.World.NPC
+ 
+         public void SendAvatarProperties(UUID avatarID, string aboutText, string bornOn, Byte[] membershipType,
+                                          string flAbout, uint flags, UUID flImageID, UUID imageID, string profileURL,
+-                                         UUID partnerID)
++                                         UUID partnerID, string customerType)
+         {
++            _ = customerType;
+         }
+ 
+         public void SendAsset(AssetRequestToClient req)
+diff --git a/OpenSim/Server/Handlers/Profiles/UserProfilesHandlers.cs b/OpenSim/Server/Handlers/Profiles/UserProfilesHandlers.cs
+index a68e04fe..b01783fd 100644
+--- a/OpenSim/Server/Handlers/Profiles/UserProfilesHandlers.cs
++++ b/OpenSim/Server/Handlers/Profiles/UserProfilesHandlers.cs
+@@ -333,10 +333,17 @@ namespace OpenSim.Server.Handlers
+             string result = string.Empty;
+             UserProfileProperties props = new UserProfileProperties();
+             object Props = (object)props;
+-            OSD.DeserializeMembers(ref Props, (OSDMap)json["params"]);
++            OSDMap paramMap = (OSDMap)json["params"];
++            OSD.DeserializeMembers(ref Props, paramMap);
++            if (paramMap.TryGetValue("customer_type", out OSD customerType))
++                props.CustomerType = customerType.AsString();
++            else if (paramMap.TryGetValue("CustomerType", out customerType))
++                props.CustomerType = customerType.AsString();
+             if(Service.AvatarPropertiesRequest(ref props, ref result))
+             {
+-                response.Result = OSD.SerializeMembers(props);
++                OSDMap responseMap = (OSDMap)OSD.SerializeMembers(props);
++                responseMap["customer_type"] = props.CustomerType ?? string.Empty;
++                response.Result = responseMap;
+                 return true;
+             }
+ 
+@@ -358,10 +365,17 @@ namespace OpenSim.Server.Handlers
+             string result = string.Empty;
+             UserProfileProperties props = new UserProfileProperties();
+             object Props = (object)props;
+-            OSD.DeserializeMembers(ref Props, (OSDMap)json["params"]);
++            OSDMap updateMap = (OSDMap)json["params"];
++            OSD.DeserializeMembers(ref Props, updateMap);
++            if (updateMap.TryGetValue("customer_type", out OSD customerType))
++                props.CustomerType = customerType.AsString();
++            else if (updateMap.TryGetValue("CustomerType", out customerType))
++                props.CustomerType = customerType.AsString();
+             if(Service.AvatarPropertiesUpdate(ref props, ref result))
+             {
+-                response.Result = OSD.SerializeMembers(props);
++                OSDMap responseMap = (OSDMap)OSD.SerializeMembers(props);
++                responseMap["customer_type"] = props.CustomerType ?? string.Empty;
++                response.Result = responseMap;
+                 return true;
+             }
+ 
+diff --git a/Tests/OpenSim.Tests.Common/Mock/TestClient.cs b/Tests/OpenSim.Tests.Common/Mock/TestClient.cs
+index 04a96522..e0b9bb8d 100644
+--- a/Tests/OpenSim.Tests.Common/Mock/TestClient.cs
++++ b/Tests/OpenSim.Tests.Common/Mock/TestClient.cs
+@@ -993,8 +993,9 @@ namespace OpenSim.Tests.Common
+ 
+         public void SendAvatarProperties(UUID avatarID, string aboutText, string bornOn, Byte[] membershipType,
+                                          string flAbout, uint flags, UUID flImageID, UUID imageID, string profileURL,
+-                                         UUID partnerID)
++                                         UUID partnerID, string customerType)
+         {
++            _ = customerType;
+         }
+ 
+         public int DebugPacketLevel { get; set; }
+diff --git a/bin/OpenSim.ini.example b/bin/OpenSim.ini.example
+index b75bdda9..1d6090e7 100644
+--- a/bin/OpenSim.ini.example
++++ b/bin/OpenSim.ini.example
+@@ -771,6 +771,7 @@
+     Cap_AvatarPickerSearch = "localhost"
+     Cap_GetDisplayNames = "localhost"
+     Cap_SetDisplayName = "localhost"
++    Cap_SetBadge = "localhost"
+ 
+ 
+ [SimulatorFeatures]

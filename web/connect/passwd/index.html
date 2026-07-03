@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OpenSim Password Reset Terminal</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: black;
+      color: #00ff00;
+      font-family: monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #container {
+      width: 600px;
+      max-width: 90vw;
+      height: 300px;
+      display: flex;
+      flex-direction: column;
+      background: black;
+      border: 2px solid #00ff00;
+      padding: 20px;
+      box-sizing: border-box;
+      box-shadow: 0 0 15px #00ff00aa;
+      user-select: none;
+    }
+    #terminal {
+      white-space: pre-wrap;
+      flex-grow: 1;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      user-select: text;
+    }
+    #input-line {
+      display: flex;
+      align-items: center;
+    }
+    #prompt {
+      margin-right: 5px;
+      user-select: none;
+    }
+    #cmdline {
+      background: black;
+      border: none;
+      color: #00ff00;
+      font-family: monospace;
+      font-size: 1em;
+      outline: none;
+      flex-grow: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="terminal"></div>
+    <div id="input-line">
+      <span id="prompt">:</span>
+      <input type="text" id="cmdline" autofocus autocomplete="off" />
+    </div>
+  </div>
+
+  <script>
+    const terminal = document.getElementById('terminal');
+    const cmdline = document.getElementById('cmdline');
+    const prompt = ':';
+
+    let state = 'askName';
+    let firstName = '';
+    let lastName = '';
+    let resetCode = '';
+
+    function print(text) {
+      terminal.innerText += text + '\n';
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function buildXml(data) {
+      let xml = `<request>`;
+      for (const key in data) {
+        xml += `<${key}>${escapeXml(data[key])}</${key}>`;
+      }
+      xml += `</request>`;
+      return xml;
+    }
+
+    function escapeXml(unsafe) {
+      return unsafe.replace(/[<>&'"]/g, function (c) {
+        switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+        }
+      });
+    }
+
+    function parseXml(text) {
+      const parser = new DOMParser();
+      return parser.parseFromString(text, "application/xml");
+    }
+
+    async function apiRequest(payload) {
+      try {
+        const xmlBody = buildXml(payload);
+        const res = await fetch('password-reset.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/xml' },
+          body: xmlBody
+        });
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const text = await res.text();
+        console.log('Raw Response:', text); // Debug log
+        
+        // If response doesn't start with XML, it's likely an error
+        if (!text.trim().startsWith('<')) {
+          throw new Error('Server error: ' + text);
+        }
+        
+        const xmlDoc = parseXml(text);
+        
+        // Check for XML parsing errors
+        const parseError = xmlDoc.querySelector('parsererror');
+        if (parseError) {
+          console.error('XML Parse Error:', text);
+          throw new Error('Invalid XML response: ' + text.substring(0, 200));
+        }
+        
+        // Check for error in response
+        const errorNode = xmlDoc.querySelector('e');
+        if (errorNode) {
+          throw new Error(errorNode.textContent);
+        }
+        
+        const statusNode = xmlDoc.querySelector('status');
+        return statusNode ? statusNode.textContent : 'Request completed';
+        
+      } catch (error) {
+        console.error('API Error:', error);
+        throw error;
+      }
+    }
+
+    print('OpenSim Password Reset Terminal');
+    print('Please enter your full name (first last):');
+
+    cmdline.addEventListener('keydown', async (e) => {
+      if (e.key !== 'Enter') return;
+      const input = cmdline.value.trim();
+      if (!input) return;
+      print(prompt + ' ' + input);
+      cmdline.value = '';
+
+      if (state === 'askName') {
+        const parts = input.split(/\s+/);
+        if (parts.length < 2) {
+          print('Please enter full name with at least two parts (e.g. John Doe)');
+          return;
+        }
+        firstName = parts[0];
+        lastName = parts.slice(1).join(' ');
+
+        print('Sending reset request...');
+        try {
+          const res = await apiRequest({ action: 'request', first: firstName, last: lastName });
+          print(res);
+          print('Please enter the reset code sent to your email:');
+          state = 'askCode';
+        } catch (err) {
+          print('Error: ' + err.message);
+          print('Try again. Enter your full name:');
+        }
+      }
+      else if (state === 'askCode') {
+        resetCode = input;
+        print('Please enter your new password:');
+        state = 'askNewPassword';
+      }
+      else if (state === 'askNewPassword') {
+        const newPassword = input;
+        if (newPassword.length < 6) {
+          print('Password must be at least 6 characters long. Try again:');
+          return;
+        }
+        
+        print('Resetting password...');
+        try {
+          const res = await apiRequest({
+            action: 'confirm',
+            first: firstName,
+            last: lastName,
+            code: resetCode,
+            newPassword: newPassword
+          });
+          print(res);
+          print('Password reset complete. You can close this terminal.');
+          cmdline.disabled = true;
+          state = 'done';
+        } catch (err) {
+          print('Error: ' + err.message);
+          print('Start over. Enter your full name:');
+          state = 'askName';
+          firstName = '';
+          lastName = '';
+          resetCode = '';
+        }
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TasiaNGC Web Viewer</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0a0a0f;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100vh;
+            display: block;
+            touch-action: none;
+        }
+        
+        /* Login Overlay */
+        #login-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        #login-box {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(20px);
+            padding: 50px;
+            border-radius: 24px;
+            text-align: center;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        #login-box h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        #login-box .subtitle {
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+        
+        #login-box input {
+            display: block;
+            width: 100%;
+            padding: 16px 20px;
+            margin: 12px 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            font-size: 15px;
+            background: rgba(0,0,0,0.3);
+            color: white;
+            transition: all 0.3s;
+        }
+        
+        #login-box input:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 20px rgba(0,212,255,0.2);
+        }
+        
+        #login-box input::placeholder {
+            color: rgba(255,255,255,0.3);
+        }
+        
+        #login-box button {
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            color: white;
+            border: none;
+            padding: 18px 50px;
+            border-radius: 30px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: bold;
+            transition: all 0.3s;
+            width: 100%;
+        }
+        
+        #login-box button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0,212,255,0.4);
+        }
+        
+        #login-box button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .error-msg {
+            color: #ff4757;
+            font-size: 0.85rem;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        /* Top Bar */
+        #top-bar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 50px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        #top-bar .user-info {
+            color: white;
+            font-size: 0.9rem;
+        }
+        
+        #top-bar .controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        #top-bar button {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        #top-bar button:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        /* Chat Panel */
+        #chat-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 350px;
+            max-height: 450px;
+            background: rgba(15,15,25,0.9);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            display: none;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            z-index: 100;
+        }
+        
+        #chat-header {
+            padding: 15px;
+            background: rgba(0,212,255,0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #chat-header h3 {
+            color: white;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+        
+        #chat-close {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+        
+        #chat-messages {
+            height: 320px;
+            overflow-y: auto;
+            padding: 15px;
+            color: rgba(255,255,255,0.8);
+            font-size: 0.85rem;
+        }
+        
+        #chat-messages .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+        
+        #chat-messages .message .sender {
+            color: #00d4ff;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        
+        #chat-input-container {
+            padding: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            gap: 10px;
+        }
+        
+        #chat-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: white;
+            font-size: 0.9rem;
+        }
+        
+        #chat-input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        
+        #chat-send {
+            padding: 12px 20px;
+            background: #00d4ff;
+            border: none;
+            border-radius: 8px;
+            color: #0a0a0f;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        /* Status */
+        #status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            display: none;
+            z-index: 100;
+        }
+        
+        #status.connected { border-left: 3px solid #00ff88; }
+        #status.disconnected { border-left: 3px solid #ff4757; }
+        #status.connecting { border-left: 3px solid #ffa502; }
+        
+        /* Minimap placeholder */
+        #minimap {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            width: 180px;
+            height: 180px;
+            background: rgba(0,0,0,0.7);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: none;
+            overflow: hidden;
+            z-index: 100;
+        }
+        
+        #minimap canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Users list */
+        #users-panel {
+            position: fixed;
+            top: 70px;
+            left: 20px;
+            width: 200px;
+            background: rgba(0,0,0,0.7);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: none;
+            z-index: 100;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        #users-panel h4 {
+            padding: 12px 15px;
+            color: white;
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        #users-list {
+            padding: 10px;
+        }
+        
+        #users-list .user {
+            padding: 8px;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        #users-list .user .dot {
+            width: 8px;
+            height: 8px;
+            background: #00ff88;
+            border-radius: 50%;
+        }
+        
+        /* Loading */
+        .loader {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Connection indicator */
+        #ws-status {
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            z-index: 100;
+        }
+        
+        #ws-status.connected { background: #00ff88; color: #000; }
+        #ws-status.disconnected { background: #ff4757; color: #fff; }
+        #ws-status.connecting { background: #ffa502; color: #000; }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <!-- Login Overlay -->
+    <div id="login-overlay">
+        <div id="login-box">
+            <h1>TasiaNGC</h1>
+            <p class="subtitle">Web Viewer for OpenSim</p>
+            
+            <input type="text" id="first-name" placeholder="First Name" autocomplete="off">
+            <input type="text" id="last-name" placeholder="Last Name" autocomplete="off">
+            <input type="password" id="password" placeholder="Password" autocomplete="off">
+            <input type="text" id="start-region" placeholder="Start Region (default: last)" autocomplete="off">
+            
+            <button id="login-btn" onclick="doLogin()">Connect</button>
+            
+            <p class="error-msg" id="error-msg"></p>
+        </div>
+    </div>
+    
+    <!-- WebSocket Status -->
+    <div id="ws-status" class="disconnected">WS: Disconnected</div>
+    
+    <!-- Top Bar -->
+    <div id="top-bar">
+        <div class="user-info">
+            <span id="user-name">Not logged in</span>
+        </div>
+        <div class="controls">
+            <button onclick="toggleChat()">Chat</button>
+            <button onclick="toggleMinimap()">Map</button>
+            <button onclick="toggleUsers()">Users</button>
+            <button onclick="doLogout()">Logout</button>
+        </div>
+    </div>
+    
+    <!-- Chat Panel -->
+    <div id="chat-panel">
+        <div id="chat-header">
+            <h3>Local Chat</h3>
+            <button id="chat-close" onclick="toggleChat()">&times;</button>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-container">
+            <input type="text" id="chat-input" placeholder="Type a message..." onkeypress="handleChatKey(event)">
+            <button id="chat-send" onclick="sendChat()">Send</button>
+        </div>
+    </div>
+    
+    <!-- Users Panel -->
+    <div id="users-panel">
+        <h4>Nearby Users</h4>
+        <div id="users-list"></div>
+    </div>
+    
+    <!-- Minimap -->
+    <div id="minimap">
+        <canvas id="minimap-canvas"></canvas>
+    </div>
+    
+    <!-- Status -->
+    <div id="status" class="connecting">
+        <span id="status-text">Connecting...</span>
+    </div>
+
+    <script>
+        // Global state
+        let ws = null;
+        let isConnected = false;
+        let agentId = null;
+        let sessionId = null;
+        
+        // Babylon.js
+        let engine, scene, camera;
+        let avatar = null;
+        let otherAvatars = {};
+        
+        // Movement
+        let controls = 0;
+        let keys = {};
+        
+        // WebSocket URL - connect to local server
+        const WS_URL = `ws://${window.location.hostname}:9002`;
+        
+        // Initialize Babylon.js
+        function initBabylon() {
+            const canvas = document.getElementById('renderCanvas');
+            engine = new BABYLON.Engine(canvas, true);
+            
+            scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0.05, 0.05, 0.1, 1);
+            
+            // Camera
+            camera = new BABYLON.ArcRotateCamera("camera", -Math.PI/2, Math.PI/3, 50, BABYLON.Vector3.Zero(), scene);
+            camera.attachControl(canvas, true);
+            camera.lowerRadiusLimit = 5;
+            camera.upperRadiusLimit = 200;
+            camera.wheelPrecision = 20;
+            
+            // Light
+            const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+            light.intensity = 0.7;
+            
+            const dirLight = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-1, -2, -1), scene);
+            dirLight.intensity = 0.5;
+            
+            // Ground
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 256, height: 256}, scene);
+            const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+            groundMat.diffuseColor = new BABYLON.Color3(0.2, 0.4, 0.2);
+            groundMat.specularColor = new BABYLON.Color3(0, 0, 0);
+            ground.material = groundMat;
+            
+            // Grid
+            createGrid();
+            
+            // Render loop
+            engine.runRenderLoop(() => {
+                scene.render();
+                
+                // Send position updates
+                if (isConnected && avatar) {
+                    sendPositionUpdate();
+                }
+            });
+            
+            window.addEventListener('resize', () => {
+                engine.resize();
+            });
+            
+            // Keyboard controls
+            window.addEventListener('keydown', (e) => {
+                keys[e.key.toLowerCase()] = true;
+                updateControls();
+            });
+            
+            window.addEventListener('keyup', (e) => {
+                keys[e.key.toLowerCase()] = false;
+                updateControls();
+            });
+        }
+        
+        function createGrid() {
+            const gridSize = 256;
+            
+            for (let i = 0; i <= gridSize; i += 16) {
+                const lineX = BABYLON.MeshBuilder.CreateLines("lineX" + i, {
+                    points: [new BABYLON.Vector3(i, 0.01, 0), new BABYLON.Vector3(i, 0.01, gridSize)]
+                }, scene);
+                lineX.color = new BABYLON.Color3(0.2, 0.2, 0.2);
+                
+                const lineZ = BABYLON.MeshBuilder.CreateLines("lineZ" + i, {
+                    points: [new BABYLON.Vector3(0, 0.01, i), new BABYLON.Vector3(gridSize, 0.01, i)]
+                }, scene);
+                lineZ.color = new BABYLON.Color3(0.2, 0.2, 0.2);
+            }
+        }
+        
+        function updateControls() {
+            controls = 0;
+            // WASD or Arrow keys
+            if (keys['w'] || keys['arrowup']) controls |= 0x01;  // Forward
+            if (keys['s'] || keys['arrowdown']) controls |= 0x02; // Backward
+            if (keys['a'] || keys['arrowleft']) controls |= 0x04; // Left
+            if (keys['d'] || keys['arrowright']) controls |= 0x08; // Right
+            if (keys['e']) controls |= 0x10; // Up
+            if (keys['c']) controls |= 0x20; // Down
+            if (keys[' ']) controls |= 0x100; // Jump
+            if (keys['f']) controls |= 0x200; // Fly toggle
+        }
+        
+        function sendPositionUpdate() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            
+            // Get camera target position
+            const target = camera.target;
+            const position = [target.x, target.y, target.z];
+            
+            ws.send(JSON.stringify({
+                cmd: 'move',
+                position: position,
+                controls: controls
+            }));
+        }
+        
+        function createAvatarMesh(position, name, color) {
+            const group = new BABYLON.TransformNode(name, scene);
+            
+            // Body
+            const body = BABYLON.MeshBuilder.CreateCylinder("body_" + name, {
+                height: 1.7,
+                diameterTop: 0.4,
+                diameterBottom: 0.5
+            }, scene);
+            body.parent = group;
+            body.position.y = 0.85;
+            
+            // Head
+            const head = BABYLON.MeshBuilder.CreateSphere("head_" + name, {
+                diameter: 0.4
+            }, scene);
+            head.parent = group;
+            head.position.y = 1.9;
+            
+            // Material
+            const mat = new BABYLON.StandardMaterial("mat_" + name, scene);
+            mat.diffuseColor = color || new BABYLON.Color3(0, 0.8, 1);
+            body.material = mat;
+            head.material = mat;
+            
+            group.position = new BABYLON.Vector3(position[0], position[1], position[2]);
+            
+            return group;
+        }
+        
+        // WebSocket connection
+        function connectWebSocket() {
+            return new Promise((resolve, reject) => {
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    isConnected = true;
+                    updateWSStatus('connected');
+                    resolve();
+                };
+                
+                ws.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    isConnected = false;
+                    updateWSStatus('disconnected');
+                    
+                    // Try to reconnect after 3 seconds
+                    setTimeout(() => {
+                        if (!isConnected) {
+                            connectWebSocket();
+                        }
+                    }, 3000);
+                };
+                
+                ws.onerror = (e) => {
+                    console.error('WebSocket error:', e);
+                    updateWSStatus('disconnected');
+                    reject(e);
+                };
+                
+                ws.onmessage = (e) => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        handleMessage(data);
+                    } catch (err) {
+                        console.error('Failed to parse message:', err);
+                    }
+                };
+            });
+        }
+        
+        function updateWSStatus(status) {
+            const el = document.getElementById('ws-status');
+            el.className = status;
+            el.textContent = `WS: ${status.charAt(0).toUpperCase() + status.slice(1)}`;
+        }
+        
+        function handleMessage(data) {
+            switch (data.type) {
+                case 'login_success':
+                    agentId = data.agent_id;
+                    sessionId = data.session_id;
+                    
+                    // Create avatar
+                    avatar = createAvatarMesh(new BABYLON.Vector3(128, 0, 128), 'me', new BABYLON.Color3(0, 1, 0.5));
+                    camera.setTarget(avatar.position);
+                    
+                    // Update UI
+                    document.getElementById('login-overlay').style.display = 'none';
+                    document.getElementById('top-bar').style.display = 'flex';
+                    document.getElementById('user-name').textContent = document.getElementById('first-name').value + ' ' + document.getElementById('last-name').value;
+                    document.getElementById('status').style.display = 'block';
+                    document.getElementById('status').className = 'connected';
+                    document.getElementById('status-text').textContent = `Connected to region`;
+                    
+                    addChatMessage('System', 'Welcome to TasiaNGC!');
+                    break;
+                    
+                case 'error':
+                    showError(data.message);
+                    break;
+                    
+                case 'chat':
+                    addChatMessage(data.from, data.message);
+                    break;
+                    
+                case 'region_handshake':
+                    document.getElementById('status-text').textContent = 'Region handshake complete';
+                    break;
+                    
+                case 'movement_complete':
+                    document.getElementById('status-text').textContent = 'Movement complete';
+                    break;
+                    
+                case 'coarse_location':
+                    // Parse coarse location update to show other avatars
+                    // For now, just log
+                    console.log('Coarse location update received');
+                    break;
+                    
+                case 'object_update':
+                    // Parse and display objects/avatars
+                    console.log('Object update received');
+                    break;
+                    
+                case 'logout_success':
+                    document.getElementById('login-overlay').style.display = 'flex';
+                    document.getElementById('top-bar').style.display = 'none';
+                    document.getElementById('chat-panel').style.display = 'none';
+                    document.getElementById('minimap').style.display = 'none';
+                    document.getElementById('users-panel').style.display = 'none';
+                    document.getElementById('status').style.display = 'none';
+                    
+                    // Clear scene
+                    if (avatar) {
+                        avatar.dispose();
+                        avatar = null;
+                    }
+                    break;
+                    
+                case 'info':
+                    console.log('Info:', data.message);
+                    break;
+            }
+        }
+        
+        // Login function
+        async function doLogin() {
+            const firstName = document.getElementById('first-name').value.trim();
+            const lastName = document.getElementById('last-name').value.trim();
+            const password = document.getElementById('password').value;
+            const startRegion = document.getElementById('start-region').value.trim() || 'last';
+            
+            if (!firstName || !lastName || !password) {
+                showError('Please fill in all fields');
+                return;
+            }
+            
+            // Connect WebSocket first
+            try {
+                await connectWebSocket();
+            } catch (e) {
+                showError('Could not connect to server. Is the WebSocket server running?');
+                return;
+            }
+            
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loader"></div>';
+            
+            // Send login command
+            ws.send(JSON.stringify({
+                cmd: 'login',
+                first: firstName,
+                last: lastName,
+                password: password,
+                start: startRegion
+            }));
+            
+            // Reset button after timeout
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = 'Connect';
+            }, 10000);
+        }
+        
+        function showError(msg) {
+            const errorEl = document.getElementById('error-msg');
+            errorEl.textContent = msg;
+            errorEl.style.display = 'block';
+            setTimeout(() => { errorEl.style.display = 'none'; }, 5000);
+        }
+        
+        function doLogout() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ cmd: 'logout' }));
+            }
+        }
+        
+        // Chat
+        function toggleChat() {
+            const panel = document.getElementById('chat-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (message && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    cmd: 'chat',
+                    message: message
+                }));
+                input.value = '';
+            }
+        }
+        
+        function handleChatKey(e) {
+            if (e.key === 'Enter') sendChat();
+        }
+        
+        function addChatMessage(sender, message) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.innerHTML = `<div class="sender">${sender}</div><div>${message}</div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // Minimap
+        function toggleMinimap() {
+            const minimap = document.getElementById('minimap');
+            minimap.style.display = minimap.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        // Users
+        function toggleUsers() {
+            const users = document.getElementById('users-panel');
+            users.style.display = users.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        // Initialize
+        window.addEventListener('DOMContentLoaded', initBabylon);
+    </script>
+</body>
+</html>

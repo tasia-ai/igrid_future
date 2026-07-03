@@ -1,0 +1,61 @@
+; Tranquillity additions (OpenSim/Region)
+; Copy the sections you need into OpenSim.ini (or include files).
+
+[Startup]
+  ; Required for the remote sound script call if not using auto-loaded add-ons.
+  ; region_modules = "TasiaAddon.RemoteSound.dll"
+
+[LoginService]
+  ; Dynamic welcome message (fetched on each login) with fallback.
+  MessageUrl = https://example.com/welcome.txt
+  WelcomeMessage = Welcome to Tranquillity!
+
+[Marketplace]
+  Enabled = true
+  ; Required secret for /send requests and the "send" console command.
+  Password = change-me
+
+[ChatAudit]
+  Enabled = true
+  LogFile = Data/chat-audit.log
+  ApiPath = /addons/chat-audit
+  ApiToken = change-me
+  RecentEntryLimit = 500
+
+[NGC.Sound]
+  Enable = true
+  AllowHTTPSOnly = true
+  MaxFileBytes = 10485760
+  CacheDir = ./data/ngc-sound-cache
+  CacheTTLSeconds = 3600
+  PerObjectRatePerSec = 2
+  PerRegionRatePerSec = 20
+  AllowedDomains = cutegrid.net,cdn.cutegrid.net,example.com
+  DeniedDomains =
+  AllowScriptOwners = 00000000-0000-0000-0000-000000000000
+  DefaultFallbackSound = 01234567-89ab-cdef-0123-456789abcdef
+
+[UserProfiles]
+  ; URL to the UserProfilesService (usually Robust).
+  ProfileServiceURL = ${Const|BaseURL}:${Const|PublicPort}
+  ; AllowUserProfileWebURLs = true
+
+  ; Enable the SetBadge capability for profile updates.
+  EnableSetBadge = true
+
+  ; Optional: allow administrators/gods to update other avatars via SetBadge.
+  ; Default is false (deny).
+  AllowSetBadgeAdminOverride = false
+
+[WebRtcVoice]
+  Enabled = true
+  SpatialVoiceService = WebRtcVoice.dll:WebRtcVoiceServiceConnector
+  NonSpatialVoiceService = WebRtcVoice.dll:WebRtcVoiceServiceConnector
+  WebRtcVoiceServerURI = ${Const|PrivURL}:${Const|PrivatePort}
+
+; Uncomment when using a local Janus server for spatial voice.
+;[JanusWebRtcVoice]
+;  JanusGatewayURI = http://janus.example.org:14223/voice
+;  APIToken = APITokenToNeverCheckIn
+;  JanusGatewayAdminURI = http://janus.example.org/admin
+;  AdminAPIToken = AdminAPITokenToNeverCheckIn

@@ -1,0 +1,13 @@
+; Profile badge / customer_type storage (Robust)
+
+[ServiceList]
+  ; Enable the UserProfiles service connector.
+  UserProfilesServiceConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:UserProfilesConnector"
+
+[UserProfilesService]
+  Enabled = true
+  LocalServiceModule = "OpenSim.Services.UserProfilesService.dll:UserProfilesService"
+  ; ConnectionString = "Data Source=localhost;Database=opensim;User ID=opensim;Password=***;"
+  ; Realm = UserProfiles
+
+; The customer_type value is stored in the userprofile table.
