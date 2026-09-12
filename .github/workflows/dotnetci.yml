@@ -18,9 +18,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: opensim-linux-x64
+            artifact: opensim-linux
+            package: opensim-linux.tar.gz
           - os: windows-latest
-            artifact: opensim-windows-x64
+            artifact: opensim-windows
+            package: opensim-windows.zip
 
     runs-on: ${{ matrix.os }}
 
@@ -72,14 +74,34 @@ jobs:
       - name: Package build output
         shell: pwsh
         run: |
-          if (Test-Path artifacts) { Remove-Item artifacts -Recurse -Force }
+          if (Test-Path artifacts) {
+            Remove-Item artifacts -Recurse -Force
+          }
           New-Item -ItemType Directory -Path artifacts | Out-Null
-          Copy-Item build/Release/* artifacts/ -Recurse -Force
 
-      - name: Upload compiled binaries
+          if ("${{ runner.os }}" -eq "Linux") {
+            tar -czf "artifacts/${{ matrix.package }}" -C build/Release .
+            if ($LASTEXITCODE -ne 0) {
+              throw "tar failed with exit code $LASTEXITCODE"
+            }
+          }
+          elseif ("${{ runner.os }}" -eq "Windows") {
+            Compress-Archive -Path "build/Release/*" -DestinationPath "artifacts/${{ matrix.package }}" -CompressionLevel Optimal
+          }
+          else {
+            throw "Unsupported runner OS: ${{ runner.os }}"
+          }
+
+          $package = Get-Item "artifacts/${{ matrix.package }}" -ErrorAction Stop
+          if ($package.Length -le 0) {
+            throw "Package is empty: $($package.FullName)"
+          }
+          Write-Host "Created package: $($package.FullName) ($($package.Length) bytes)"
+
+      - name: Upload compiled package
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: artifacts/
+          path: artifacts/${{ matrix.package }}
           if-no-files-found: error
           retention-days: 14
