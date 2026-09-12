@@ -27,6 +27,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The repository contains an archival lowercase docs/ path with a
+          # filename that is legal on Linux but illegal on Windows (":").
+          # It is not part of the build, so exclude only that tree.
+          sparse-checkout: |
+            /*
+            !/docs/
+          sparse-checkout-cone-mode: false
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -36,8 +44,8 @@ jobs:
       - name: Show .NET information
         run: dotnet --info
 
-      - name: Restore
-        run: dotnet restore OpenSim.sln
+      - name: Restore Release dependencies
+        run: dotnet restore OpenSim.sln -p:Configuration=Release
 
       - name: Build Release
         run: dotnet build OpenSim.sln --configuration Release --no-restore
