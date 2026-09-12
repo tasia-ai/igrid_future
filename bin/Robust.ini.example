@@ -45,12 +45,15 @@
 [Startup]
     ;# {MemoryLimit} {} {Maximum process working set before forced GC (soft limit)} {} 2GB
     ;; Enforced by the MemoryLimiter watchdog. Accepts e.g. "2GB", "1536MB" or a
-    ;; plain byte count. "0" / "unlimited" disables the watchdog. Default: 2GB.
+    ;; number of MB. "0" / "unlimited" disables all limiting. Default: 2GB.
     MemoryLimit = 2GB
+
+    ;; A bare numeric value is megabytes: 0 = unlimited, 2048 = 2048 MB.
 
     ; Place to create a PID file
     ; If no path if specified then a PID file is not created.
     ; PIDFile = "/tmp/Robust.exe.pid"
+
 
     ; Plugin Registry Location
     ; Set path to directory for plugin registry. Information
@@ -652,3 +655,15 @@
     ;; ConnectionString = "Data Source=localhost;Database=robust;User ID=robust;Password=*****;Old Guids=true;CharSet=utf8mb4;"
 
     UserAccountService = "OpenSim.Services.UserAccountService.dll:UserAccountService"
+
+[QuickG]
+    ;; "auto" starts the bundled quic-go compatibility helper on Windows 10.
+    ;; Windows 11 and non-Windows systems continue to use native QUIC. Set true
+    ;; to force the helper, or false to disable it.
+    Enabled = auto
+    Executable = Quick-G.exe
+    Port = 9001
+    ControlPort = 19001
+    CertificatePath = SSL/quic/quic-cert.pem
+    PrivateKeyPath = SSL/quic/quic-key.pem
+    ALPN = opensim-ll/1
