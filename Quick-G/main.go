@@ -13,7 +13,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -48,7 +47,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go monitorParentPipe(ctx, *parent, cancel)
+	go monitorParent(ctx, *parent, cancel)
 
 	pair, err := tls.LoadX509KeyPair(*cert, *key)
 	if err != nil {
@@ -59,7 +58,7 @@ func main() {
 		log.Fatalf("listen: %v", err)
 	}
 	defer listener.Close()
-	go serveControl(ctx, *control)
+	go serveControl(ctx, *control, cancel)
 	go func() { <-ctx.Done(); listener.Close() }()
 	log.Printf("Quick-G listening on UDP %d (parent %d)", *port, *parent)
 	for {
@@ -75,11 +74,19 @@ func main() {
 	}
 }
 
-func serveControl(ctx context.Context, port int) {
+func serveControl(ctx context.Context, port int, cancel context.CancelFunc) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{"ready":true}`)
+	})
+	mux.HandleFunc("/shutdown", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		io.WriteString(w, `{"stopping":true}`)
+		go cancel()
 	})
 	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
 		var v registration
@@ -199,17 +206,4 @@ func findRoute(packet []byte) (uint32, string) {
 		}
 	}
 	return 0, ""
-}
-
-// ROBUST owns the write end of this anonymous pipe.  The OS closes it even for
-// a crash or forced termination, avoiding unreliable PID reuse/polling races.
-func monitorParentPipe(ctx context.Context, pid int, cancel context.CancelFunc) {
-	done := make(chan struct{})
-	go func() { io.Copy(io.Discard, os.Stdin); close(done) }()
-	select {
-	case <-ctx.Done():
-	case <-done:
-		log.Printf("parent %d exited", pid)
-		cancel()
-	}
 }

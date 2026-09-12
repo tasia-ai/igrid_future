@@ -136,6 +136,7 @@
     FriendsServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:FriendsServiceConnector"
     MapAddServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:MapAddServiceConnector"
     MapGetServiceConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:MapGetServiceConnector"
+    QuicProxyConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:QuicProxyConnector"
     ;; Uncomment this if you want experience tools to work
     ; ExperienceServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:ExperienceServiceConnector"
     ;; Uncomment this if you want offline IM to work
@@ -905,12 +906,23 @@
 
     UserAccountService = "OpenSim.Services.UserAccountService.dll:UserAccountService"
 
+[QuicProxy]
+    ;; Central viewer-facing QUIC proxy. Quick-G replaces only its native
+    ;; listener on Windows 10; registration endpoints remain in ROBUST.
+    Enabled = true
+    Port = 9001
+    ALPN = opensim-ll/1
+    CertificatePath = SSL/quic/quic-cert.pem
+    PrivateKeyPath = SSL/quic/quic-key.pem
+
 [QuickG]
     ;; Automatically managed Windows 10 QUIC compatibility helper.
     Enabled = auto
     Executable = Quick-G.exe
     Port = 9001
     ControlPort = 19001
+    ;; Windows defaults to false: wait for SPACE and retry instead of native QUIC.
+    AllowNativeQuicFallback = false
     CertificatePath = SSL/quic/quic-cert.pem
     PrivateKeyPath = SSL/quic/quic-key.pem
     ALPN = opensim-ll/1
