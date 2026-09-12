@@ -71,10 +71,9 @@ jobs:
 
                   relative_parts = parts[1:]
 
-                  # The repository contains both Docs/ and docs/.  Windows is
-                  # case-insensitive, so preserve the normal Docs/ tree but
-                  # completely skip the archival lowercase docs/ tree which
-                  # contains filenames illegal on Windows (for example ':').
+                  # The repository contains both Docs/ and docs/. Windows is
+                  # case-insensitive, so preserve Docs/ but completely skip
+                  # lowercase archival docs/, which contains illegal names.
                   if relative_parts[0] == 'docs':
                       skipped_docs += 1
                       continue
@@ -171,10 +170,62 @@ jobs:
           }
           Write-Host "Created package: $($package.FullName) ($($package.Length) bytes)"
 
-      - name: Upload compiled package
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: artifacts/${{ matrix.package }}
-          if-no-files-found: error
-          retention-days: 14
+      - name: Upload compiled package to build server by FTP
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          FTP_HOST: easierit.org
+          FTP_USER: tasiagit
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_REMOTE_DIR: git
+          PACKAGE_NAME: ${{ matrix.package }}
+        run: |
+          @'
+          import ftplib
+          import os
+          import pathlib
+          import sys
+
+          host = os.environ['FTP_HOST']
+          user = os.environ['FTP_USER']
+          password = os.environ.get('FTP_PASSWORD', '')
+          remote_dir = os.environ['FTP_REMOTE_DIR'].strip('/')
+          package_name = os.environ['PACKAGE_NAME']
+          local_path = pathlib.Path('artifacts') / package_name
+
+          if not password:
+              print('FTP_PASSWORD GitHub secret is not configured; skipping FTP upload.')
+              sys.exit(0)
+
+          if not local_path.is_file() or local_path.stat().st_size <= 0:
+              raise RuntimeError(f'Package missing or empty: {local_path}')
+
+          print(f'Connecting to {host} as {user}...')
+          with ftplib.FTP(host, timeout=120) as ftp:
+              ftp.login(user=user, passwd=password)
+              ftp.set_pasv(True)
+
+              if remote_dir:
+                  for part in remote_dir.split('/'):
+                      if not part:
+                          continue
+                      try:
+                          ftp.cwd(part)
+                      except ftplib.error_perm:
+                          ftp.mkd(part)
+                          ftp.cwd(part)
+
+              temp_name = package_name + '.uploading'
+              print(f'Uploading {local_path} -> {remote_dir}/{package_name}')
+              with local_path.open('rb') as source:
+                  ftp.storbinary(f'STOR {temp_name}', source, blocksize=1024 * 1024)
+
+              try:
+                  ftp.delete(package_name)
+              except ftplib.error_perm:
+                  pass
+
+              ftp.rename(temp_name, package_name)
+
+          print(f'FTP upload complete: {package_name}')
+          '@ | python -
