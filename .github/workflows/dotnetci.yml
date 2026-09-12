@@ -195,6 +195,9 @@ jobs:
           package_name = os.environ['PACKAGE_NAME']
           local_path = pathlib.Path('artifacts') / package_name
 
+          max_attempts = 5
+          block_size = 256 * 1024
+
           if not password:
               raise RuntimeError('FTP_PASSWORD GitHub secret is not configured')
 
@@ -203,9 +206,12 @@ jobs:
 
           total_bytes = local_path.stat().st_size
           total_mib = total_bytes / (1024 * 1024)
+          temp_name = package_name + '.uploading'
+          remote_path = f'/{remote_dir}/{package_name}' if remote_dir else f'/{package_name}'
 
-          print(f'Connecting by plain FTP to {host}:{port} as {user}...', flush=True)
-          with ftplib.FTP() as ftp:
+          def connect_ftp():
+              print(f'Connecting by plain FTP to {host}:{port} as {user}...', flush=True)
+              ftp = ftplib.FTP()
               ftp.connect(host=host, port=port, timeout=600)
               ftp.login(user=user, passwd=password)
               ftp.set_pasv(True)
@@ -224,42 +230,163 @@ jobs:
                           ftp.mkd(directory)
                           ftp.cwd(directory)
 
-              temp_name = package_name + '.uploading'
-              remote_path = f'/{remote_dir}/{package_name}' if remote_dir else f'/{package_name}'
-              print(f'Uploading {local_path} -> {remote_path}', flush=True)
-              print(f'Package size: {total_mib:.1f} MiB', flush=True)
+              return ftp
 
-              progress = {
-                  'bytes': 0,
-                  'started': time.monotonic(),
-                  'last_report': 0.0,
-              }
+          def remote_size(ftp, name):
+              try:
+                  ftp.voidcmd('TYPE I')
+                  value = ftp.size(name)
+                  return int(value or 0)
+              except ftplib.error_perm as exc:
+                  if str(exc).startswith('550'):
+                      return 0
+                  raise
 
-              def upload_progress(block):
-                  progress['bytes'] += len(block)
-                  now = time.monotonic()
-                  finished = progress['bytes'] >= total_bytes
+          print(f'Uploading {local_path} -> {remote_path}', flush=True)
+          print(f'Package size: {total_mib:.1f} MiB', flush=True)
 
-                  if not finished and now - progress['last_report'] < 5.0:
-                      return
+          uploaded = False
+          last_error = None
 
-                  elapsed = max(now - progress['started'], 0.001)
-                  uploaded_mib = progress['bytes'] / (1024 * 1024)
-                  speed_mib = uploaded_mib / elapsed
-                  percent = min(progress['bytes'] * 100.0 / total_bytes, 100.0)
+          for attempt in range(1, max_attempts + 1):
+              ftp = None
+              try:
+                  print(f'FTP upload attempt {attempt}/{max_attempts}', flush=True)
+                  ftp = connect_ftp()
+
+                  offset = remote_size(ftp, temp_name)
+                  if offset > total_bytes:
+                      print(
+                          f'Remote temporary file is larger than local file '
+                          f'({offset} > {total_bytes}); restarting from zero.',
+                          flush=True,
+                      )
+                      ftp.delete(temp_name)
+                      offset = 0
+                  elif offset == total_bytes:
+                      print('Temporary upload is already complete; finalizing it.', flush=True)
+                      uploaded = True
+                      break
+                  elif offset > 0:
+                      print(
+                          f'Resuming at {offset / (1024 * 1024):.1f} / '
+                          f'{total_mib:.1f} MiB ({offset * 100.0 / total_bytes:.1f}%).',
+                          flush=True,
+                      )
+                  else:
+                      print('Starting upload from 0.0 MiB.', flush=True)
+
+                  progress = {
+                      'bytes': offset,
+                      'started': time.monotonic(),
+                      'attempt_start_bytes': offset,
+                      'last_report': 0.0,
+                  }
+
+                  def upload_progress(block):
+                      progress['bytes'] += len(block)
+                      now = time.monotonic()
+                      finished = progress['bytes'] >= total_bytes
+
+                      if not finished and now - progress['last_report'] < 5.0:
+                          return
+
+                      elapsed = max(now - progress['started'], 0.001)
+                      transferred_this_attempt = progress['bytes'] - progress['attempt_start_bytes']
+                      speed_mib = transferred_this_attempt / (1024 * 1024) / elapsed
+                      uploaded_mib = progress['bytes'] / (1024 * 1024)
+                      percent = min(progress['bytes'] * 100.0 / total_bytes, 100.0)
+                      print(
+                          f'FTP progress: {uploaded_mib:.1f} / {total_mib:.1f} MiB '
+                          f'({percent:.1f}%) @ {speed_mib:.2f} MiB/s',
+                          flush=True,
+                      )
+                      progress['last_report'] = now
+
+                  with local_path.open('rb') as source:
+                      source.seek(offset)
+                      try:
+                          ftp.storbinary(
+                              f'STOR {temp_name}',
+                              source,
+                              blocksize=block_size,
+                              callback=upload_progress,
+                              rest=offset if offset else None,
+                          )
+                      except ftplib.error_perm:
+                          if offset <= 0:
+                              raise
+
+                          # Some old FTP servers allow SIZE but reject REST for STOR.
+                          print(
+                              'Server rejected resumed STOR; restarting this attempt from zero.',
+                              flush=True,
+                          )
+                          try:
+                              ftp.delete(temp_name)
+                          except ftplib.error_perm as delete_exc:
+                              if not str(delete_exc).startswith('550'):
+                                  raise
+
+                          source.seek(0)
+                          progress['bytes'] = 0
+                          progress['attempt_start_bytes'] = 0
+                          progress['started'] = time.monotonic()
+                          progress['last_report'] = 0.0
+                          ftp.storbinary(
+                              f'STOR {temp_name}',
+                              source,
+                              blocksize=block_size,
+                              callback=upload_progress,
+                          )
+
+                  completed_size = remote_size(ftp, temp_name)
+                  if completed_size != total_bytes:
+                      raise RuntimeError(
+                          f'FTP upload size mismatch: remote={completed_size}, local={total_bytes}'
+                      )
+
+                  uploaded = True
+                  break
+
+              except (OSError, EOFError, TimeoutError, ftplib.error_temp, ftplib.error_reply, ftplib.error_proto) as exc:
+                  last_error = exc
                   print(
-                      f'FTP progress: {uploaded_mib:.1f} / {total_mib:.1f} MiB '
-                      f'({percent:.1f}%) @ {speed_mib:.2f} MiB/s',
+                      f'FTP connection/transfer failed on attempt {attempt}: '
+                      f'{type(exc).__name__}: {exc}',
                       flush=True,
                   )
-                  progress['last_report'] = now
+                  if attempt >= max_attempts:
+                      break
 
-              with local_path.open('rb') as source:
-                  ftp.storbinary(
-                      f'STOR {temp_name}',
-                      source,
-                      blocksize=1024 * 1024,
-                      callback=upload_progress,
+                  delay = attempt * 10
+                  print(
+                      f'Reconnecting in {delay}s; partial .uploading file will be resumed.',
+                      flush=True,
+                  )
+                  time.sleep(delay)
+
+              finally:
+                  if ftp is not None:
+                      try:
+                          ftp.quit()
+                      except Exception:
+                          try:
+                              ftp.close()
+                          except Exception:
+                              pass
+
+          if not uploaded:
+              raise RuntimeError(
+                  f'FTP upload failed after {max_attempts} attempts: {last_error}'
+              )
+
+          ftp = connect_ftp()
+          try:
+              completed_size = remote_size(ftp, temp_name)
+              if completed_size != total_bytes:
+                  raise RuntimeError(
+                      f'Cannot finalize FTP upload: remote={completed_size}, local={total_bytes}'
                   )
 
               try:
@@ -270,4 +397,9 @@ jobs:
 
               ftp.rename(temp_name, package_name)
               print(f'FTP upload complete: {remote_path}', flush=True)
+          finally:
+              try:
+                  ftp.quit()
+              except Exception:
+                  ftp.close()
           '@ | python -
