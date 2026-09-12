@@ -189,7 +189,7 @@ jobs:
 
             $downloaded = Get-Item $destination -ErrorAction Stop
             if ($downloaded.Length -ne $expectedSize) {
-              throw "Unexpected size for $name: $($downloaded.Length) bytes; expected $expectedSize"
+              throw "Unexpected size for ${name}: $($downloaded.Length) bytes; expected $expectedSize"
             }
 
             Write-Host "Verified $name ($($downloaded.Length) bytes)"
