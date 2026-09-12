@@ -124,34 +124,59 @@ jobs:
       - name: Build Release
         run: dotnet build OpenSim.sln --configuration Release --no-restore
 
-      - name: Restore Windows OpenJPEG native library
+      - name: Restore official OpenSim Windows native libraries
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $upstreamCommit = 'f358183cbbeb9a206a4d24d8be9715affc530e02'
-          $url = "https://raw.githubusercontent.com/opensim/opensim/$upstreamCommit/bin/lib64/openjpeg-dotnet-x86_64.dll"
+          $baseUrl = "https://raw.githubusercontent.com/opensim/opensim/$upstreamCommit/bin/lib64"
           $lib64 = 'build/Release/lib64'
-          $nativeDll = Join-Path $lib64 'openjpeg-dotnet-x86_64.dll'
 
-          New-Item -ItemType Directory -Path $lib64 -Force | Out-Null
-          Write-Host "Downloading official OpenSim Windows OpenJPEG native library..."
-          Invoke-WebRequest -Uri $url -OutFile $nativeDll
-
-          $nativeFile = Get-Item $nativeDll -ErrorAction Stop
-          if ($nativeFile.Length -ne 215040) {
-            throw "Unexpected OpenJPEG native DLL size: $($nativeFile.Length) bytes"
+          # Windows x64 native files shipped by the matching upstream OpenSim tree.
+          # Size checks make the build fail instead of silently packaging an HTML/404
+          # response or an incomplete DLL.
+          $nativeFiles = [ordered]@{
+            'BulletSim-2.86-20170903-x86_64.dll' = 1653760
+            'BulletSim-3.26-20231207-x86_64.dll' = 1005568
+            'BulletSim.dll'                       = 1005568
+            'BulletSimVersionInfo'                = 241
+            'e_sqlite3.dll'                       = 1911296
+            'openjpeg-dotnet-x86_64.dll'          = 215040
+            'sqlite3.dll'                         = 1083392
+            'ubode.dll'                           = 479232
           }
 
-          # OpenMetaverse.dll.config maps openjpeg-dotnet to the lib64 filename,
-          # while direct .NET P/Invoke may also probe beside the executable.
-          # Keep both names so the package works with either loading path.
-          Copy-Item $nativeDll 'build/Release/openjpeg-dotnet.dll' -Force
-          Copy-Item $nativeDll 'build/Release/openjpeg-dotnet-x86_64.dll' -Force
+          New-Item -ItemType Directory -Path $lib64 -Force | Out-Null
 
-          Write-Host "OpenJPEG native DLL restored: $($nativeFile.FullName) ($($nativeFile.Length) bytes)"
-          Get-Item 'build/Release/openjpeg-dotnet.dll', 'build/Release/openjpeg-dotnet-x86_64.dll' |
-            ForEach-Object { Write-Host "OpenJPEG alias: $($_.FullName) ($($_.Length) bytes)" }
+          foreach ($entry in $nativeFiles.GetEnumerator()) {
+            $name = $entry.Key
+            $expectedSize = [int64]$entry.Value
+            $destination = Join-Path $lib64 $name
+            $url = "$baseUrl/$name"
+
+            Write-Host "Downloading official OpenSim Windows native file: $name"
+            Invoke-WebRequest -Uri $url -OutFile $destination
+
+            $downloaded = Get-Item $destination -ErrorAction Stop
+            if ($downloaded.Length -ne $expectedSize) {
+              throw "Unexpected size for $name: $($downloaded.Length) bytes; expected $expectedSize"
+            }
+
+            Write-Host "Verified $name ($($downloaded.Length) bytes)"
+          }
+
+          # OpenMetaverse.dll.config maps the library inside lib64. Keep these
+          # root aliases too because direct .NET P/Invoke may probe beside the EXE.
+          $openJpeg = Join-Path $lib64 'openjpeg-dotnet-x86_64.dll'
+          Copy-Item $openJpeg 'build/Release/openjpeg-dotnet.dll' -Force
+          Copy-Item $openJpeg 'build/Release/openjpeg-dotnet-x86_64.dll' -Force
+
+          Write-Host 'Windows native library set restored successfully:'
+          Get-ChildItem $lib64 -File |
+            Where-Object { $_.Name -in $nativeFiles.Keys } |
+            Sort-Object Name |
+            ForEach-Object { Write-Host "  $($_.Name) - $($_.Length) bytes" }
 
       - name: Verify memory limiter assembly was built
         shell: pwsh
