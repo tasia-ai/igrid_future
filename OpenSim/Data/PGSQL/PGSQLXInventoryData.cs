@@ -128,7 +128,7 @@ namespace OpenSim.Data.PGSQL
 
         public XInventoryItem[] GetActiveGestures(UUID principalID)
         {
-            return m_Items.GetActiveGestures(principalID.ToString());
+            return m_Items.GetActiveGestures(principalID);
         }
 
         public int GetAssetPermissions(UUID principalID, UUID assetID)
@@ -150,6 +150,10 @@ namespace OpenSim.Data.PGSQL
             if (retrievedItems.Length == 0)
                 return false;
 
+            if (!UUID.TryParse(id, out UUID inventoryID) ||
+                !UUID.TryParse(newParent, out UUID newParentID))
+                return false;
+
             UUID oldParent = retrievedItems[0].parentFolderID;
 
             using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
@@ -157,8 +161,8 @@ namespace OpenSim.Data.PGSQL
                 using (NpgsqlCommand cmd = new NpgsqlCommand())
                 {
                     cmd.CommandText = String.Format(@"update {0} set ""parentFolderID"" = :ParentFolderID where ""inventoryID"" = :InventoryID", m_Realm);
-                    cmd.Parameters.Add(m_database.CreateParameter("ParentFolderID", newParent));
-                    cmd.Parameters.Add(m_database.CreateParameter("InventoryID", id ));
+                    cmd.Parameters.Add(m_database.CreateParameter("ParentFolderID", newParentID));
+                    cmd.Parameters.Add(m_database.CreateParameter("InventoryID", inventoryID));
                     cmd.Connection = conn;
                     conn.Open();
 
@@ -168,12 +172,12 @@ namespace OpenSim.Data.PGSQL
             }
 
             IncrementFolderVersion(oldParent);
-            IncrementFolderVersion(newParent);
+            IncrementFolderVersion(newParentID);
 
             return true;
         }
 
-        public XInventoryItem[] GetActiveGestures(string principalID)
+        public XInventoryItem[] GetActiveGestures(UUID principalID)
         {
             using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
             {
@@ -182,9 +186,6 @@ namespace OpenSim.Data.PGSQL
 //                    cmd.CommandText = String.Format(@"select * from inventoryitems where ""avatarID"" = :uuid and ""assetType"" = :type and ""flags"" = 1", m_Realm);
 
                     cmd.CommandText = String.Format(@"select * from inventoryitems where ""avatarID"" = :uuid and ""assetType"" = :type and ""flags"" = 1");
-
-                    UUID princID = UUID.Zero;
-                    UUID.TryParse(principalID, out princID);
 
                     cmd.Parameters.Add(m_database.CreateParameter("uuid", principalID));
                     cmd.Parameters.Add(m_database.CreateParameter("type", (int)AssetType.Gesture));
