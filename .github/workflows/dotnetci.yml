@@ -174,7 +174,7 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: pwsh
         env:
-          FTP_HOST: easierit.org
+          FTP_HOST: panel2.easierit.org
           FTP_PORT: '21'
           FTP_USER: tasiagit
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
