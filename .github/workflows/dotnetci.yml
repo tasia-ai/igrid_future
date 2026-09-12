@@ -185,6 +185,7 @@ jobs:
           import ftplib
           import os
           import pathlib
+          import time
 
           host = os.environ['FTP_HOST']
           port = int(os.environ.get('FTP_PORT', '21'))
@@ -200,9 +201,12 @@ jobs:
           if not local_path.is_file() or local_path.stat().st_size <= 0:
               raise RuntimeError(f'Package missing or empty: {local_path}')
 
-          print(f'Connecting by plain FTP to {host}:{port} as {user}...')
+          total_bytes = local_path.stat().st_size
+          total_mib = total_bytes / (1024 * 1024)
+
+          print(f'Connecting by plain FTP to {host}:{port} as {user}...', flush=True)
           with ftplib.FTP() as ftp:
-              ftp.connect(host=host, port=port, timeout=120)
+              ftp.connect(host=host, port=port, timeout=600)
               ftp.login(user=user, passwd=password)
               ftp.set_pasv(True)
               ftp.cwd('/')
@@ -216,16 +220,47 @@ jobs:
                       except ftplib.error_perm as exc:
                           if not str(exc).startswith('550'):
                               raise
-                          print(f'Creating FTP directory: {directory}')
+                          print(f'Creating FTP directory: {directory}', flush=True)
                           ftp.mkd(directory)
                           ftp.cwd(directory)
 
               temp_name = package_name + '.uploading'
               remote_path = f'/{remote_dir}/{package_name}' if remote_dir else f'/{package_name}'
-              print(f'Uploading {local_path} -> {remote_path}')
+              print(f'Uploading {local_path} -> {remote_path}', flush=True)
+              print(f'Package size: {total_mib:.1f} MiB', flush=True)
+
+              progress = {
+                  'bytes': 0,
+                  'started': time.monotonic(),
+                  'last_report': 0.0,
+              }
+
+              def upload_progress(block):
+                  progress['bytes'] += len(block)
+                  now = time.monotonic()
+                  finished = progress['bytes'] >= total_bytes
+
+                  if not finished and now - progress['last_report'] < 5.0:
+                      return
+
+                  elapsed = max(now - progress['started'], 0.001)
+                  uploaded_mib = progress['bytes'] / (1024 * 1024)
+                  speed_mib = uploaded_mib / elapsed
+                  percent = min(progress['bytes'] * 100.0 / total_bytes, 100.0)
+                  print(
+                      f'FTP progress: {uploaded_mib:.1f} / {total_mib:.1f} MiB '
+                      f'({percent:.1f}%) @ {speed_mib:.2f} MiB/s',
+                      flush=True,
+                  )
+                  progress['last_report'] = now
 
               with local_path.open('rb') as source:
-                  ftp.storbinary(f'STOR {temp_name}', source, blocksize=1024 * 1024)
+                  ftp.storbinary(
+                      f'STOR {temp_name}',
+                      source,
+                      blocksize=1024 * 1024,
+                      callback=upload_progress,
+                  )
 
               try:
                   ftp.delete(package_name)
@@ -234,5 +269,5 @@ jobs:
                       raise
 
               ftp.rename(temp_name, package_name)
-              print(f'FTP upload complete: {remote_path}')
+              print(f'FTP upload complete: {remote_path}', flush=True)
           '@ | python -
