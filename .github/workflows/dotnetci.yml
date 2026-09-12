@@ -175,6 +175,7 @@ jobs:
         shell: pwsh
         env:
           FTP_HOST: easierit.org
+          FTP_PORT: '21'
           FTP_USER: tasiagit
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           FTP_REMOTE_DIR: server
@@ -186,6 +187,7 @@ jobs:
           import pathlib
 
           host = os.environ['FTP_HOST']
+          port = int(os.environ.get('FTP_PORT', '21'))
           user = os.environ['FTP_USER']
           password = os.environ.get('FTP_PASSWORD', '')
           remote_dir = os.environ.get('FTP_REMOTE_DIR', 'server').strip('/ ')
@@ -198,31 +200,39 @@ jobs:
           if not local_path.is_file() or local_path.stat().st_size <= 0:
               raise RuntimeError(f'Package missing or empty: {local_path}')
 
-          print(f'Connecting to {host} as {user}...')
-          with ftplib.FTP(host, timeout=120) as ftp:
+          print(f'Connecting by plain FTP to {host}:{port} as {user}...')
+          with ftplib.FTP() as ftp:
+              ftp.connect(host=host, port=port, timeout=120)
               ftp.login(user=user, passwd=password)
               ftp.set_pasv(True)
+              ftp.cwd('/')
 
-              for directory in pathlib.PurePosixPath(remote_dir).parts:
-                  if directory in ('', '.'):
-                      continue
-                  try:
-                      ftp.mkd(directory)
-                  except ftplib.error_perm:
-                      pass
-                  ftp.cwd(directory)
+              if remote_dir:
+                  for directory in pathlib.PurePosixPath(remote_dir).parts:
+                      if directory in ('', '.', '/'):
+                          continue
+                      try:
+                          ftp.cwd(directory)
+                      except ftplib.error_perm as exc:
+                          if not str(exc).startswith('550'):
+                              raise
+                          print(f'Creating FTP directory: {directory}')
+                          ftp.mkd(directory)
+                          ftp.cwd(directory)
 
               temp_name = package_name + '.uploading'
-              print(f'Uploading {local_path} -> /{remote_dir}/{package_name}')
+              remote_path = f'/{remote_dir}/{package_name}' if remote_dir else f'/{package_name}'
+              print(f'Uploading {local_path} -> {remote_path}')
+
               with local_path.open('rb') as source:
                   ftp.storbinary(f'STOR {temp_name}', source, blocksize=1024 * 1024)
 
               try:
                   ftp.delete(package_name)
-              except ftplib.error_perm:
-                  pass
+              except ftplib.error_perm as exc:
+                  if not str(exc).startswith('550'):
+                      raise
 
               ftp.rename(temp_name, package_name)
-
-          print(f'FTP upload complete: /{remote_dir}/{package_name}')
+              print(f'FTP upload complete: {remote_path}')
           '@ | python -
