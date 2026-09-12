@@ -129,15 +129,33 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22.x'
+          cache: false
 
       - name: Compile Quick-G
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           Push-Location Quick-G
-          go mod download
+          # The source archive intentionally contains no generated module cache.
+          # Resolve all transitive modules and create go.sum before commands that
+          # default to read-only module mode on the Windows runner.
+          go get github.com/quic-go/quic-go@v0.48.2
+          if ($LASTEXITCODE -ne 0) {
+            throw "Quick-G dependency resolution failed with exit code $LASTEXITCODE"
+          }
+          go mod tidy
+          if ($LASTEXITCODE -ne 0) {
+            throw "go mod tidy failed with exit code $LASTEXITCODE"
+          }
           go test ./...
+          if ($LASTEXITCODE -ne 0) {
+            throw "Quick-G tests failed with exit code $LASTEXITCODE"
+          }
           go build -trimpath -ldflags "-s -w" -o ../build/Release/Quick-G.exe .
+          if ($LASTEXITCODE -ne 0) {
+            throw "Quick-G build failed with exit code $LASTEXITCODE"
+          }
           Pop-Location
           if (-not (Test-Path build/Release/Quick-G.exe)) {
             throw 'Quick-G.exe was not produced'
