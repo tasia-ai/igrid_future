@@ -188,6 +188,7 @@ namespace OpenSim.Server.Base
             }
 
             RegisterCommonCommands();
+            QuickGProcess.Start(Config);
             RegisterCommonComponents(Config);
 
             // Allow derived classes to perform initialization that
@@ -228,6 +229,7 @@ namespace OpenSim.Server.Base
                 MemoryWatchdog.Enabled = false;
                 Watchdog.Enabled = false;
                 WorkManager.Stop();
+                QuickGProcess.Stop();
                 RemovePIDFile();
             }
             return 0;
@@ -250,6 +252,7 @@ namespace OpenSim.Server.Base
                 MemoryWatchdog.Enabled = false;
                 Watchdog.Enabled = false;
                 WorkManager.Stop();
+                QuickGProcess.Stop();
                 RemovePIDFile();
                 Util.StopThreadPool();
 

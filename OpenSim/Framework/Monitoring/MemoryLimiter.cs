@@ -416,7 +416,7 @@ namespace OpenSim.Framework.Monitoring
 
         /// <summary>
         /// Parses a human readable size string such as "2GB", "1536MB", "4096K"
-        /// or a plain byte count. Empty/invalid input returns the fallback.
+        /// or a plain number of megabytes. Empty/invalid input returns the fallback.
         /// "0", "none" and "unlimited" return 0 (disabled).
         /// </summary>
         public static long ParseSizeString(string value, long fallback)
@@ -428,7 +428,9 @@ namespace OpenSim.Framework.Monitoring
             if (s == "0" || s == "none" || s == "unlimited" || s == "off" || s == "false")
                 return 0;
 
-            double multiplier = 1;
+            // MemoryLimit has historically been presented to administrators in MB.
+            // In particular, 2048 means 2048 MB (not 2048 bytes).
+            double multiplier = 1024 * 1024;
             if (s.EndsWith("kb"))
             {
                 multiplier = 1024;
@@ -446,6 +448,7 @@ namespace OpenSim.Framework.Monitoring
             }
             else if (s.EndsWith("b"))
             {
+                multiplier = 1;
                 s = s.Substring(0, s.Length - 1);
             }
 

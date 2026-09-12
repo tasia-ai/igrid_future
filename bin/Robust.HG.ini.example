@@ -52,12 +52,15 @@
 [Startup]
     ;# {MemoryLimit} {} {Maximum process working set before forced GC (soft limit)} {} 2GB
     ;; Enforced by the MemoryLimiter watchdog. Accepts e.g. "2GB", "1536MB" or a
-    ;; plain byte count. "0" / "unlimited" disables the watchdog. Default: 2GB.
+    ;; number of MB. "0" / "unlimited" disables all limiting. Default: 2GB.
     MemoryLimit = 2GB
+
+    ;; A bare numeric value is megabytes: 0 = unlimited, 2048 = 2048 MB.
 
     ; Place to create a PID file
     ; If no path if specified then a PID file is not created.
     ; PIDFile = "/tmp/Robust.exe.pid"
+
 
     ; Plugin Registry Location
     ; Set path to directory for plugin registry. Information
@@ -133,6 +136,7 @@
     FriendsServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:FriendsServiceConnector"
     MapAddServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:MapAddServiceConnector"
     MapGetServiceConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:MapGetServiceConnector"
+    QuicProxyConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:QuicProxyConnector"
     ;; Uncomment this if you want experience tools to work
     ; ExperienceServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:ExperienceServiceConnector"
     ;; Uncomment this if you want offline IM to work
@@ -901,3 +905,24 @@
     ;; ConnectionString = "Data Source=localhost;Database=robust;User ID=robust;Password=*****;Old Guids=true;CharSet=utf8mb4;"
 
     UserAccountService = "OpenSim.Services.UserAccountService.dll:UserAccountService"
+
+[QuicProxy]
+    ;; Central viewer-facing QUIC proxy. Quick-G replaces only its native
+    ;; listener on Windows 10; registration endpoints remain in ROBUST.
+    Enabled = true
+    Port = 9001
+    ALPN = opensim-ll/1
+    CertificatePath = SSL/quic/quic-cert.pem
+    PrivateKeyPath = SSL/quic/quic-key.pem
+
+[QuickG]
+    ;; Automatically managed Windows 10 QUIC compatibility helper.
+    Enabled = auto
+    Executable = Quick-G.exe
+    Port = 9001
+    ControlPort = 19001
+    ;; Windows defaults to false: wait for SPACE and retry instead of native QUIC.
+    AllowNativeQuicFallback = false
+    CertificatePath = SSL/quic/quic-cert.pem
+    PrivateKeyPath = SSL/quic/quic-key.pem
+    ALPN = opensim-ll/1
