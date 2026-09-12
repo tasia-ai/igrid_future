@@ -53,7 +53,6 @@ jobs:
             -OutFile $archive
 
           @'
-          import os
           import pathlib
           import shutil
           import sys
@@ -71,6 +70,11 @@ jobs:
                       continue
 
                   relative_parts = parts[1:]
+
+                  # The repository contains both Docs/ and docs/.  Windows is
+                  # case-insensitive, so preserve the normal Docs/ tree but
+                  # completely skip the archival lowercase docs/ tree which
+                  # contains filenames illegal on Windows (for example ':').
                   if relative_parts[0] == 'docs':
                       skipped_docs += 1
                       continue
@@ -90,7 +94,10 @@ jobs:
                       shutil.copyfileobj(source, output)
                   extracted += 1
 
-          print(f'Extracted {extracted} files; skipped {skipped_docs} docs entries.')
+          if skipped_docs == 0:
+              raise RuntimeError('Expected lowercase docs/ entries were not found in source archive')
+
+          print(f'Extracted {extracted} files; skipped {skipped_docs} lowercase docs/ entries.')
           '@ | Set-Content -Path $extractScript -Encoding UTF8
 
           python $extractScript $archive $PWD
@@ -100,9 +107,6 @@ jobs:
 
           if (-not (Test-Path 'OpenSim.sln')) {
             throw 'OpenSim.sln was not extracted'
-          }
-          if (Test-Path 'docs') {
-            throw 'Lowercase archival docs directory unexpectedly exists on Windows'
           }
 
           Write-Host 'Windows-safe source tree is ready.'
