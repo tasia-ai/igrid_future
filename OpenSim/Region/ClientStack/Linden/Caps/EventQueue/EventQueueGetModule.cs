@@ -83,7 +83,12 @@ namespace OpenSim.Region.ClientStack.Linden
         {
             IConfig quicConfig = config.Configs["ClientStack.Quic"];
             if (quicConfig == null)
+            {
+                // No per-sim QUIC config — default to enabled so EQ events
+                // still include QuicHost/QuicPort from the grid database.
+                m_quicAdvertiseEnabled = true;
                 return;
+            }
 
             bool quicEnabled = quicConfig.GetBoolean("Enabled", false);
             m_quicAdvertiseEnabled = quicConfig.GetBoolean("AdvertiseInEventQueue", quicEnabled);

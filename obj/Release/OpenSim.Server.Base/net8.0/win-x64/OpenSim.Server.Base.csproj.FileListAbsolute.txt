@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Server.Base.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Server.Base.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Server.Base.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/OpenSim.Server.Base.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/OpenSim.Server.Base.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/OpenSim.Server.Base.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/OpenSim.Server.Base.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/OpenSim..8531DD9D.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/OpenSim.Server.Base.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/refint/OpenSim.Server.Base.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/OpenSim.Server.Base.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/OpenSim.Server.Base.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Server.Base/net8.0/win-x64/ref/OpenSim.Server.Base.dll

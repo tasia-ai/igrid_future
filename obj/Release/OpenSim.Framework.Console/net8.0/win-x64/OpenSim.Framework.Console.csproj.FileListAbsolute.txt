@@ -1,0 +1,11 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Framework.Console.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Framework.Console.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Console/net8.0/win-x64/OpenSim.Framework.Console.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Console/net8.0/win-x64/OpenSim.Framework.Console.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Console/net8.0/win-x64/OpenSim.Framework.Console.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Console/net8.0/win-x64/OpenSim.Framework.Console.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Console/net8.0/win-x64/OpenSim..5A4EF5D4.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Console/net8.0/win-x64/OpenSim.Framework.Console.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Console/net8.0/win-x64/refint/OpenSim.Framework.Console.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Console/net8.0/win-x64/OpenSim.Framework.Console.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Console/net8.0/win-x64/ref/OpenSim.Framework.Console.dll

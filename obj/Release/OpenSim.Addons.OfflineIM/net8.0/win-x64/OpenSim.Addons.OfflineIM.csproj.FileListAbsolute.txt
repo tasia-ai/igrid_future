@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Addons.OfflineIM.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Addons.OfflineIM.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Addons.OfflineIM.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/OpenSim.Addons.OfflineIM.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/OpenSim.Addons.OfflineIM.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/OpenSim.Addons.OfflineIM.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/OpenSim.Addons.OfflineIM.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/OpenSim..8A026EDF.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/OpenSim.Addons.OfflineIM.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/refint/OpenSim.Addons.OfflineIM.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/OpenSim.Addons.OfflineIM.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/OpenSim.Addons.OfflineIM.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.OfflineIM/net8.0/win-x64/ref/OpenSim.Addons.OfflineIM.dll

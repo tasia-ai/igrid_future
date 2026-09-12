@@ -123,6 +123,10 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 // Start reading from the stream
                 _ = Task.Run(() => ReadStreamLoopAsync(m_cts.Token));
 
+                // Start keepalive ping loop to prevent idle timeout drops
+                if (m_config.KeepaliveMs > 0)
+                    _ = Task.Run(() => KeepaliveLoopAsync(m_cts.Token));
+
                 // Start accepting additional streams (we dispose them for now)
                 _ = Task.Run(() => AcceptAdditionalStreamsAsync(m_cts.Token));
             }
@@ -318,6 +322,49 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             {
                 if (!ct.IsCancellationRequested)
                     m_log.Warn($"[QuicClient] Additional stream accept error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Send periodic keepalive pings on the control stream to prevent
+        /// NAT/firewall/QUIC idle timeout from killing the connection.
+        /// Writes a zero-length frame marker ([00 00 00 00]) which ensures
+        /// actual bytes are sent on the wire, resetting the QUIC idle timer.
+        /// </summary>
+        private async Task KeepaliveLoopAsync(CancellationToken ct)
+        {
+            byte[] keepalive = PacketFraming.KeepaliveFrame;
+            try
+            {
+                while (!ct.IsCancellationRequested && m_connected && !m_disposed)
+                {
+                    await Task.Delay(m_config.KeepaliveMs, ct);
+
+                    if (m_disposed || m_controlStream == null)
+                        break;
+
+                    try
+                    {
+                        // Write a zero-length frame to ensure bytes hit the wire
+                        // and reset the QUIC connection idle timer on both sides.
+                        await m_controlStream.WriteAsync(keepalive.AsMemory(0, keepalive.Length), ct);
+                        await m_controlStream.FlushAsync(ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (!ct.IsCancellationRequested)
+                            m_log.Debug($"[QuicClient] Keepalive write error: {ex.Message}");
+                        break;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Normal shutdown
             }
         }
 

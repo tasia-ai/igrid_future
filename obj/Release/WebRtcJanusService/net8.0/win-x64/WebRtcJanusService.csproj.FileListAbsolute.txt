@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/WebRtcJanusService.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/WebRtcJanusService.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/WebRtcJanusService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/WebRtcJanusService.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/WebRtcJanusService.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/WebRtcJanusService.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/WebRtcJanusService.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/WebRtcJa.DD73FFFF.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/WebRtcJanusService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/refint/WebRtcJanusService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/WebRtcJanusService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/WebRtcJanusService.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcJanusService/net8.0/win-x64/ref/WebRtcJanusService.dll

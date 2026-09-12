@@ -260,6 +260,30 @@ namespace OpenSim.Region.ScriptEngine.Shared.ScriptBase
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void maGridSay(string name, string msg)
+        {
+            m_OSSL_Functions.maGridSay(name, msg);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void maGridSayIM(string name, LSL_Key agentID, string msg)
+        {
+            m_OSSL_Functions.maGridSayIM(name, agentID, msg);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void maSetAnimPriority(string nameOrID, int priority)
+        {
+            m_OSSL_Functions.maSetAnimPriority(nameOrID, priority);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void maChangeGridProfile(string who, string aboutText, LSL_Key profileImage, string firstLifeText, LSL_Key firstLifeImage, string webUrl, string accountTitle, string bornOn)
+        {
+            m_OSSL_Functions.maChangeGridProfile(who, aboutText, profileImage, firstLifeText, firstLifeImage, webUrl, accountTitle, bornOn);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool osConsoleCommand(string Command)
         {
             return m_OSSL_Functions.osConsoleCommand(Command);

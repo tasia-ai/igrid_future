@@ -1,0 +1,227 @@
+{
+  "format": 1,
+  "restore": {
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj": {}
+  },
+  "projects": {
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj",
+        "projectName": "OpenSim.Framework.Monitoring",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Release/OpenSim.Framework.Monitoring/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj",
+        "projectName": "OpenSim.Framework",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Release/OpenSim.Framework/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Mono.Addins": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.CecilReflector": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.Setup": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "System.Drawing.Common": {
+              "target": "Package",
+              "version": "[6.0.0, )"
+            },
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj",
+        "projectName": "SmartThreadPool",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Release/SmartThreadPool/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

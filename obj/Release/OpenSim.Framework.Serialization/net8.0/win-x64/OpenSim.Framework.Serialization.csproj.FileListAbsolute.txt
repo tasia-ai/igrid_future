@@ -1,0 +1,11 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Framework.Serialization.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Framework.Serialization.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Serialization/net8.0/win-x64/OpenSim.Framework.Serialization.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Serialization/net8.0/win-x64/OpenSim.Framework.Serialization.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Serialization/net8.0/win-x64/OpenSim.Framework.Serialization.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Serialization/net8.0/win-x64/OpenSim.Framework.Serialization.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Serialization/net8.0/win-x64/OpenSim..D432B73A.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Serialization/net8.0/win-x64/OpenSim.Framework.Serialization.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Serialization/net8.0/win-x64/refint/OpenSim.Framework.Serialization.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Serialization/net8.0/win-x64/OpenSim.Framework.Serialization.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.Serialization/net8.0/win-x64/ref/OpenSim.Framework.Serialization.dll

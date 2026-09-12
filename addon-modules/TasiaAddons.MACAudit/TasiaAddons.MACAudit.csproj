@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="log4net" Version="3.2.0" />
+    <PackageReference Include="MySqlConnector" Version="2.4.0" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
   <ItemGroup>
@@ -60,8 +61,13 @@
       <HintPath>$(SolutionDir)/bin/XMLRPC.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Mono.Addins">
+      <HintPath>$(SolutionDir)/bin/Mono.Addins.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)/addon-modules/TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
+    <ProjectReference Include="$(SolutionDir)/addon-modules/TasiaAddons.LoginSecurity/TasiaAddons.LoginSecurity.csproj" />
   </ItemGroup>
 </Project>

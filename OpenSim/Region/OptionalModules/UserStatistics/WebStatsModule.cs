@@ -42,7 +42,9 @@ using OpenSim.Framework.Servers;
 using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
+using System.Data;
 using System.Data.SQLite;
+using MySqlConnector;
 using Mono.Addins;
 
 using Caps = OpenSim.Framework.Capabilities.Caps;
@@ -58,7 +60,15 @@ namespace OpenSim.Region.UserStatistics
         private static readonly ILog m_log =
             LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
-        private static SQLiteConnection dbConn;
+        // FIXED: Changed from static to instance — prevents thread-unsafe sharing across module instances
+        private SQLiteConnection dbConn;
+
+        // MySQL dual-write support — writes same data to MySQL so Python dashboard can read it
+        private MySqlConnection m_mysqlConn;
+        private bool m_mysqlEnabled = false;
+        private string m_mysqlConnectionString = "";
+
+
 
         /// <summary>
         /// User statistics sessions keyed by agent ID
@@ -76,6 +86,16 @@ namespace OpenSim.Region.UserStatistics
         private string m_loglines = String.Empty;
         private volatile int lastHit = 12000;
 
+        // FIXED: Added configurable auth settings
+        private string m_authUsername = "admin";
+        private string m_authPassword = "sstats";
+        private bool m_authEnabled = false;
+        private string m_statsSecret = "";  // secret path segment to hide stats endpoint
+
+        // Heartbeat timer — writes region stats every 30s even when no users present
+        private System.Threading.Timer m_heartbeatTimer;
+        private const int HEARTBEAT_INTERVAL_MS = 30000;
+
         public WebStatsModule()
         {
         }
@@ -84,24 +104,76 @@ namespace OpenSim.Region.UserStatistics
 
         public virtual void Initialise(IConfigSource config)
         {
+            m_log.Info("[WEB STATS MODULE]: Initialise called");
+
             IConfig cnfg = config.Configs["WebStats"];
 
             if (cnfg != null)
+            {
                 enabled = cnfg.GetBoolean("enabled", false);
+
+                // FIXED: Read auth settings from config
+                m_authEnabled = cnfg.GetBoolean("AuthEnabled", false);
+                m_authUsername = cnfg.GetString("AuthUsername", "admin");
+                m_authPassword = cnfg.GetString("AuthPassword", "sstats");
+                m_statsSecret = cnfg.GetString("StatsSecret", "");
+
+                // MySQL dual-write: when configured, also write stats to MySQL
+                // so the Python SStats dashboard can read them.
+                // Format: "Data Source=localhost;Database=opensim;User ID=opensim;Password=xxx;SslMode=None;"
+                m_mysqlConnectionString = cnfg.GetString("MySQLConnectionString", "");
+                m_mysqlEnabled = !string.IsNullOrEmpty(m_mysqlConnectionString);
+            }
         }
 
         public virtual void PostInitialise()
         {
+            m_log.InfoFormat("[WEB STATS MODULE]: PostInitialise called, enabled={0}", enabled);
             if (!enabled)
                 return;
 
-            DllmapConfigHelper.RegisterAssembly(typeof(SQLiteConnection).Assembly);
+            m_log.Info("[WEB STATS MODULE]: Registering assemblies...");
 
-            //IConfig startupConfig = config.Configs["Startup"];
+            try
+            {
+                m_log.Info("[WEB STATS MODULE]: Opening SQLite...");
+                dbConn = new SQLiteConnection("URI=file:LocalUserStatistics.db,version=3");
+                dbConn.Open();
+                m_log.Info("[WEB STATS MODULE]: SQLite OK, creating tables...");
+                CreateTables(dbConn);
+                m_log.Info("[WEB STATS MODULE]: Tables OK");
+            }
+            catch (Exception ex)
+            {
+                m_log.WarnFormat("[WEB STATS MODULE]: SQLite init failed ({0}), continuing without local stats", ex.Message);
+            }
 
-            dbConn = new SQLiteConnection("URI=file:LocalUserStatistics.db,version=3");
-            dbConn.Open();
-            CreateTables(dbConn);
+            // MySQL dual-write: open connection per call (like MySQLFramework)
+            m_log.InfoFormat("[WEB STATS MODULE]: PostInitialise mysqlEnabled={0}, connStr={1}",
+                m_mysqlEnabled, string.IsNullOrEmpty(m_mysqlConnectionString) ? "EMPTY" : "SET");
+            if (m_mysqlEnabled)
+            {
+                try
+                {
+                    using (var testConn = new MySqlConnection(m_mysqlConnectionString))
+                    {
+                        testConn.Open();
+                    }
+                    CreateMySQLTable();
+                    m_log.InfoFormat("[WEB STATS MODULE]: MySQL dual-write enabled — stats will also be written to MySQL");
+
+                    // Start heartbeat timer — writes region stats even when no users present
+                    m_heartbeatTimer = new System.Threading.Timer(HeartbeatCallback, null,
+                        HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS);
+                    m_log.InfoFormat("[WEB STATS MODULE]: Heartbeat timer started ({0}s interval)",
+                        HEARTBEAT_INTERVAL_MS / 1000);
+                }
+                catch (Exception ex)
+                {
+                    m_log.ErrorFormat("[WEB STATS MODULE]: MySQL connection failed — falling back to SQLite-only: {0}", ex.Message);
+                    m_mysqlEnabled = false;
+                }
+            }
 
             Prototype_distributor protodep = new Prototype_distributor();
             Updater_distributor updatedep = new Updater_distributor();
@@ -133,7 +205,12 @@ namespace OpenSim.Region.UserStatistics
             // End Own reports section
             ////
 
-            MainServer.Instance.AddHTTPHandler("/SStats", HandleStatsRequest);
+            // FIXED: Support optional secret path prefix to hide stats endpoint
+            string statsPath = "/SStats";
+            if (!string.IsNullOrEmpty(m_statsSecret))
+                statsPath = "/SStats_" + m_statsSecret;
+
+            MainServer.Instance.AddHTTPHandler(statsPath, HandleStatsRequest);
             MainServer.Instance.AddHTTPHandler("/VS", HandleUnknownCAPSRequest);
         }
 
@@ -179,8 +256,20 @@ namespace OpenSim.Region.UserStatistics
             if (!enabled)
                 return;
 
+            // Stop heartbeat timer
+            m_heartbeatTimer?.Dispose();
+            m_heartbeatTimer = null;
+
             dbConn.Close();
             dbConn.Dispose();
+
+            // Close MySQL connection if dual-write was enabled
+            if (m_mysqlConn != null)
+            {
+                try { m_mysqlConn.Close(); m_mysqlConn.Dispose(); } catch { }
+                m_mysqlConn = null;
+            }
+
             m_sessions.Clear();
             m_scenes.Clear();
             reports.Clear();
@@ -252,6 +341,47 @@ namespace OpenSim.Region.UserStatistics
             return responsedata;
         }
 
+        // FIXED: Added HTTP Basic Auth check
+        private bool CheckAuth(Hashtable request)
+        {
+            if (!m_authEnabled)
+                return true;
+
+            // Check for Basic Auth header
+            if (request.ContainsKey("headers"))
+            {
+                Hashtable headers = request["headers"] as Hashtable;
+                if (headers != null && headers.ContainsKey("authorization"))
+                {
+                    string authHeader = headers["authorization"].ToString();
+                    if (authHeader.StartsWith("Basic "))
+                    {
+                        string decoded = Encoding.ASCII.GetString(
+                            Convert.FromBase64String(authHeader.Substring(6)));
+                        string[] parts = decoded.Split(':');
+                        if (parts.Length == 2 &&
+                            parts[0] == m_authUsername &&
+                            parts[1] == m_authPassword)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // FIXED: Generate 401 Unauthorized response with WWW-Authenticate header
+        private Hashtable CreateUnauthorizedResponse()
+        {
+            Hashtable responsedata = new Hashtable();
+            responsedata["int_response_code"] = 401;
+            responsedata["content_type"] = "text/html";
+            responsedata["keepalive"] = false;
+            responsedata["str_response_string"] = "<html><head><title>401 Unauthorized</title></head><body><h1>401 - Authentication Required</h1></body></html>";
+            return responsedata;
+        }
+
         private Hashtable HandleStatsRequest(Hashtable request)
         {
             lastHit = System.Environment.TickCount;
@@ -263,10 +393,18 @@ namespace OpenSim.Region.UserStatistics
 
             string strOut = string.Empty;
 
-            // The request patch should be "/SStats/reportName" where 'reportName'
-            // is one of the names added to the 'reports' hashmap.
-            if (regpath.Length > 9)
-            regpath = regpath.Remove(0, 8);
+            // FIXED: Auth check — if auth is enabled and user is not authenticated, return 401
+            if (m_authEnabled && !CheckAuth(request))
+            {
+                Hashtable unauthorized = CreateUnauthorizedResponse();
+                unauthorized["http_headers"] = new Hashtable() { { "WWW-Authenticate", "Basic realm=\"SStats\"" } };
+                return unauthorized;
+            }
+
+            // FIXED: Path parsing — corrected boundary check from > 9 to > 8
+            // "/SStats/" prefix is 8 characters. We need length > 8 to have a report name after it.
+            if (regpath.Length > 8)
+                regpath = regpath.Remove(0, 8);
             else
                 regpath = "default.report";
 
@@ -296,14 +434,27 @@ namespace OpenSim.Region.UserStatistics
 
                 concurrencyCounter++;
 
-                if (jsonFormatOutput)
+                try
                 {
-                    strOut = rep.RenderJson(rep.ProcessModel(repParams));
-                    contenttype = "text/json";
+                    if (jsonFormatOutput)
+                    {
+                        strOut = rep.RenderJson(rep.ProcessModel(repParams));
+                        contenttype = "text/json";
+                    }
+                    else
+                    {
+                        strOut = rep.RenderView(rep.ProcessModel(repParams));
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    strOut = rep.RenderView(rep.ProcessModel(repParams));
+                    m_log.ErrorFormat("[WEB STATS MODULE]: Error rendering report '{0}': {1}", regpath, ex.Message);
+                    strOut = "<html><body><h2>Error rendering report</h2><p>" + ex.Message + "</p></body></html>";
+                    response_code = 500;
+                }
+                finally
+                {
+                    concurrencyCounter--;
                 }
 
                 if (regpath.EndsWith("js"))
@@ -316,9 +467,8 @@ namespace OpenSim.Region.UserStatistics
                     contenttype = "text/css";
                 }
 
-                concurrencyCounter--;
-
-                response_code = 200;
+                if (response_code != 500)
+                    response_code = 200;
             }
             else
             {
@@ -417,42 +567,53 @@ namespace OpenSim.Region.UserStatistics
             }
         }
 
+        // FIXED: Added try/catch for file operations — prevents crash if log file is missing/locked
         private string readLogLines(int amount)
         {
-            Encoding encoding = Encoding.ASCII;
-            int sizeOfChar = encoding.GetByteCount("\n");
-            byte[] buffer = encoding.GetBytes("\n");
-            string logfile = Util.logFile();
-            FileStream fs = new FileStream(logfile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            Int64 tokenCount = 0;
-            Int64 endPosition = fs.Length / sizeOfChar;
-
-            for (Int64 position = sizeOfChar; position < endPosition; position += sizeOfChar)
+            try
             {
-                fs.Seek(-position, SeekOrigin.End);
-                fs.Read(buffer, 0, buffer.Length);
+                Encoding encoding = Encoding.ASCII;
+                int sizeOfChar = encoding.GetByteCount("\n");
+                byte[] buffer = encoding.GetBytes("\n");
+                string logfile = Util.logFile();
 
-                if (encoding.GetString(buffer) == "\n")
+                if (string.IsNullOrEmpty(logfile) || !File.Exists(logfile))
+                    return string.Empty;
+
+                using (FileStream fs = new FileStream(logfile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    tokenCount++;
-                    if (tokenCount == amount)
+                    Int64 tokenCount = 0;
+                    Int64 endPosition = fs.Length / sizeOfChar;
+
+                    for (Int64 position = sizeOfChar; position < endPosition; position += sizeOfChar)
                     {
-                        byte[] returnBuffer = new byte[fs.Length - fs.Position];
-                        fs.Read(returnBuffer, 0, returnBuffer.Length);
-                        fs.Close();
-                        fs.Dispose();
-                        return encoding.GetString(returnBuffer);
+                        fs.Seek(-position, SeekOrigin.End);
+                        fs.Read(buffer, 0, buffer.Length);
+
+                        if (encoding.GetString(buffer) == "\n")
+                        {
+                            tokenCount++;
+                            if (tokenCount == amount)
+                            {
+                                byte[] returnBuffer = new byte[fs.Length - fs.Position];
+                                fs.Read(returnBuffer, 0, returnBuffer.Length);
+                                return encoding.GetString(returnBuffer);
+                            }
+                        }
                     }
+
+                    // handle case where number of tokens in file is less than numberOfTokens
+                    fs.Seek(0, SeekOrigin.Begin);
+                    buffer = new byte[fs.Length];
+                    fs.Read(buffer, 0, buffer.Length);
+                    return encoding.GetString(buffer);
                 }
             }
-
-            // handle case where number of tokens in file is less than numberOfTokens
-            fs.Seek(0, SeekOrigin.Begin);
-            buffer = new byte[fs.Length];
-            fs.Read(buffer, 0, buffer.Length);
-            fs.Close();
-            fs.Dispose();
-            return encoding.GetString(buffer);
+            catch (Exception ex)
+            {
+                m_log.WarnFormat("[WEB STATS MODULE]: Error reading log lines: {0}", ex.Message);
+                return string.Empty;
+            }
         }
 
         /// <summary>
@@ -687,7 +848,7 @@ namespace OpenSim.Region.UserStatistics
                     updatecmd.Parameters.Add(new SQLiteParameter(":f_send_packet", uid.session_data.f_send_packet));
 
 //                        StringBuilder parameters = new StringBuilder();
-//                        SqliteParameterCollection spc = updatecmd.Parameters;
+//                        SQLiteParameterCollection spc = updatecmd.Parameters;
 //                        foreach (SQLiteParameter sp in spc)
 //                            parameters.AppendFormat("{0}={1},", sp.ParameterName, sp.Value);
 //
@@ -696,6 +857,19 @@ namespace OpenSim.Region.UserStatistics
 //                    m_log.DebugFormat("[WEB STATS MODULE]: Database stats update for {0}", uid.session_data.agent_id);
 
                     updatecmd.ExecuteNonQuery();
+                }
+            }
+
+            // MySQL dual-write: also insert into MySQL so Python dashboard can read
+            if (m_mysqlEnabled)
+            {
+                try
+                {
+                    WriteToMySQL(uid);
+                }
+                catch (Exception ex)
+                {
+                    m_log.WarnFormat("[WEB STATS MODULE]: MySQL write failed for agent {0}: {1}", uid.session_data.agent_id, ex.Message);
                 }
             }
         }
@@ -767,6 +941,259 @@ VALUES
 :f_resent, :f_send_packet
 )
 ";
+
+        // ---- MySQL dual-write support ----
+
+        private const string SQL_MYSQL_TABLE_CREATE = @"CREATE TABLE IF NOT EXISTS `stats_session_data` (
+               session_id VARCHAR(36) NOT NULL PRIMARY KEY,
+               agent_id VARCHAR(36) NOT NULL DEFAULT '',
+               region_id VARCHAR(36) NOT NULL DEFAULT '',
+               last_updated INT NOT NULL DEFAULT 0,
+               remote_ip VARCHAR(16) NOT NULL DEFAULT '',
+               name_f VARCHAR(50) NOT NULL DEFAULT '',
+               name_l VARCHAR(50) NOT NULL DEFAULT '',
+               avg_agents_in_view FLOAT NOT NULL DEFAULT 0,
+               min_agents_in_view INT NOT NULL DEFAULT 0,
+               max_agents_in_view INT NOT NULL DEFAULT 0,
+               mode_agents_in_view INT NOT NULL DEFAULT 0,
+               avg_fps FLOAT NOT NULL DEFAULT 0,
+               min_fps FLOAT NOT NULL DEFAULT 0,
+               max_fps FLOAT NOT NULL DEFAULT 0,
+               mode_fps FLOAT NOT NULL DEFAULT 0,
+               a_language VARCHAR(25) NOT NULL DEFAULT '',
+               mem_use FLOAT NOT NULL DEFAULT 0,
+               meters_traveled FLOAT NOT NULL DEFAULT 0,
+               avg_ping FLOAT NOT NULL DEFAULT 0,
+               min_ping FLOAT NOT NULL DEFAULT 0,
+               max_ping FLOAT NOT NULL DEFAULT 0,
+               mode_ping FLOAT NOT NULL DEFAULT 0,
+               regions_visited INT NOT NULL DEFAULT 0,
+               run_time FLOAT NOT NULL DEFAULT 0,
+               avg_sim_fps FLOAT NOT NULL DEFAULT 0,
+               min_sim_fps FLOAT NOT NULL DEFAULT 0,
+               max_sim_fps FLOAT NOT NULL DEFAULT 0,
+               mode_sim_fps FLOAT NOT NULL DEFAULT 0,
+               start_time FLOAT NOT NULL DEFAULT 0,
+               client_version VARCHAR(255) NOT NULL DEFAULT '',
+               s_cpu VARCHAR(255) NOT NULL DEFAULT '',
+               s_gpu VARCHAR(255) NOT NULL DEFAULT '',
+               s_os VARCHAR(255) NOT NULL DEFAULT '',
+               s_ram INT NOT NULL DEFAULT 0,
+               d_object_kb FLOAT NOT NULL DEFAULT 0,
+               d_texture_kb FLOAT NOT NULL DEFAULT 0,
+               d_world_kb FLOAT NOT NULL DEFAULT 0,
+               n_in_kb FLOAT NOT NULL DEFAULT 0,
+               n_in_pk INT NOT NULL DEFAULT 0,
+               n_out_kb FLOAT NOT NULL DEFAULT 0,
+               n_out_pk INT NOT NULL DEFAULT 0,
+               f_dropped INT NOT NULL DEFAULT 0,
+               f_failed_resends INT NOT NULL DEFAULT 0,
+               f_invalid INT NOT NULL DEFAULT 0,
+               f_off_circuit INT NOT NULL DEFAULT 0,
+               f_resent INT NOT NULL DEFAULT 0,
+               f_send_packet INT NOT NULL DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+
+        private const string SQL_MYSQL_TABLE_INSERT = @"INSERT INTO stats_session_data (
+session_id, agent_id, region_id, last_updated, remote_ip, name_f, name_l, avg_agents_in_view, min_agents_in_view, max_agents_in_view,
+mode_agents_in_view, avg_fps, min_fps, max_fps, mode_fps, a_language, mem_use, meters_traveled, avg_ping, min_ping, max_ping, mode_ping,
+regions_visited, run_time, avg_sim_fps, min_sim_fps, max_sim_fps, mode_sim_fps, start_time, client_version, s_cpu, s_gpu, s_os, s_ram,
+d_object_kb, d_texture_kb, d_world_kb, n_in_kb, n_in_pk, n_out_kb, n_out_pk, f_dropped, f_failed_resends, f_invalid, f_off_circuit,
+f_resent, f_send_packet
+)
+VALUES (
+@session_id, @agent_id, @region_id, @last_updated, @remote_ip, @name_f, @name_l, @avg_agents_in_view, @min_agents_in_view, @max_agents_in_view,
+@mode_agents_in_view, @avg_fps, @min_fps, @max_fps, @mode_fps, @a_language, @mem_use, @meters_traveled, @avg_ping, @min_ping, @max_ping, @mode_ping,
+@regions_visited, @run_time, @avg_sim_fps, @min_sim_fps, @max_sim_fps, @mode_sim_fps, @start_time, @client_version, @s_cpu, @s_gpu, @s_os, @s_ram,
+@d_object_kb, @d_texture_kb, @d_world_kb, @n_in_kb, @n_in_pk, @n_out_kb, @n_out_pk, @f_dropped, @f_failed_resends, @f_invalid, @f_off_circuit,
+@f_resent, @f_send_packet
+)
+ON DUPLICATE KEY UPDATE
+agent_id=VALUES(agent_id), region_id=VALUES(region_id), last_updated=VALUES(last_updated),
+remote_ip=VALUES(remote_ip), name_f=VALUES(name_f), name_l=VALUES(name_l),
+avg_agents_in_view=VALUES(avg_agents_in_view), min_agents_in_view=VALUES(min_agents_in_view),
+max_agents_in_view=VALUES(max_agents_in_view), mode_agents_in_view=VALUES(mode_agents_in_view),
+avg_fps=VALUES(avg_fps), min_fps=VALUES(min_fps), max_fps=VALUES(max_fps), mode_fps=VALUES(mode_fps),
+a_language=VALUES(a_language), mem_use=VALUES(mem_use), meters_traveled=VALUES(meters_traveled),
+avg_ping=VALUES(avg_ping), min_ping=VALUES(min_ping), max_ping=VALUES(max_ping), mode_ping=VALUES(mode_ping),
+regions_visited=VALUES(regions_visited), run_time=VALUES(run_time),
+avg_sim_fps=VALUES(avg_sim_fps), min_sim_fps=VALUES(min_sim_fps),
+max_sim_fps=VALUES(max_sim_fps), mode_sim_fps=VALUES(mode_sim_fps),
+start_time=VALUES(start_time), client_version=VALUES(client_version),
+s_cpu=VALUES(s_cpu), s_gpu=VALUES(s_gpu), s_os=VALUES(s_os), s_ram=VALUES(s_ram),
+d_object_kb=VALUES(d_object_kb), d_texture_kb=VALUES(d_texture_kb), d_world_kb=VALUES(d_world_kb),
+n_in_kb=VALUES(n_in_kb), n_in_pk=VALUES(n_in_pk), n_out_kb=VALUES(n_out_kb), n_out_pk=VALUES(n_out_pk),
+f_dropped=VALUES(f_dropped), f_failed_resends=VALUES(f_failed_resends),
+f_invalid=VALUES(f_invalid), f_off_circuit=VALUES(f_off_circuit),
+f_resent=VALUES(f_resent), f_send_packet=VALUES(f_send_packet)
+;";
+
+        private void CreateMySQLTable()
+        {
+            try
+            {
+                using var conn = new MySqlConnection(m_mysqlConnectionString);
+                conn.Open();
+                using (MySqlCommand cmd = new MySqlCommand(SQL_MYSQL_TABLE_CREATE, conn))
+                {
+                    cmd.ExecuteNonQuery();
+                    m_log.InfoFormat("[WEB STATS MODULE]: MySQL stats_session_data table ready");
+                }
+            }
+            catch (Exception ex)
+            {
+                m_log.ErrorFormat("[WEB STATS MODULE]: Failed to create MySQL stats table: {0}", ex.Message);
+            }
+        }
+
+        private void WriteToMySQL(UserSession uid)
+        {
+            try
+            {
+                using var conn = new MySqlConnection(m_mysqlConnectionString);
+                conn.Open();
+                using (MySqlCommand cmd = new MySqlCommand(SQL_MYSQL_TABLE_INSERT, conn))
+            {
+                cmd.Parameters.AddWithValue("@session_id", uid.session_data.session_id.ToString());
+                cmd.Parameters.AddWithValue("@agent_id", uid.session_data.agent_id.ToString());
+                cmd.Parameters.AddWithValue("@region_id", uid.session_data.region_id.ToString());
+                cmd.Parameters.AddWithValue("@last_updated", (int)uid.session_data.last_updated);
+                cmd.Parameters.AddWithValue("@remote_ip", uid.session_data.remote_ip ?? "");
+                cmd.Parameters.AddWithValue("@name_f", uid.session_data.name_f ?? "");
+                cmd.Parameters.AddWithValue("@name_l", uid.session_data.name_l ?? "");
+                cmd.Parameters.AddWithValue("@avg_agents_in_view", uid.session_data.avg_agents_in_view);
+                cmd.Parameters.AddWithValue("@min_agents_in_view", (int)uid.session_data.min_agents_in_view);
+                cmd.Parameters.AddWithValue("@max_agents_in_view", (int)uid.session_data.max_agents_in_view);
+                cmd.Parameters.AddWithValue("@mode_agents_in_view", (int)uid.session_data.mode_agents_in_view);
+                cmd.Parameters.AddWithValue("@avg_fps", uid.session_data.avg_fps);
+                cmd.Parameters.AddWithValue("@min_fps", uid.session_data.min_fps);
+                cmd.Parameters.AddWithValue("@max_fps", uid.session_data.max_fps);
+                cmd.Parameters.AddWithValue("@mode_fps", uid.session_data.mode_fps);
+                cmd.Parameters.AddWithValue("@a_language", uid.session_data.a_language ?? "");
+                cmd.Parameters.AddWithValue("@mem_use", uid.session_data.mem_use);
+                cmd.Parameters.AddWithValue("@meters_traveled", uid.session_data.meters_traveled);
+                cmd.Parameters.AddWithValue("@avg_ping", uid.session_data.avg_ping);
+                cmd.Parameters.AddWithValue("@min_ping", uid.session_data.min_ping);
+                cmd.Parameters.AddWithValue("@max_ping", uid.session_data.max_ping);
+                cmd.Parameters.AddWithValue("@mode_ping", uid.session_data.mode_ping);
+                cmd.Parameters.AddWithValue("@regions_visited", uid.session_data.regions_visited);
+                cmd.Parameters.AddWithValue("@run_time", uid.session_data.run_time);
+                cmd.Parameters.AddWithValue("@avg_sim_fps", uid.session_data.avg_sim_fps);
+                cmd.Parameters.AddWithValue("@min_sim_fps", uid.session_data.min_sim_fps);
+                cmd.Parameters.AddWithValue("@max_sim_fps", uid.session_data.max_sim_fps);
+                cmd.Parameters.AddWithValue("@mode_sim_fps", uid.session_data.mode_sim_fps);
+                cmd.Parameters.AddWithValue("@start_time", uid.session_data.start_time);
+                cmd.Parameters.AddWithValue("@client_version", uid.session_data.client_version ?? "");
+                cmd.Parameters.AddWithValue("@s_cpu", uid.session_data.s_cpu ?? "");
+                cmd.Parameters.AddWithValue("@s_gpu", uid.session_data.s_gpu ?? "");
+                cmd.Parameters.AddWithValue("@s_os", uid.session_data.s_os ?? "");
+                cmd.Parameters.AddWithValue("@s_ram", uid.session_data.s_ram);
+                cmd.Parameters.AddWithValue("@d_object_kb", uid.session_data.d_object_kb);
+                cmd.Parameters.AddWithValue("@d_texture_kb", uid.session_data.d_texture_kb);
+                cmd.Parameters.AddWithValue("@d_world_kb", uid.session_data.d_world_kb);
+                cmd.Parameters.AddWithValue("@n_in_kb", uid.session_data.n_in_kb);
+                cmd.Parameters.AddWithValue("@n_in_pk", uid.session_data.n_in_pk);
+                cmd.Parameters.AddWithValue("@n_out_kb", uid.session_data.n_out_kb);
+                cmd.Parameters.AddWithValue("@n_out_pk", uid.session_data.n_out_pk);
+                cmd.Parameters.AddWithValue("@f_dropped", uid.session_data.f_dropped);
+                cmd.Parameters.AddWithValue("@f_failed_resends", uid.session_data.f_failed_resends);
+                cmd.Parameters.AddWithValue("@f_invalid", uid.session_data.f_invalid);
+                cmd.Parameters.AddWithValue("@f_off_circuit", uid.session_data.f_off_circuit);
+                cmd.Parameters.AddWithValue("@f_resent", uid.session_data.f_resent);
+                cmd.Parameters.AddWithValue("@f_send_packet", uid.session_data.f_send_packet);
+
+                cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                m_log.WarnFormat("[WEB STATS MODULE]: MySQL write failed: {0}", ex.Message);
+            }
+        }
+
+        #endregion
+
+        #region Heartbeat — writes region stats even when no users present
+
+        private void HeartbeatCallback(object state)
+        {
+            if (!enabled || !m_mysqlEnabled)
+                return;
+
+            lock (m_scenes)
+            {
+                foreach (Scene scene in m_scenes)
+                {
+                    try
+                    {
+                        WriteRegionHeartbeat(scene);
+                    }
+                    catch (Exception ex)
+                    {
+                        m_log.WarnFormat("[WEB STATS MODULE]: Heartbeat write failed for {0}: {1}",
+                            scene.RegionInfo.RegionName, ex.Message);
+                    }
+                }
+            }
+        }
+
+        private const string SQL_HEARTBEAT_UPSERT = @"INSERT INTO stats_session_data
+            (session_id, agent_id, region_id, last_updated, name_f, name_l,
+             avg_sim_fps, min_sim_fps, max_sim_fps, mode_sim_fps,
+             avg_fps, min_fps, max_fps, mode_fps,
+             avg_ping, min_ping, max_ping, mode_ping,
+             client_version, s_cpu, s_os, s_ram)
+            VALUES
+            (@session_id, @agent_id, @region_id, @last_updated, 'Region', 'Heartbeat',
+             @sim_fps, @sim_fps, @sim_fps, @sim_fps,
+             @fps, @fps, @fps, @fps,
+             0, 0, 0, 0,
+             @client_version, @s_cpu, @s_os, @s_ram)
+            ON DUPLICATE KEY UPDATE
+             last_updated = VALUES(last_updated),
+             avg_sim_fps = VALUES(avg_sim_fps),
+             avg_fps = VALUES(avg_fps),
+             name_f = 'Region', name_l = 'Heartbeat'";
+
+        private void WriteRegionHeartbeat(Scene scene)
+        {
+            UUID regionID = scene.RegionInfo.RegionID;
+            string regionName = scene.RegionInfo.RegionName;
+            int now = (int)Util.UnixTimeSinceEpoch();
+
+            float simFps = 0f;
+            try
+            {
+                simFps = scene.StatsReporter.LastReportedSimFPS;
+            }
+            catch { }
+
+            string sessionID = regionID.ToString();
+            string agentID = regionID.ToString();
+
+            try
+            {
+                using var conn = new MySqlConnection(m_mysqlConnectionString);
+                conn.Open();
+                using var cmd = new MySqlCommand(SQL_HEARTBEAT_UPSERT, conn);
+                cmd.Parameters.AddWithValue("@session_id", sessionID);
+                cmd.Parameters.AddWithValue("@agent_id", agentID);
+                cmd.Parameters.AddWithValue("@region_id", regionID.ToString());
+                cmd.Parameters.AddWithValue("@last_updated", now);
+                cmd.Parameters.AddWithValue("@sim_fps", simFps);
+                cmd.Parameters.AddWithValue("@fps", 0f);
+                cmd.Parameters.AddWithValue("@client_version", "heartbeat");
+                cmd.Parameters.AddWithValue("@s_cpu", "region");
+                cmd.Parameters.AddWithValue("@s_os", "opensim");
+                cmd.Parameters.AddWithValue("@s_ram", 0);
+                cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex)
+            {
+                m_log.WarnFormat("[WEB STATS MODULE]: MySQL heartbeat UPSERT failed for {0}: {1}",
+                    regionName, ex.Message);
+            }
+        }
 
         #endregion
 

@@ -1,0 +1,29 @@
+; =============================================================================
+; WebStats Configuration for OpenSim + SStats Module
+; =============================================================================
+; Add this section to your OpenSim.ini or a separate .ini file in bin/
+;
+; Location: bin/WebStats.ini (or add to bin/OpenSim.ini)
+; =============================================================================
+
+[WebStats]
+; Enable the WebStats / SStats module
+enabled = true
+
+; --- Authentication ---
+; When enabled, the /SStats endpoint requires HTTP Basic Auth
+AuthEnabled = true
+AuthUsername = admin
+AuthPassword = CHANGE_ME_TO_A_STRONG_PASSWORD
+
+; --- Hidden Stats Path ---
+; Optional: obscure the stats endpoint by adding a secret suffix
+; If set, the endpoint becomes /SStats_<secret> instead of /SStats
+; Leave empty to use the default /SStats path
+; StatsSecret = mySecretToken123
+StatsSecret =
+
+; --- Database ---
+; The SQLite database file (relative to bin/)
+; Created automatically if it doesn't exist
+; DBFile = LocalUserStatistics.db

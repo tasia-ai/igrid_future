@@ -154,6 +154,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.Interfaces
               void osRegionNotice(string msg);
         //ApiDesc Send a notice message to a given avatar in the region.
               void osRegionNotice(LSL_Key agentID, string msg);
+        //ApiDesc Broadcast a custom message to local chat in ALL regions of this simulator (grid-wide). Script owner must have UserLevel 150 or higher (admin).
+              void maGridSay(string name, string msg);
+        //ApiDesc Send a custom instant message to a given avatar (grid-wide, works offline), shown with a custom sender name.
+              void maGridSayIM(string name, LSL_Key agentID, string msg);
+        //ApiDesc Set the base priority (1-6) of an animation from object inventory (by name) or by UUID, so it wins over lower-priority animations (e.g. AOs).
+              void maSetAnimPriority(string nameOrID, int priority);
+        //ApiDesc Create or update a virtual grid avatar profile (admin only).
+              void maChangeGridProfile(string who, string aboutText, LSL_Key profileImage, string firstLifeText, LSL_Key firstLifeImage, string webUrl, string accountTitle, string bornOn);
         //ApiDesc Execute a console command.
               bool osConsoleCommand(string Command);
         //ApiDesc Sets the current parcel music URL.

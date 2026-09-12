@@ -1,0 +1,9 @@
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.ClientStack.LindenCaps/net8.0/OpenSim.Region.ClientStack.LindenCaps.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.ClientStack.LindenCaps/net8.0/OpenSim.Region.ClientStack.LindenCaps.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.ClientStack.LindenCaps/net8.0/OpenSim.Region.ClientStack.LindenCaps.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.ClientStack.LindenCaps/net8.0/OpenSim.Region.ClientStack.LindenCaps.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.ClientStack.LindenCaps/net8.0/OpenSim..2A8FE2D3.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.ClientStack.LindenCaps/net8.0/OpenSim.Region.ClientStack.LindenCaps.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.ClientStack.LindenCaps/net8.0/refint/OpenSim.Region.ClientStack.LindenCaps.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.ClientStack.LindenCaps/net8.0/OpenSim.Region.ClientStack.LindenCaps.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.ClientStack.LindenCaps/net8.0/OpenSim.Region.ClientStack.LindenCaps.genruntimeconfig.cache

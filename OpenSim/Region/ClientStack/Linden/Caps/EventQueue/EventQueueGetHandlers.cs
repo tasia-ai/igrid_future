@@ -182,11 +182,10 @@ namespace OpenSim.Region.ClientStack.Linden
             if (!m_quicAdvertiseEnabled)
                 return;
 
-            // If the caller explicitly provides no QUIC host and no QUIC port, the
-            // destination region does not support QUIC (e.g. a foreign Hypergrid
-            // region). Do not advertise QUIC in that case — the viewer will fall
-            // back to standard UDP.
-            if (string.IsNullOrEmpty(quicHost) && quicPort == 0)
+            // If AdvertisePort is configured in [ClientStack.Quic], the config
+            // provides the QUIC endpoint (proxy). Don't bail out here — the
+            // config fallback below will fill in the values.
+            if (!m_quicAdvertisePortExplicit && string.IsNullOrEmpty(quicHost) && quicPort == 0)
                 return;
 
             string host;

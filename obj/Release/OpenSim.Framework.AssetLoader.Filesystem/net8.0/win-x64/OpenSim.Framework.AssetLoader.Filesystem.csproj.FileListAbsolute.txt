@@ -1,0 +1,11 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Framework.AssetLoader.Filesystem.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Framework.AssetLoader.Filesystem.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.AssetLoader.Filesystem/net8.0/win-x64/OpenSim.Framework.AssetLoader.Filesystem.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.AssetLoader.Filesystem/net8.0/win-x64/OpenSim.Framework.AssetLoader.Filesystem.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.AssetLoader.Filesystem/net8.0/win-x64/OpenSim.Framework.AssetLoader.Filesystem.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.AssetLoader.Filesystem/net8.0/win-x64/OpenSim.Framework.AssetLoader.Filesystem.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.AssetLoader.Filesystem/net8.0/win-x64/OpenSim..534502B3.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.AssetLoader.Filesystem/net8.0/win-x64/OpenSim.Framework.AssetLoader.Filesystem.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.AssetLoader.Filesystem/net8.0/win-x64/refint/OpenSim.Framework.AssetLoader.Filesystem.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.AssetLoader.Filesystem/net8.0/win-x64/OpenSim.Framework.AssetLoader.Filesystem.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Framework.AssetLoader.Filesystem/net8.0/win-x64/ref/OpenSim.Framework.AssetLoader.Filesystem.dll

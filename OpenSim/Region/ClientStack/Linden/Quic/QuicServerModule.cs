@@ -208,11 +208,11 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     ["circuitCode"] = OSD.FromInteger((int)circuitCode),
                     ["simHost"] = OSD.FromString(m_simHost),
                     ["simPort"] = OSD.FromInteger(m_simPort),
-                    // The centralized proxy and region simulators run on the same
-                    // host network. Register the simulator's internal QUIC listener
-                    // so proxy-routed reconnects and teleports do not fall back to
-                    // direct per-sim viewer QUIC.
-                    ["quicHost"] = OSD.FromString("127.0.0.1"),
+                    // Register the simulator's QUIC listener address so the proxy
+                    // can establish QUIC→QUIC bridges. Use the same hostname the
+                    // sim advertises for LLUDP — this must resolve from the proxy's
+                    // network (Docker bridge, host network, etc.).
+                    ["quicHost"] = OSD.FromString(m_simHost),
                     ["quicPort"] = OSD.FromInteger(m_config.Port)
                 };
 

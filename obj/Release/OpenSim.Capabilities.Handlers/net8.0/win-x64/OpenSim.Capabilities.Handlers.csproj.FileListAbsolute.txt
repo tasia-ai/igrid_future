@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Capabilities.Handlers.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Capabilities.Handlers.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Capabilities.Handlers.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/OpenSim.Capabilities.Handlers.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/OpenSim.Capabilities.Handlers.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/OpenSim.Capabilities.Handlers.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/OpenSim.Capabilities.Handlers.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/OpenSim..EA4F2E19.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/OpenSim.Capabilities.Handlers.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/refint/OpenSim.Capabilities.Handlers.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/OpenSim.Capabilities.Handlers.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/OpenSim.Capabilities.Handlers.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Capabilities.Handlers/net8.0/win-x64/ref/OpenSim.Capabilities.Handlers.dll

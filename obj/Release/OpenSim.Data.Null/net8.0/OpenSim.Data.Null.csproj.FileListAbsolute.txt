@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Data.Null.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Data.Null.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Data.Null.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/OpenSim.Data.Null.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/OpenSim.Data.Null.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/OpenSim.Data.Null.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/OpenSim.Data.Null.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/OpenSim..EEB375B5.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/OpenSim.Data.Null.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/refint/OpenSim.Data.Null.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/OpenSim.Data.Null.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/OpenSim.Data.Null.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.Null/net8.0/ref/OpenSim.Data.Null.dll

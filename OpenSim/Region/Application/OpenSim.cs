@@ -206,6 +206,8 @@ namespace OpenSim
             // Hook up to the watchdog timer
             Watchdog.OnWatchdogTimeout += WatchdogTimeoutHandler;
 
+            MemoryLimiter.Start(Config);
+
             PrintFileToConsole("startuplogo.txt");
 
             // For now, start at the 'root' level by default

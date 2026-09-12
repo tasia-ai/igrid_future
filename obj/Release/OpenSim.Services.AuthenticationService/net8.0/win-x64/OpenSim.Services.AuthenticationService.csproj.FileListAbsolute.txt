@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.AuthenticationService.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.AuthenticationService.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.AuthenticationService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/OpenSim.Services.AuthenticationService.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/OpenSim.Services.AuthenticationService.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/OpenSim.Services.AuthenticationService.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/OpenSim.Services.AuthenticationService.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/OpenSim..506F0D61.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/OpenSim.Services.AuthenticationService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/refint/OpenSim.Services.AuthenticationService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/OpenSim.Services.AuthenticationService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/OpenSim.Services.AuthenticationService.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.AuthenticationService/net8.0/win-x64/ref/OpenSim.Services.AuthenticationService.dll

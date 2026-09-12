@@ -1,0 +1,1287 @@
+services:
+  grid-main:
+    image: repo.is-on.click/familygrids/tasiaquic #actual version of grid software
+    command: sleep infinity
+    hostname: grid-main
+   #mem_limit: 2g
+    volumes:
+
+#####################################################################################################
+      - "/home/marty/opensim/Robust.log:/home/grid/opensim/bin/Robust.log"
+      - "./logs/grid-main/:/home/grid/opensim/bin/logs"
+      - "./services/grid-main-config.ini:/home/grid/opensim/bin/python_config.ini" #service app config
+      - "./Robust.HG.ini:/home/grid/opensim/bin/Robust.ini" # For Robust config
+      - "./MoneyServer.ini:/home/grid/opensim/bin/MoneyServer.ini" # For money server confiz
+      - "./Regions:/home/grid/opensim/bin/Regions/" # For region folder
+#####################################################################################################
+      - "./assetcache:/home/grid/opensim/bin/assetcache" #For cache
+      #- "./fs-assets:/home/grid/opensim/bin/fsassets" # For fassets
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/" # For opensim config folder
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_grid-main.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_grid-main.html:/src/http_404.html:ro"
+      - "./services/python.py:/home/grid/opensim/bin/python.py" # For pyrhon programing
+      - "./templates:/home/grid/opensim/bin/templates/" #Templates
+#####################################################################################################
+      - "/home/marty/opensim/ssh2/runsh/main:/var/run/sshd" # For ssh server confiz
+      - "/home/marty/opensim/bashrc:/root/.bashrc" #alias thing
+      - "./ssh/grid-main.txt:/etc/ssh/sshd_config" # For ssh config
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro" #block hsitory
+      - "/home/marty/opensim/shadow/grid-main.config:/etc/shadow" #password file
+#####################################################################################################
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: grid-main
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Grid_Welcome:
+    hostname: Grid_Welcome
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Grid_Welcome/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Grid_Welcome:/home/grid/opensim/bin/Regions/Grid_Welcome/oar"
+      - "/home/marty/opensim/regiongen/Regions/Grid_Welcome:/home/grid/opensim/bin/Regions/Grid_Welcome"
+      - "/home/marty/opensim/services2/Grid_Welcome.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Grid_Welcome.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Grid_Welcome.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Grid_Welcome.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Grid_Welcome:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Grid_Welcome.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Grid_Welcome
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-I_LOVE_Sandbox:
+    hostname: I_LOVE_Sandbox
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/I_LOVE_Sandbox/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/I_LOVE_Sandbox:/home/grid/opensim/bin/Regions/I_LOVE_Sandbox/oar"
+      - "/home/marty/opensim/regiongen/Regions/I_LOVE_Sandbox:/home/grid/opensim/bin/Regions/I_LOVE_Sandbox"
+      - "/home/marty/opensim/services2/I_LOVE_Sandbox.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_I_LOVE_Sandbox.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_I_LOVE_Sandbox.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/I_LOVE_Sandbox.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/I_LOVE_Sandbox:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/I_LOVE_Sandbox.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: I_LOVE_Sandbox
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Grid_Estate_Services:
+    hostname: Grid_Estate_Services
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Grid_Estate_Services/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Grid_Estate_Services:/home/grid/opensim/bin/Regions/Grid_Estate_Services/oar"
+      - "/home/marty/opensim/regiongen/Regions/Grid_Estate_Services:/home/grid/opensim/bin/Regions/Grid_Estate_Services"
+      - "/home/marty/opensim/services2/Grid_Estate_Services.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Grid_Estate_Services.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Grid_Estate_Services.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Grid_Estate_Services.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Grid_Estate_Services:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Grid_Estate_Services.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Grid_Estate_Services
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Amber_Store:
+    hostname: Amber_Store
+   #mem_limit: 1g
+    #image: repo.is-on.click/familygrids/tasiangc:2702260017
+    image: repo.is-on.click/familygrids/tasiaquic 
+    command: sleep infinity
+    volumes:
+      - "./logs/Amber_Store/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Amber_Store:/home/grid/opensim/bin/Regions/Amber_Store/oar"
+      - "/home/marty/opensim/regiongen/Regions/Amber_Store:/home/grid/opensim/bin/Regions/Amber_Store"
+      - "/home/marty/opensim/services2/Amber_Store.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Amber_Store.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Amber_Store.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Amber_Store.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Amber_Store:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Amber_Store.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Amber_Store
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Amber_Store2:
+    hostname: Amber_Store2
+   #mem_limit: 1g
+    #image: repo.is-on.click/familygrids/tasiangc:2702260017
+    image: repo.is-on.click/familygrids/tasiaquic 
+    command: sleep infinity
+    volumes:
+      - "./logs/Amber_Store2/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Amber_Store2:/home/grid/opensim/bin/Regions/Amber_Store2/oar"
+      - "/home/marty/opensim/regiongen/Regions/Amber_Store2:/home/grid/opensim/bin/Regions/Amber_Store2"
+      - "/home/marty/opensim/services2/Amber_Store2.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Amber_Store2.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Amber_Store2.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Amber_Store2.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Amber_Store2:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Amber_Store2.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Amber_Store2
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-The_Furniture_Vault:
+    hostname: The_Furniture_Vault
+   #mem_limit: 1g
+    #image: repo.is-on.click/familygrids/tasiangc:2702260017
+    image: repo.is-on.click/familygrids/tasiaquic 
+    command: sleep infinity
+    volumes:
+      - "./logs/The_Furniture_Vault/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/The_Furniture_Vault:/home/grid/opensim/bin/Regions/The_Furniture_Vault/oar"
+      - "/home/marty/opensim/regiongen/Regions/The_Furniture_Vault:/home/grid/opensim/bin/Regions/The_Furniture_Vault"
+      - "/home/marty/opensim/services2/The_Furniture_Vault.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_The_Furniture_Vault.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_The_Furniture_Vault.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/The_Furniture_Vault.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/The_Furniture_Vault:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/The_Furniture_Vault.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: The_Furniture_Vault
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Casino:
+    hostname: Casino
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Casino/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Casino:/home/grid/opensim/bin/Regions/Casino/oar"
+      - "/home/marty/opensim/regiongen/Regions/Casino:/home/grid/opensim/bin/Regions/Casino"
+      - "/home/marty/opensim/services2/Casino.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Casino.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Casino.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Casino.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Casino:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Casino.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Casino
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-little_beens:
+    hostname: little_beens
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/little_beens/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/little_beens:/home/grid/opensim/bin/Regions/little_beens/oar"
+      - "/home/marty/opensim/regiongen/Regions/little_beens:/home/grid/opensim/bin/Regions/little_beens"
+      - "/home/marty/opensim/services2/little_beens.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_little_beens.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_little_beens.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/little_beens.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/little_beens:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/little_beens.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: little_beens
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Little_Girls:
+    hostname: Little_Girls
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Little_Girls/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Little_Girls:/home/grid/opensim/bin/Regions/Little_Girls/oar"
+      - "/home/marty/opensim/regiongen/Regions/Little_Girls:/home/grid/opensim/bin/Regions/Little_Girls"
+      - "/home/marty/opensim/services2/Little_Girls.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Little_Girls.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Little_Girls.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Little_Girls.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Little_Girls:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Little_Girls.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Little_Girls
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-River-Retreat:
+    hostname: River-Retreat
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/River-Retreat/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/River-Retreat:/home/grid/opensim/bin/Regions/River-Retreat/oar"
+      - "/home/marty/opensim/regiongen/Regions/River-Retreat:/home/grid/opensim/bin/Regions/River-Retreat"
+      - "/home/marty/opensim/services2/River-Retreat.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_River-Retreat.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_River-Retreat.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/River-Retreat.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/River-Retreat:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/River-Retreat.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: River-Retreat
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Sunflower-Dream:
+    hostname: Sunflower-Dream
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Sunflower-Dream/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Sunflower-Dream:/home/grid/opensim/bin/Regions/Sunflower-Dream/oar"
+      - "/home/marty/opensim/regiongen/Regions/Sunflower-Dream:/home/grid/opensim/bin/Regions/Sunflower-Dream"
+      - "/home/marty/opensim/services2/Sunflower-Dream.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Sunflower-Dream.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Sunflower-Dream.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Sunflower-Dream.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Sunflower-Dream:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Sunflower-Dream.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Sunflower-Dream
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Little-Creek:
+    hostname: Little-Creek
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Little-Creek/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Little-Creek:/home/grid/opensim/bin/Regions/Little-Creek/oar"
+      - "/home/marty/opensim/regiongen/Regions/Little-Creek:/home/grid/opensim/bin/Regions/Little-Creek"
+      - "/home/marty/opensim/services2/Little-Creek.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Little-Creek.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Little-Creek.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Little-Creek.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Little-Creek:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Little-Creek.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Little-Creek
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Amber:
+    hostname: Amber
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Amber/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Amber:/home/grid/opensim/bin/Regions/Amber/oar"
+      - "/home/marty/opensim/regiongen/Regions/Amber:/home/grid/opensim/bin/Regions/Amber"
+      - "/home/marty/opensim/services2/Amber.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Amber.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Amber.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Amber.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Amber:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Amber.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Amber
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Out_back:
+    hostname: Out_back
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Out_back/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Out_back:/home/grid/opensim/bin/Regions/Out_back/oar"
+      - "/home/marty/opensim/regiongen/Regions/Out_back:/home/grid/opensim/bin/Regions/Out_back"
+      - "/home/marty/opensim/services2/Out_back.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Out_back.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Out_back.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Out_back.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Out_back:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Out_back.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Out_back
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-The_Ceiba_Tree:
+    hostname: The_Ceiba_Tree
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/The_Ceiba_Tree/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/The_Ceiba_Tree:/home/grid/opensim/bin/Regions/The_Ceiba_Tree/oar"
+      - "/home/marty/opensim/regiongen/Regions/The_Ceiba_Tree:/home/grid/opensim/bin/Regions/The_Ceiba_Tree"
+      - "/home/marty/opensim/services2/The_Ceiba_Tree.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_The_Ceiba_Tree.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_The_Ceiba_Tree.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/The_Ceiba_Tree.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/The_Ceiba_Tree:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/The_Ceiba_Tree.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: The_Ceiba_Tree
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Blue:
+    hostname: Blue
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Blue/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Blue:/home/grid/opensim/bin/Regions/Blue/oar"
+      - "/home/marty/opensim/regiongen/Regions/Blue:/home/grid/opensim/bin/Regions/Blue"
+      - "/home/marty/opensim/services2/Blue.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/" 
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Blue.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Blue.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Blue.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Blue:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Blue.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Blue
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Blue-Heaven:
+    hostname: Blue-Heaven
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Blue-Heaven/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Blue-Heaven:/home/grid/opensim/bin/Regions/Blue-Heaven/oar"
+      - "/home/marty/opensim/regiongen/Regions/Blue-Heaven:/home/grid/opensim/bin/Regions/Blue-Heaven"
+      - "/home/marty/opensim/services2/Blue-Heaven.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Blue-Heaven.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Blue-Heaven.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Blue-Heaven.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Blue-Heaven:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Blue-Heaven.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Blue-Heaven
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Clavius:
+    hostname: Clavius
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Clavius/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Clavius:/home/grid/opensim/bin/Regions/Clavius/oar"
+      - "/home/marty/opensim/regiongen/Regions/Clavius:/home/grid/opensim/bin/Regions/Clavius"
+      - "/home/marty/opensim/services2/Clavius.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Clavius.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Clavius.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Clavius.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Clavius:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Clavius.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Clavius
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Crystal-Island:
+    hostname: Crystal-Island
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Crystal-Island/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Crystal-Island:/home/grid/opensim/bin/Regions/Crystal-Island/oar"
+      - "/home/marty/opensim/regiongen/Regions/Crystal-Island:/home/grid/opensim/bin/Regions/Crystal-Island"
+      - "/home/marty/opensim/services2/Crystal-Island.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Crystal-Island.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Crystal-Island.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Crystal-Island.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Crystal-Island:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Crystal-Island.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Crystal-Island
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Leeloo:
+    hostname: Leeloo
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Leeloo/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Leeloo:/home/grid/opensim/bin/Regions/Leeloo/oar"
+      - "/home/marty/opensim/regiongen/Regions/Leeloo:/home/grid/opensim/bin/Regions/Leeloo"
+      - "/home/marty/opensim/services2/Leeloo.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Leeloo.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Leeloo.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Leeloo.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Leeloo:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Leeloo.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Leeloo
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-New-Horizons:
+    hostname: New-Horizons
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/New-Horizons/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/New-Horizons:/home/grid/opensim/bin/Regions/New-Horizons/oar"
+      - "/home/marty/opensim/regiongen/Regions/New-Horizons:/home/grid/opensim/bin/Regions/New-Horizons"
+      - "/home/marty/opensim/services2/New-Horizons.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_New-Horizons.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_New-Horizons.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/New-Horizons.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/New-Horizons:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/New-Horizons.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: New-Horizons
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Residential_Area_01:
+    hostname: Residential_Area_01
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Residential_Area_01/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Residential_Area_01:/home/grid/opensim/bin/Regions/Residential_Area_01/oar"
+      - "/home/marty/opensim/regiongen/Regions/Residential_Area_01:/home/grid/opensim/bin/Regions/Residential_Area_01"
+      - "/home/marty/opensim/services2/Residential_Area_01.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Residential_Area_01.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Residential_Area_01.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Residential_Area_01.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Residential_Area_01:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Residential_Area_01.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Residential_Area_01
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Residential_Area_02:
+    hostname: Residential_Area_02
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Residential_Area_02/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Residential_Area_02:/home/grid/opensim/bin/Regions/Residential_Area_02/oar"
+      - "/home/marty/opensim/regiongen/Regions/Residential_Area_02:/home/grid/opensim/bin/Regions/Residential_Area_02"
+      - "/home/marty/opensim/services2/Residential_Area_02.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Residential_Area_02.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Residential_Area_02.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Residential_Area_02.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Residential_Area_02:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Residential_Area_02.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Residential_Area_02
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  gt:
+    hostname: Grid_Test
+   #mem_limit: 1g
+    #image: repo.is-on.click/familygrids/tasiangc:2702260017 
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Grid_Test/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Grid_Test:/home/grid/opensim/bin/Regions/Grid_Test/oar"
+      - "/home/marty/opensim/regiongen/Regions/Grid_Test:/home/grid/opensim/bin/Regions/Grid_Test"
+      - "/home/marty/opensim/services2/Grid_Test.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Grid_Test.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Grid_Test.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Grid_Test.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Grid_Test:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Grid_Test.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Grid_Test
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Abody:
+    hostname: Abody
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Abody/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Abody:/home/grid/opensim/bin/Regions/Abody/oar"
+      - "/home/marty/opensim/regiongen/Regions/Abody:/home/grid/opensim/bin/Regions/Abody"
+      - "/home/marty/opensim/services2/abody.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Abody.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Abody.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/abody.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/abody:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/abody.config:/etc/shadow"
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Abody
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-events:
+    hostname: events
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/events/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/events:/home/grid/opensim/bin/Regions/events/oar"
+      - "/home/marty/opensim/regiongen/Regions/events:/home/grid/opensim/bin/Regions/events"
+      - "/home/marty/opensim/services2/events.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_events.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_events.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/events.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/events:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/events.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: events
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-grave:
+    hostname: Grave
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/Grave/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/Grave:/home/grid/opensim/bin/Regions/Grave/oar"
+      - "/home/marty/opensim/regiongen/Regions/Grave:/home/grid/opensim/bin/Regions/Grave"
+      - "/home/marty/opensim/services2/grave.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_Grave.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_Grave.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/grave.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/grave:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/grave.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Grave
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-elf:
+    hostname: elf
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/elf/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/elf:/home/grid/opensim/bin/Regions/elf/oar"
+      - "/home/marty/opensim/regiongen/Regions/elf:/home/grid/opensim/bin/Regions/elf"
+      - "/home/marty/opensim/services2/elf.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_elf.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_elf.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/elf.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/elf:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/elf.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: elf
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Hyperport:
+    hostname: Hyperport
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "/mnt/storage/grid/Hyperport:/home/grid/opensim/bin/Regions/Hyperport/oar"
+      - "/home/marty/opensim/regiongen/Regions/Hyperport:/home/grid/opensim/bin/Regions/Hyperport"
+      - "/home/marty/opensim/services2/Hyperport.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Hyperport.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Hyperport:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Hyperport.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Hyperport
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-White_City_Sim:
+    hostname: White_City_Sim
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "/mnt/storage/grid/White_City_Sim:/home/grid/opensim/bin/Regions/White_City_Sim/oar"
+      - "/home/marty/opensim/regiongen/Regions/White_City_Sim:/home/grid/opensim/bin/Regions/White_City_Sim"
+      - "/home/marty/opensim/services2/White_City_Sim.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/White_City_Sim.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/White_City_Sim:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/White_City_Sim.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: White_City_Sim
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-Enchanted_Garden:
+    hostname: Enchanted_Garden
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "/mnt/storage/grid/Enchanted_Garden:/home/grid/opensim/bin/Regions/Enchanted_Garden/oar"
+      - "/home/marty/opensim/regiongen/Regions/Enchanted_Garden:/home/grid/opensim/bin/Regions/Enchanted_Garden"
+      - "/home/marty/opensim/services2/Enchanted_Garden.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/Enchanted_Garden.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/Enchanted_Garden:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/Enchanted_Garden.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: Enchanted_Garden
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+
+  sim-testing_polygon:
+    hostname: testing_polygon
+   #mem_limit: 1g
+    image: repo.is-on.click/familygrids/tasiaquic
+    command: sleep infinity
+    volumes:
+      - "./logs/testing_polygon/:/home/grid/opensim/bin/logs"
+      - "/mnt/storage/grid/testing_polygon:/home/grid/opensim/bin/Regions/testing_polygon/oar"
+      - "/home/marty/opensim/regiongen/Regions/testing_polygon:/home/grid/opensim/bin/Regions/testing_polygon"
+      - "/home/marty/opensim/services2/testing_polygon.ini:/home/grid/opensim/bin/python_config.ini"
+
+      - "/home/marty/opensim/assetcache:/home/grid/opensim/bin/assetcache"
+      #- "/home/marty/opensim/fs-assets:/home/grid/opensim/bin/fsassets"
+      - "/home/marty/opensim/Library/assets/AssetSets.xml:/home/grid/opensim/bin/assets/AssetSets.xml"
+      - "/home/marty/opensim/Library/assets/IGridContentScriptsAssetSet:/home/grid/opensim/bin/assets/IGridContentScriptsAssetSet"
+      - "/home/marty/opensim/config-include:/home/grid/opensim/bin/config-include/"
+      - "/home/marty/opensim/Library/inventory:/home/grid/opensim/bin/inventory"
+      - "/home/marty/opensim/http/http_404_testing_polygon.html:/home/grid/opensim/bin/http_404.html:ro"
+      - "/home/marty/opensim/http/http_404_testing_polygon.html:/src/http_404.html:ro"
+      - "/home/marty/opensim/templates:/home/grid/opensim/bin/templates/"
+      - "/home/marty/opensim/services2/python.py:/home/grid/opensim/bin/python.py"
+
+      - "/home/marty/opensim/ssh2/testing_polygon.txt:/etc/ssh/sshd_config"
+      - "/home/marty/opensim/ssh2/runsh/testing_polygon:/var/run/sshd"
+      - "/home/marty/opensim/bashrc:/root/.bashrc"
+      - "/home/marty/opensim/bashhistory:/root/.bash_history:ro"
+      - "/home/marty/opensim/shadow2/testing_polygon.config:/etc/shadow"
+
+      - "/home/marty/opensim/igrid-bin/bin:/home/grid/opensim/bin"
+      - "/home/marty/opensim/SSL:/home/grid/opensim/bin/SSL"
+      - "dotnet-sockets:/dotnet-sockets"
+    environment:
+      SIM_NAME: testing_polygon
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/dotnet-monitor.sock,connect,nosuspend"
+      SSL_CERT_PASS: mycertpass
+    network_mode: host
+    
+  # =========================================================================
+  # dotnet-monitor — scans /dotnet-sockets/ for all sim sockets
+  # =========================================================================
+  dotnet-monitor:
+    image: mcr.microsoft.com/dotnet/monitor:8.0
+    container_name: dotnet-monitor
+    user: root
+    restart: unless-stopped
+    ports:
+      - "52323:52323"    # Monitor API
+      - "52325:52325"    # Prometheus metrics
+    environment:
+      DotnetMonitor_DiagnosticPort__ConnectionMode: "Listen"
+      DotnetMonitor_DiagnosticPort__EndpointName: "/dotnet-sockets/dotnet-monitor.sock"
+      DotnetMonitor_Auth__Mode: "Username"
+      DotnetMonitor_Auth__Username: marty
+      DotnetMonitor_Auth__Password: ai2025
+      DotnetMonitor_Metrics__Enabled: "true"
+      DotnetMonitor_Metrics__Endpoints: "http://+:52325"
+      DotnetMonitor_Storage__DumpTempFolder: "/dumps"
+      DotnetMonitor_Storage__LogsTempFolder: "/logs"
+      DotnetMonitor_ProcessFilterStrings: "*OpenSim*"
+    volumes:
+      - dotnet-sockets:/dotnet-sockets:rw    # rw so monitor can create socket
+      - ./dumps:/dumps
+      - ./logs:/logs
+   # =========================================================================
+  # ToS Acceptance Server — serves ToS from markdown, records acceptances
+  # =========================================================================
+  tos-server:
+    build:
+      context: /home/marty/opensim/docker-tos
+      dockerfile: Dockerfile
+    container_name: tos-server
+    restart: unless-stopped
+    ports:
+      - "52327:8099"
+    volumes:
+      - ./db:/data    # shared SQLite DB for acceptance records
+    environment:
+      TOS_VERSION: "1"
+  # =========================================================================
+  # Python SStats Dashboard — password-shielded, reads MySQL
+  # =========================================================================
+  sstats-dashboard:
+    build:
+      context: /home/marty/opensim/docker-stats
+      dockerfile: Dockerfile
+    container_name: sstats-dashboard
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      MYSQL_HOST: "i.let-us.cyou"
+      MYSQL_PORT: "3306"
+      MYSQL_DB: "opensim"
+      MYSQL_USER: "root"
+      MYSQL_PASS: "aigrid123"
+      MYSQL_TABLE: stats_session_data
+      PROXY_USERNAME: "marty"
+      PROXY_PASSWORD: "ai2025"
+      SESSION_TIMEOUT: "3600"
+      PROXY_PORT: "52326"
+      MONITOR_URL: "http://127.0.0.1:52325"
+
+volumes:
+  dotnet-sockets:
+  

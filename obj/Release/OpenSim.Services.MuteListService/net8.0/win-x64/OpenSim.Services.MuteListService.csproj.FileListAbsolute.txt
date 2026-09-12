@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.MuteListService.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.MuteListService.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.MuteListService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/OpenSim.Services.MuteListService.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/OpenSim.Services.MuteListService.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/OpenSim.Services.MuteListService.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/OpenSim.Services.MuteListService.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/OpenSim..4CCA1723.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/OpenSim.Services.MuteListService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/refint/OpenSim.Services.MuteListService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/OpenSim.Services.MuteListService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/OpenSim.Services.MuteListService.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.MuteListService/net8.0/win-x64/ref/OpenSim.Services.MuteListService.dll

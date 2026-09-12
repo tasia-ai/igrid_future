@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "sTAQvHWuEiM=",
+  "success": true,
+  "projectFilePath": "/home/marty/igrid-server-code-2026-07-03/addon-modules/TasiaAddons.RestartModule/TasiaAddons.RestartModule.csproj",
+  "expectedPackageFiles": [
+    "/home/marty/.nuget/packages/mono.addins/1.4.1/mono.addins.1.4.1.nupkg.sha512",
+    "/home/marty/.nuget/packages/system.collections.immutable/6.0.0/system.collections.immutable.6.0.0.nupkg.sha512",
+    "/home/marty/.nuget/packages/system.reflection.emit/4.7.0/system.reflection.emit.4.7.0.nupkg.sha512",
+    "/home/marty/.nuget/packages/system.runtime.compilerservices.unsafe/6.0.0/system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -1,0 +1,16 @@
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Region.Framework.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Region.Framework.dll
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Region.Framework.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/OpenSim.Region.Framework.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/OpenSim.Region.Framework.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/OpenSim.Region.Framework.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/OpenSim.Region.Framework.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/OpenSim..CECE3EE7.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/OpenSim.Region.Framework.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/refint/OpenSim.Region.Framework.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/OpenSim.Region.Framework.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/OpenSim.Region.Framework.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.Framework/net8.0/ref/OpenSim.Region.Framework.dll
+/tmp/optional-build/OpenSim.Region.Framework.runtimeconfig.json
+/tmp/optional-build/OpenSim.Region.Framework.dll
+/tmp/optional-build/OpenSim.Region.Framework.pdb

@@ -36,6 +36,7 @@ using System.Threading;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
 using log4net;
+using MySqlConnector;
 using Nini.Config;
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
@@ -101,15 +102,35 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
                         {
                             ScenePresence p = req.presence;
 
-                            bool foreign = GetUserProfileServerURI(req.agent, out string serverURI);
-                            bool ok  = serverURI.Length > 0;
+                            bool isVirtualAvatar = TryGetVirtualAvatarMetadata(req.agent, out string virtualName, out string virtualTitle, out string virtualBorn);
+                            bool foreign;
+                            string serverURI;
+                            if (isVirtualAvatar)
+                            {
+                                // Virtual avatars have no UserAccounts entry, but their profiles are
+                                // served by this grid's local profile service.
+                                foreign = false;
+                                serverURI = ProfileServerUri;
+                            }
+                            else
+                                foreign = GetUserProfileServerURI(req.agent, out serverURI);
+                            bool ok = serverURI.Length > 0;
 
                             byte[] membershipType = new byte[1];
                             string born = string.Empty;
                             uint flags = 0x00;
 
-                           if (ok && GetUserAccountData(req.agent, out UserAccount acc))
-                           {
+                            if (isVirtualAvatar)
+                            {
+                                int splitAt = virtualName.LastIndexOf(' ');
+                                string firstName = splitAt > 0 ? virtualName[..splitAt] : virtualName;
+                                string lastName = splitAt > 0 ? virtualName[(splitAt + 1)..] : string.Empty;
+                                client.SendNameReply(req.agent, firstName, lastName);
+                                membershipType = Utils.StringToBytes(string.IsNullOrEmpty(virtualTitle) ? "Resident" : virtualTitle);
+                                born = virtualBorn ?? string.Empty;
+                            }
+                            else if (ok && GetUserAccountData(req.agent, out UserAccount acc))
+                            {
                                 flags = (uint)(acc.UserFlags & 0xff);
 
                                 if (acc.UserTitle.Length == 0)
@@ -121,7 +142,7 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
                                 if (val_born != 0)
                                   born = Util.ToDateTime(val_born).ToString("M/d/yyyy", CultureInfo.InvariantCulture);
                             }
-                            else
+                            else if (!isVirtualAvatar)
                                 ok = false;
 
                             UserProfileProperties props = new() { UserId = req.agent };
@@ -2098,6 +2119,39 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
         /// <param name='serverURI'>
         /// If set to <c>true</c> server UR.
         /// </param>
+        private bool TryGetVirtualAvatarMetadata(UUID avatarID, out string avatarName, out string userTitle, out string bornOn)
+        {
+            avatarName = string.Empty;
+            userTitle = string.Empty;
+            bornOn = string.Empty;
+            try
+            {
+                IConfig dbConfig = Config?.Configs["DatabaseService"];
+                string connectionString = dbConfig?.GetString("ConnectionString", string.Empty) ?? string.Empty;
+                if (string.IsNullOrEmpty(connectionString))
+                    return false;
+
+                MySqlConnectionStringBuilder builder = new(connectionString) { Database = "robust" };
+                using MySqlConnection dbcon = new(builder.ConnectionString);
+                dbcon.Open();
+                using MySqlCommand cmd = new("SELECT AvatarName, UserTitle, BornOn FROM TasiaVirtualAvatars WHERE VirtualID = @Id AND Enabled = 1", dbcon);
+                cmd.Parameters.AddWithValue("@Id", avatarID.ToString());
+                using MySqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.SingleRow);
+                if (!reader.Read())
+                    return false;
+
+                avatarName = reader.GetString("AvatarName");
+                userTitle = reader.GetString("UserTitle");
+                bornOn = reader.GetString("BornOn");
+                return true;
+            }
+            catch (MySqlException e)
+            {
+                m_log.ErrorFormat("[PROFILES]: Virtual avatar lookup failed: {0}", e.Message);
+                return false;
+            }
+        }
+
         bool GetUserProfileServerURI(UUID userID, out string serverURI)
         {
             if (!UserManagementModule.IsLocalGridUser(userID))

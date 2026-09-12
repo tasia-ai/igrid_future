@@ -1427,12 +1427,23 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 }
 
                 string url = m_quicProxyRegistrationUrl.TrimEnd('/') + "/register";
+
+                // Use the destination region's actual hostname so the proxy can
+                // resolve and connect to the sim's LLUDP and QUIC listeners.
+                // Hardcoding 127.0.0.1 fails when the proxy and sim run in
+                // separate Docker containers or on different hosts.
+                string destHost = destination.ExternalHostName;
+                if (string.IsNullOrWhiteSpace(destHost))
+                    destHost = simEndpoint.Address.ToString();
+                string quicHost = !string.IsNullOrWhiteSpace(destination.QuicHost)
+                    ? destination.QuicHost : destHost;
+
                 var payload = new OMVOSDMap
                 {
                     ["circuitCode"] = OMVOSD.FromInteger((int)agentCircuit.circuitcode),
-                    ["simHost"] = OMVOSD.FromString("127.0.0.1"),
+                    ["simHost"] = OMVOSD.FromString(destHost),
                     ["simPort"] = OMVOSD.FromInteger(simEndpoint.Port),
-                    ["quicHost"] = OMVOSD.FromString("127.0.0.1"),
+                    ["quicHost"] = OMVOSD.FromString(quicHost),
                     ["quicPort"] = OMVOSD.FromInteger(quicPort)
                 };
 

@@ -33,3 +33,12 @@ BEGIN;
 ALTER TABLE `UserAccounts` ADD `active` BOOLEAN NOT NULL DEFAULT TRUE;
 
 COMMIT;
+
+:VERSION 4		# -------------------------
+
+BEGIN;
+
+ALTER TABLE UserAccounts ADD COLUMN DisplayName TEXT;
+ALTER TABLE UserAccounts ADD COLUMN NameChanged INTEGER;
+
+COMMIT;

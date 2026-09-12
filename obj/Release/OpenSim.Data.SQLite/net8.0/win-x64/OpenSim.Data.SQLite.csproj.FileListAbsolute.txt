@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Data.SQLite.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Data.SQLite.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Data.SQLite.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/OpenSim.Data.SQLite.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/OpenSim.Data.SQLite.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/OpenSim.Data.SQLite.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/OpenSim.Data.SQLite.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/OpenSim..C9046069.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/OpenSim.Data.SQLite.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/refint/OpenSim.Data.SQLite.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/OpenSim.Data.SQLite.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/OpenSim.Data.SQLite.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Data.SQLite/net8.0/win-x64/ref/OpenSim.Data.SQLite.dll

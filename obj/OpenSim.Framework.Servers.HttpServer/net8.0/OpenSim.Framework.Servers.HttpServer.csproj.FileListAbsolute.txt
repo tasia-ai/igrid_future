@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Framework.Servers.HttpServer.dll
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Framework.Servers.HttpServer.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Framework.Servers.HttpServer/net8.0/OpenSim.Framework.Servers.HttpServer.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Framework.Servers.HttpServer/net8.0/OpenSim.Framework.Servers.HttpServer.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Framework.Servers.HttpServer/net8.0/OpenSim.Framework.Servers.HttpServer.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Framework.Servers.HttpServer/net8.0/OpenSim.Framework.Servers.HttpServer.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Framework.Servers.HttpServer/net8.0/OpenSim..332909C8.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Framework.Servers.HttpServer/net8.0/OpenSim.Framework.Servers.HttpServer.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Framework.Servers.HttpServer/net8.0/refint/OpenSim.Framework.Servers.HttpServer.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Framework.Servers.HttpServer/net8.0/OpenSim.Framework.Servers.HttpServer.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Framework.Servers.HttpServer/net8.0/ref/OpenSim.Framework.Servers.HttpServer.dll
+/tmp/optional-build/OpenSim.Framework.Servers.HttpServer.dll
+/tmp/optional-build/OpenSim.Framework.Servers.HttpServer.pdb

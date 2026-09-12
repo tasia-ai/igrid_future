@@ -53,6 +53,7 @@
     <Compile Remove="Monitoring\BaseStatsCollector.cs" />
     <Compile Remove="Monitoring\ChecksManager.cs" />
     <Compile Remove="Monitoring\JobEngine.cs" />
+    <Compile Remove="Monitoring\MemoryLimiter.cs" />
     <Compile Remove="Monitoring\MemoryWatchdog.cs" />
     <Compile Remove="Monitoring\ServerStatsCollector.cs" />
     <Compile Remove="Monitoring\SimExtraStatsCollector.cs" />

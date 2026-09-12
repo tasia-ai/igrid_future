@@ -1,0 +1,16 @@
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Capabilities.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Capabilities.dll
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Capabilities.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/OpenSim.Capabilities.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/OpenSim.Capabilities.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/OpenSim.Capabilities.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/OpenSim.Capabilities.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/OpenSim..5DDBA68D.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/OpenSim.Capabilities.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/refint/OpenSim.Capabilities.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/OpenSim.Capabilities.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/OpenSim.Capabilities.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Capabilities/net8.0/ref/OpenSim.Capabilities.dll
+/tmp/optional-build/OpenSim.Capabilities.runtimeconfig.json
+/tmp/optional-build/OpenSim.Capabilities.dll
+/tmp/optional-build/OpenSim.Capabilities.pdb

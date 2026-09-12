@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.ExperienceService.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.ExperienceService.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.ExperienceService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/OpenSim.Services.ExperienceService.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/OpenSim.Services.ExperienceService.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/OpenSim.Services.ExperienceService.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/OpenSim.Services.ExperienceService.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/OpenSim..3732B474.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/OpenSim.Services.ExperienceService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/refint/OpenSim.Services.ExperienceService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/OpenSim.Services.ExperienceService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/OpenSim.Services.ExperienceService.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.ExperienceService/net8.0/win-x64/ref/OpenSim.Services.ExperienceService.dll

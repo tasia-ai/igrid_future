@@ -72,6 +72,7 @@ namespace TasiaAddons.RestartModule
         protected string m_MarkerPath = String.Empty;
         private int[] m_CurrentAlerts = null;
         protected bool m_shortCircuitDelays = false;
+        private bool m_isShutdown = false;
         protected bool m_rebootAll = false;
 
         private bool m_apiEnabled = false;
@@ -304,8 +305,17 @@ namespace TasiaAddons.RestartModule
             if (m_Alerts.Count == 0 || m_Alerts[0] == 0)
             {
                 ClearPendingRestartState();
-                CreateMarkerFile();
-                m_Scene.RestartNow();
+                if (m_isShutdown)
+                {
+                    // Shutdown: backup + quit, no hot restart
+                    CreateMarkerFile();
+                    DoBackupAndQuit();
+                }
+                else
+                {
+                    CreateMarkerFile();
+                    m_Scene.RestartNow();
+                }
                 return 0;
             }
 
@@ -388,12 +398,60 @@ namespace TasiaAddons.RestartModule
                 if (CountAgents() == 0)
                 {
                     ClearPendingRestartState();
-                    m_Scene.RestartNow();
+                    if (m_isShutdown)
+                        DoBackupAndQuit();
+                    else
+                        m_Scene.RestartNow();
                     return;
                 }
             }
 
+            if (nextInterval <= 0)
+            {
+                ClearPendingRestartState();
+                if (m_isShutdown)
+                    DoBackupAndQuit();
+                else
+                    m_Scene.RestartNow();
+                return;
+            }
+
             SetTimer(nextInterval);
+        }
+
+        private void DoBackupAndQuit()
+        {
+            m_log.Info("[RESTART MODULE]: Running backup before shutdown...");
+            try
+            {
+                MainConsole.Instance.RunCommand("backup");
+                m_log.Info("[RESTART MODULE]: Backup complete");
+            }
+            catch (Exception ex)
+            {
+                m_log.WarnFormat("[RESTART MODULE]: Backup failed: {0}", ex.Message);
+            }
+
+            // Kill the python service app inside the container
+            try
+            {
+                System.Diagnostics.Process.Start("pkill", "-f python3");
+                m_log.Info("[RESTART MODULE]: Killed python3 process");
+            }
+            catch (Exception ex)
+            {
+                m_log.WarnFormat("[RESTART MODULE]: Failed to kill python3: {0}", ex.Message);
+            }
+
+            // Quit OpenSim — container stays alive (sleep infinity)
+            try
+            {
+                MainConsole.Instance.RunCommand("quit");
+            }
+            catch
+            {
+                Environment.Exit(0);
+            }
         }
 
         public void DelayRestart(int seconds, string message)
@@ -910,16 +968,44 @@ namespace TasiaAddons.RestartModule
                     if (delaySeconds < 10)
                         delaySeconds = 10;
 
-                    int[] alerts = BuildStandardAlerts(delaySeconds);
-                    string messageTemplate = BuildMessageTemplate(reason);
-                    ScheduleRestart(requestedBy, messageTemplate, alerts, false);
-                    SetPendingRestartState(delaySeconds, reason, requestedBy);
+                    // Backup before quit — clean restart, not hot restart
+                    try
+                    {
+                        MainConsole.Instance.RunCommand("backup");
+                        m_log.Info("[RESTART MODULE]: Backup complete before restart");
+                    }
+                    catch (Exception ex)
+                    {
+                        m_log.WarnFormat("[RESTART MODULE]: Backup failed: {0}", ex.Message);
+                    }
+
+                    {
+                        int[] restartAlerts = BuildStandardAlerts(delaySeconds);
+                        string restartMsg = BuildMessageTemplate(reason);
+                        ScheduleRestart(requestedBy, restartMsg, restartAlerts, false);
+                        SetPendingRestartState(delaySeconds, reason, requestedBy);
+                    }
                     WriteJsonResponse(response, 200, BuildStatusMap(true, "scheduled"));
                     return;
 
                 case "cancel":
+                    m_isShutdown = false;
                     AbortRestart(string.IsNullOrWhiteSpace(reason) ? "Region restart cancelled." : reason);
                     WriteJsonResponse(response, 200, BuildStatusMap(true, "cancelled"));
+                    return;
+
+                case "shutdown":
+                    m_log.Info("[RESTART MODULE]: Shutdown API called — backup + quit after countdown");
+                    m_isShutdown = true;
+                    {
+                        if (delaySeconds < 10)
+                            delaySeconds = 10;
+                        int[] shutdownAlerts = BuildStandardAlerts(delaySeconds);
+                        string shutdownMsg = "Grid shutdown — saving and quitting";
+                        ScheduleRestart(requestedBy, shutdownMsg, shutdownAlerts, false);
+                        SetPendingRestartState(delaySeconds, reason, requestedBy);
+                    }
+                    WriteJsonResponse(response, 200, BuildStatusMap(true, "shutdown_scheduled"));
                     return;
 
                 case "status":

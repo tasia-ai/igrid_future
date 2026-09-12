@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/OpenSim.Region.PhysicsModule.ubOdeMeshing.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/OpenSim.Region.PhysicsModule.ubOdeMeshing.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/OpenSim.Region.PhysicsModule.ubOdeMeshing.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/OpenSim.Region.PhysicsModule.ubOdeMeshing.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/OpenSim..BFB03FFA.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/OpenSim.Region.PhysicsModule.ubOdeMeshing.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/refint/OpenSim.Region.PhysicsModule.ubOdeMeshing.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/OpenSim.Region.PhysicsModule.ubOdeMeshing.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/OpenSim.Region.PhysicsModule.ubOdeMeshing.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.PhysicsModule.ubOdeMeshing/net8.0/win-x64/ref/OpenSim.Region.PhysicsModule.ubOdeMeshing.dll

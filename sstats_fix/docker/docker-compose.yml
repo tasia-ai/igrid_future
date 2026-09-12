@@ -1,0 +1,213 @@
+# =============================================================================
+# docker-compose.yml — Multi-Sim OpenSim + dotnet-monitor + SStats Dashboard
+# =============================================================================
+# Each sim has its own:
+#   - Container (unique SIM_NAME)
+#   - Diagnostic socket: /dotnet-sockets/<SIM_NAME>/dotnet-monitor.sock
+#   - UDP/TCP ports (region traffic)
+#
+# dotnet-monitor scans /dotnet-sockets/ and connects to each sim's socket.
+#
+# Usage:
+#   1. cp .env.example .env && nano .env
+#   2. Add/remove sim blocks below (or use the generator script)
+#   3. docker-compose up -d
+#   4. Dashboard:  http://localhost:8080
+#   5. Monitor:    http://localhost:52323
+#   6. Metrics:    http://localhost:52325/metrics
+# =============================================================================
+
+x-sim-defaults: &sim-defaults
+  build:
+    context: ../..
+    dockerfile: sstats_fix/docker/Dockerfile
+  restart: unless-stopped
+  environment: &sim-env
+    MYSQL_HOST: ${MYSQL_HOST:-mysql}
+    MYSQL_PORT: "${MYSQL_PORT:-3306}"
+    MYSQL_DB: ${MYSQL_DB:-opensim}
+    MYSQL_USER: ${MYSQL_USER:-opensim}
+    MYSQL_PASS: ${MYSQL_PASS:-changeme}
+    SSTATS_PASSWORD: ${SSTATS_PASSWORD:-sstats2026}
+    SSTATS_SECRET: ${SSTATS_SECRET:-}
+    DOTNET_gcServer: "1"
+    DOTNET_EnableAlternateStackCollection: "1"
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+  volumes:
+    - opensim-bin:/src/bin
+    - dotnet-sockets:/dotnet-sockets    # <-- SHARED: all sims + monitor
+  depends_on:
+    mysql:
+      condition: service_healthy
+
+services:
+  # =========================================================================
+  # SIM 1 — Example (copy and customize for each sim)
+  # =========================================================================
+  sim-1:
+    <<: *sim-defaults
+    container_name: sim-1
+    environment:
+      <<: *sim-env
+      SIM_NAME: sim-1
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/sim-1/dotnet-monitor.sock,connect,nosuspend"
+    ports:
+      - "9000:9000/tcp"
+      - "9000:9000/udp"
+    networks:
+      - simnet
+
+  # =========================================================================
+  # SIM 2 — Example
+  # =========================================================================
+  sim-2:
+    <<: *sim-defaults
+    container_name: sim-2
+    environment:
+      <<: *sim-env
+      SIM_NAME: sim-2
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/sim-2/dotnet-monitor.sock,connect,nosuspend"
+    ports:
+      - "9010:9000/tcp"
+      - "9010:9000/udp"
+    networks:
+      - simnet
+
+  # =========================================================================
+  # SIM 3 — Example
+  # =========================================================================
+  sim-3:
+    <<: *sim-defaults
+    container_name: sim-3
+    environment:
+      <<: *sim-env
+      SIM_NAME: sim-3
+      DOTNET_DiagnosticPorts: "/dotnet-sockets/sim-3/dotnet-monitor.sock,connect,nosuspend"
+    ports:
+      - "9020:9000/tcp"
+      - "9020:9000/udp"
+    networks:
+      - simnet
+
+  # =========================================================================
+  # SIM 4..31+ — Duplicate blocks above, changing:
+  #   - container_name: sim-N
+  #   - SIM_NAME: sim-N
+  #   - DOTNET_DiagnosticPorts: "/dotnet-sockets/sim-N/dotnet-monitor.sock,connect,nosuspend"
+  #   - Port mapping: 9000+(N-1)*10:9000/tcp  9000+(N-1)*10:9000/udp
+  #
+  # Or use the generate-sims.sh script to create them automatically.
+  # =========================================================================
+
+  # =========================================================================
+  # dotnet-monitor — scans /dotnet-sockets/ for all sim sockets
+  # =========================================================================
+  dotnet-monitor:
+    image: mcr.microsoft.com/dotnet/monitor:8.0
+    container_name: dotnet-monitor
+    restart: unless-stopped
+    ports:
+      - "52323:52323"    # Monitor API
+      - "52325:52325"    # Prometheus metrics
+    environment:
+      # Monitor all processes it can find
+      DotnetMonitor_DiagnosticPort__ConnectionMode: "Connect"
+      # The monitor scans /dotnet-sockets/*/dotnet-monitor.sock
+      # and auto-connects to each discovered socket
+      DotnetMonitor_Auth__Mode: "Username"
+      DotnetMonitor_Auth__Username: ${MONITOR_USER:-admin}
+      DotnetMonitor_Auth__Password: ${MONITOR_PASSWORD:-changeme-monitor}
+      DotnetMonitor_Metrics__Enabled: "true"
+      DotnetMonitor_Metrics__Endpoints: "http://+:52325"
+      DotnetMonitor_Storage__DumpTempFolder: "/dumps"
+      DotnetMonitor_Storage__LogsTempFolder: "/logs"
+      # Tell monitor where to find sockets
+      DotnetMonitor_ProcessFilterStrings: "*OpenSim*"
+    volumes:
+      - dotnet-sockets:/dotnet-sockets:ro    # <-- SHARED: read all sim sockets
+      - monitor-dumps:/dumps
+      - monitor-logs:/logs
+    networks:
+      - simnet
+
+  # =========================================================================
+  # ToS Acceptance Server — serves ToS from markdown, records acceptances
+  # =========================================================================
+  tos-server:
+    build:
+      context: ../../addon-modules/TasiaAddons.LoginSecurity/ToSPrompt
+      dockerfile: Dockerfile
+    container_name: tos-server
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    volumes:
+      - tos-data:/data    # shared SQLite DB for acceptance records
+    environment:
+      TOS_VERSION: "${TOS_VERSION:-1}"
+    networks:
+      - simnet
+
+  # =========================================================================
+  # Python SStats Dashboard — password-shielded, reads MySQL
+  # =========================================================================
+  sstats-dashboard:
+    build:
+      context: ../python-app
+      dockerfile: Dockerfile
+    container_name: sstats-dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST:-mysql}
+      MYSQL_PORT: "${MYSQL_PORT:-3306}"
+      MYSQL_DB: ${MYSQL_DB:-opensim}
+      MYSQL_USER: ${MYSQL_USER:-opensim}
+      MYSQL_PASS: ${MYSQL_PASS:-changeme}
+      MYSQL_TABLE: stats_session_data
+      PROXY_USERNAME: ${DASHBOARD_USER:-admin}
+      PROXY_PASSWORD: ${DASHBOARD_PASS:-changeme}
+      SESSION_TIMEOUT: "3600"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - simnet
+
+  # =========================================================================
+  # MySQL — shared by all sims + dashboard
+  # =========================================================================
+  mysql:
+    image: mariadb:11
+    container_name: opensim-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASS:-changeme-root}
+      MYSQL_DATABASE: ${MYSQL_DB:-opensim}
+      MYSQL_USER: ${MYSQL_USER:-opensim}
+      MYSQL_PASSWORD: ${MYSQL_PASS:-changeme}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - simnet
+
+volumes:
+  opensim-bin:        # Shared bin output (all sims use same build)
+  dotnet-sockets:     # <-- THE KEY: shared IPC socket directory
+  monitor-dumps:      # Dump storage
+  monitor-logs:       # Log storage
+  mysql-data:         # Database
+  tos-data:           # ToS acceptance SQLite database
+
+networks:
+  simnet:
+    driver: bridge

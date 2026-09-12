@@ -77,6 +77,11 @@
     PrivatePort = "8003"
 
 [Startup]
+    ;# {MemoryLimit} {} {Maximum process working set before forced GC (soft limit)} {} 2GB
+    ;; Enforced by the MemoryLimiter watchdog. Accepts e.g. "2GB", "1536MB" or a
+    ;; plain byte count. "0" / "unlimited" disables the watchdog. Default: 2GB.
+    MemoryLimit = 2GB
+
     ;# {ConsolePrompt} {} {ConsolePrompt} {} "Region (\R) "
     ;; Console prompt
     ;; Certain special characters can be used to customize the prompt

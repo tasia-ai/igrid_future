@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.GridService.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.GridService.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.GridService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/OpenSim.Services.GridService.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/OpenSim.Services.GridService.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/OpenSim.Services.GridService.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/OpenSim.Services.GridService.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/OpenSim..EFA37BCA.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/OpenSim.Services.GridService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/refint/OpenSim.Services.GridService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/OpenSim.Services.GridService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/OpenSim.Services.GridService.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.GridService/net8.0/win-x64/ref/OpenSim.Services.GridService.dll

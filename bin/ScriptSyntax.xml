@@ -7506,7 +7506,46 @@
    <map><key>targetId</key><map><key>type</key><string>key</string></map></map>
   </array>
  </map>
- <key>osAdjustSoundVolume</key>
+<key>maGridSay</key>
+<map>
+ <key>arguments</key><array>
+  <map><key>name</key><map><key>type</key><string>string</string></map></map>
+  <map><key>msg</key><map><key>type</key><string>string</string></map></map>
+ </array>
+ <key>tooltip</key><string>Broadcast a custom message to local chat in ALL regions of this simulator (grid-wide), shown with a custom sender name. Script owner must have UserLevel 150 or higher (admin).</string>
+</map>
+<key>maGridSayIM</key>
+<map>
+ <key>arguments</key><array>
+  <map><key>name</key><map><key>type</key><string>string</string></map></map>
+  <map><key>agentID</key><map><key>type</key><string>key</string></map></map>
+  <map><key>msg</key><map><key>type</key><string>string</string></map></map>
+ </array>
+ <key>tooltip</key><string>Send a custom instant message to a given avatar (grid-wide, works offline), shown with a custom sender name. Script owner must have UserLevel 150 or higher (admin).</string>
+</map>
+<key>maChangeGridProfile</key>
+<map>
+ <key>arguments</key><array>
+  <map><key>who</key><map><key>type</key><string>string</string></map></map>
+  <map><key>aboutText</key><map><key>type</key><string>string</string></map></map>
+  <map><key>profileImage</key><map><key>type</key><string>key</string></map></map>
+  <map><key>firstLifeText</key><map><key>type</key><string>string</string></map></map>
+  <map><key>firstLifeImage</key><map><key>type</key><string>key</string></map></map>
+  <map><key>webUrl</key><map><key>type</key><string>string</string></map></map>
+  <map><key>accountTitle</key><map><key>type</key><string>string</string></map></map>
+  <map><key>bornOn</key><map><key>type</key><string>string</string></map></map>
+ </array>
+ <key>tooltip</key><string>Create or update a complete virtual grid avatar profile: name, main and First Life images, texts, URL, account title and birth date. Script owner must have UserLevel 150 or higher (admin).</string>
+</map>
+<key>maSetAnimPriority</key>
+<map>
+ <key>arguments</key><array>
+  <map><key>nameOrID</key><map><key>type</key><string>string</string></map></map>
+  <map><key>priority</key><map><key>type</key><string>integer</string></map></map>
+ </array>
+ <key>tooltip</key><string>Set the base priority (1-6) of an animation from object inventory (by name) or by UUID, so it wins over lower-priority animations (e.g. AOs).</string>
+</map>
+<key>osAdjustSoundVolume</key>
  <map>
   <key>arguments</key><array>
    <map><key>linknum</key><map><key>type</key><string>integer</string></map></map>

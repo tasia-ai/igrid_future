@@ -14,6 +14,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
+using MySqlConnector;
+using System.Xml;
+using System.Xml.Serialization;
 using log4net;
 using Nini.Config;
 using OpenMetaverse;
@@ -21,15 +24,19 @@ using OpenSim.Framework;
 using OpenSim.Server.Base;
 using OpenSim.Services.Interfaces;
 using OpenSim.Services.LLLoginService;
+using TasiaAddons.Abstractions;
+using TasiaAddons.LoginSecurity;
+using TasiaAddons.LoginSecurity.Data;
 
 namespace TasiaAddons.MACAudit;
 
 public class MACAuditLoginService : ILoginService
 {
     private static readonly ILog Log = LogManager.GetLogger(typeof(MACAuditLoginService));
-    private static readonly HttpClient GateHttp = new() { Timeout = TimeSpan.FromSeconds(6) };
 
     private readonly ILoginService m_inner;
+    private readonly IAccessControlService? m_accessControl;
+    private readonly IToSAcceptanceData? m_toAcceptance;
     private readonly MacAuditSettings m_settings;
     private readonly MacAuditWriter m_writer;
 
@@ -61,6 +68,45 @@ public class MACAuditLoginService : ILoginService
 
         Log.Info($"[NGC.MACAUDIT]: Inner login service loaded: {innerService}");
 
+        // Load AccessControlService for IP/hardware ban checks
+        m_accessControl = null;
+        try
+        {
+            string accessServiceDll = m_settings.AccessControlServiceDll;
+            if (!string.IsNullOrEmpty(accessServiceDll))
+            {
+                m_accessControl = ServerUtils.LoadPlugin<IAccessControlService>(accessServiceDll, new object[] { config });
+                if (m_accessControl is not null)
+                    Log.Info("[NGC.MACAUDIT]: AccessControlService loaded for ban checks");
+                else
+                    Log.Warn("[NGC.MACAUDIT]: AccessControlService not found, ban checks disabled");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("[NGC.MACAUDIT]: Failed to load AccessControlService, ban checks disabled", ex);
+        }
+
+        // Load ToS acceptance database
+        m_toAcceptance = null;
+        try
+        {
+            string tosServiceDll = m_settings.ToSAcceptanceServiceDll;
+            string tosConnString = m_settings.ToSConnectionString;
+            if (!string.IsNullOrEmpty(tosServiceDll))
+            {
+                m_toAcceptance = ServerUtils.LoadPlugin<IToSAcceptanceData>(tosServiceDll, new object[] { tosConnString });
+                if (m_toAcceptance is not null)
+                    Log.Info("[NGC.MACAUDIT]: ToS acceptance database loaded");
+                else
+                    Log.Warn("[NGC.MACAUDIT]: ToS acceptance database not found, ToS checks disabled");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("[NGC.MACAUDIT]: Failed to load ToS acceptance database, ToS checks disabled", ex);
+        }
+
         m_writer = new MacAuditWriter(m_settings);
 
         if (m_settings.Enable)
@@ -80,16 +126,52 @@ public class MACAuditLoginService : ILoginService
 
         try
         {
+            // Check IP/hardware bans via AccessControlService
+            if (m_accessControl is not null)
+            {
+                string ipStr = clientIP?.Address?.ToString() ?? string.Empty;
+
+                if (!string.IsNullOrEmpty(ipStr) && m_accessControl.IsIPBanned(ipStr))
+                {
+                    Log.InfoFormat("[NGC.MACAUDIT]: Login denied for {0} {1} — IP {2} is banned", firstName, lastName, ipStr);
+                    return new LLFailedLoginResponse("presence", "Your IP address has been banned. Please contact the grid owner.", "false");
+                }
+
+                if (!string.IsNullOrEmpty(mac) && m_accessControl.IsHardwareBanned(mac, id0 ?? string.Empty))
+                {
+                    Log.InfoFormat("[NGC.MACAUDIT]: Login denied for {0} {1} — hardware (mac={2}, id0={3}) is banned", firstName, lastName, mac, id0);
+                    return new LLFailedLoginResponse("presence", "Your hardware has been banned. Please contact the grid owner.", "false");
+                }
+            }
+
             LoginResponse response = m_inner.Login(firstName, lastName, passwd, startLocation, scopeID, clientVersion, channel, mac, id0, clientIP);
 
             if (response is null)
             {
                 Log.Error("[NGC.MACAUDIT]: Inner login service returned null response");
-                return new LLFailedLoginResponse("false", "login", "Internal error");
+                return new LLFailedLoginResponse("presence", "Internal error", "false");
             }
 
-            if (ShouldDenyByMaintenanceGate(response, out string gateReason))
-                return new LLFailedLoginResponse("false", "login", gateReason);
+            // Check ToS acceptance — must be after inner login to get user ID
+            if (m_toAcceptance is not null && m_settings.EnableToSCheck && response is LLLoginResponse llResp && !llResp.AgentID.IsZero())
+            {
+                if (!m_toAcceptance.HasAccepted(llResp.AgentID.ToString(), m_settings.ToSVersion))
+                {
+                    Log.InfoFormat("[NGC.MACAUDIT]: Login BLOCKED for {0} {1} (ID={2}) — ToS v{3} not accepted",
+                        firstName, lastName, llResp.AgentID, m_settings.ToSVersion);
+
+                    // reason="tos" triggers the viewer's native LLFloaterTOS dialog
+                    // which loads the URL in an embedded browser. The user clicks
+                    // "Agree" and the viewer retries login.
+                    return new LLFailedLoginResponse("tos",
+                        string.Format("{0}?user={1}&version={2}",
+                            m_settings.ToSUrl, llResp.AgentID, m_settings.ToSVersion),
+                        "false");
+                }
+            }
+
+            if (ShouldDenyByMaintenanceGate(response, out string gateReason, firstName, lastName, channel, clientVersion))
+                return new LLFailedLoginResponse("presence", gateReason, "false");
 
             if (!m_settings.Enable)
                 return response;
@@ -121,43 +203,175 @@ public class MACAuditLoginService : ILoginService
         return m_inner.SetLevel(firstName, lastName, passwd, level, clientIP);
     }
 
-    private bool ShouldDenyByMaintenanceGate(LoginResponse response, out string reason)
+    private bool ShouldDenyByMaintenanceGate(LoginResponse response, out string reason,
+        string firstName = "", string lastName = "", string channel = "", string clientVersion = "")
     {
         reason = string.Empty;
 
         if (!m_settings.EnableMaintenanceGate)
             return false;
 
-        if (string.IsNullOrWhiteSpace(m_settings.MaintenanceGateUrl))
+        if (string.IsNullOrWhiteSpace(m_settings.MaintenanceDbConnectionString))
             return false;
 
         if (response is not LLLoginResponse ll || ll.AgentID.IsZero())
             return false;
 
+        string uuid = ll.AgentID.ToString().ToLowerInvariant();
+
         try
         {
-            string xml = "<?xml version=\"1.0\"?><AuthorizationRequest>"
-                + "<ID>" + ll.AgentID + "</ID>"
-                + "<FirstName>Local</FirstName>"
-                + "<SurName>local</SurName>"
-                + "<RegionName>Login</RegionName>"
-                + "<RegionID>00000000-0000-0000-0000-000000000000</RegionID>"
-                + "</AuthorizationRequest>";
+            using var conn = new MySqlConnection(m_settings.MaintenanceDbConnectionString);
+            conn.Open();
 
-            using StringContent content = new(xml, Encoding.UTF8, "application/xml");
-            using HttpResponseMessage resp = GateHttp.PostAsync(m_settings.MaintenanceGateUrl, content).GetAwaiter().GetResult();
-            string body = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-
-            if (body.IndexOf("<IsAuthorized>false</IsAuthorized>", StringComparison.OrdinalIgnoreCase) >= 0)
+            // 1. Maintenance mode check
+            using (var cmd = conn.CreateCommand())
             {
-                Match m = Regex.Match(body, "<Message><!\\[CDATA\\[(.*?)\\]\\]></Message>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-                reason = m.Success ? m.Groups[1].Value.Trim() : "Login blocked by maintenance policy";
-                return true;
+                cmd.CommandText = "SELECT maintenance_mode, maintenance_message, allowed_uuids FROM opensim_maintenance WHERE id = 1 LIMIT 1";
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    int maintenanceMode = reader.GetInt32("maintenance_mode");
+                    if (maintenanceMode == 1)
+                    {
+                        string message = reader.IsDBNull(reader.GetOrdinal("maintenance_message"))
+                            ? "System is under maintenance. Please try again later."
+                            : reader.GetString("maintenance_message").Trim();
+                        string rawAllowed = reader.IsDBNull(reader.GetOrdinal("allowed_uuids"))
+                            ? ""
+                            : reader.GetString("allowed_uuids").Trim();
+
+                        bool isAllowed = false;
+                        if (!string.IsNullOrEmpty(rawAllowed))
+                        {
+                            foreach (string token in rawAllowed.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                if (token.Trim().ToLowerInvariant() == uuid)
+                                {
+                                    isAllowed = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!isAllowed)
+                        {
+                            Log.InfoFormat("[NGC.MACAUDIT]: Login BLOCKED for {0} {1} (ID={2}) — maintenance mode active",
+                                firstName, lastName, ll.AgentID);
+                            reason = message;
+                            return true;
+                        }
+                    }
+                }
             }
+
+            // 2. Viewer block check
+            string viewerInfo = $"{channel} {clientVersion}".Trim();
+
+            // Check if UUID is in viewer block exceptions
+            bool viewerBlockedException = false;
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT allowed_uuids FROM wp_igrid_viewer_block_config WHERE id = 1 LIMIT 1";
+                var result = cmd.ExecuteScalar();
+                if (result != null)
+                {
+                    string raw = result.ToString() ?? "";
+                    foreach (string token in raw.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (token.Trim().ToLowerInvariant() == uuid)
+                        {
+                            viewerBlockedException = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!viewerBlockedException && !string.IsNullOrEmpty(viewerInfo))
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT match_pattern, match_mode, reason FROM wp_igrid_viewer_block_rules WHERE enabled = 1 ORDER BY id DESC";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    string pattern = reader.GetString("match_pattern").Trim();
+                    string mode = reader.GetString("match_mode");
+                    string blockReason = reader.IsDBNull(reader.GetOrdinal("reason"))
+                        ? "Viewer version blocked by policy"
+                        : reader.GetString("reason").Trim();
+
+                    if (string.IsNullOrEmpty(pattern) || string.IsNullOrEmpty(viewerInfo))
+                        continue;
+
+                    bool matched = false;
+                    if (mode.Equals("equals", StringComparison.OrdinalIgnoreCase))
+                        matched = string.Equals(viewerInfo, pattern, StringComparison.OrdinalIgnoreCase);
+                    else if (mode.Equals("regex", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try { matched = System.Text.RegularExpressions.Regex.IsMatch(viewerInfo, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase); }
+                        catch { /* invalid regex, skip */ }
+                    }
+                    else
+                        matched = viewerInfo.Contains(pattern, StringComparison.OrdinalIgnoreCase);
+
+                    if (matched)
+                    {
+                        Log.InfoFormat("[NGC.MACAUDIT]: Login BLOCKED for {0} {1} (ID={2}) — viewer blocked: {3}",
+                            firstName, lastName, ll.AgentID, blockReason);
+                        reason = blockReason;
+                        return true;
+                    }
+                }
+            }
+
+            // 3. Local user ban check (wp_oslogin_auth)
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT banned, ban_reason FROM wp_oslogin_auth WHERE uuid = ? LIMIT 1";
+                cmd.Parameters.AddWithValue("?uuid", ll.AgentID.ToString());
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read() && reader.GetInt32("banned") == 1)
+                {
+                    string banReason = reader.IsDBNull(reader.GetOrdinal("ban_reason"))
+                        ? "This avatar is banned"
+                        : reader.GetString("ban_reason").Trim();
+                    Log.InfoFormat("[NGC.MACAUDIT]: Login BLOCKED for {0} {1} (ID={2}) — locally banned: {3}",
+                        firstName, lastName, ll.AgentID, banReason);
+                    reason = banReason;
+                    return true;
+                }
+            }
+
+            // 4. HG auth ban check (wp_opensim_auth)
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT banned, COALESCE(NULLIF(comment, ''), COALESCE(NULLIF(ban_reason, ''), 'This Avatar is banned')) AS reason FROM wp_opensim_auth WHERE uuid = ? LIMIT 1";
+                cmd.Parameters.AddWithValue("?uuid", ll.AgentID.ToString());
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read() && reader.GetInt32("banned") == 1)
+                {
+                    string banReason = reader.GetString("reason");
+                    Log.InfoFormat("[NGC.MACAUDIT]: Login BLOCKED for {0} {1} (ID={2}) — HG banned: {3}",
+                        firstName, lastName, ll.AgentID, banReason);
+                    reason = banReason;
+                    return true;
+                }
+            }
+
+            // 5. Update last login timestamp for local users
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "UPDATE wp_oslogin_auth SET last_login = NOW() WHERE uuid = ?";
+                cmd.Parameters.AddWithValue("?uuid", ll.AgentID.ToString());
+                cmd.ExecuteNonQuery();
+            }
+            catch { /* best effort, don't block login */ }
         }
         catch (Exception ex)
         {
-            Log.Warn("[NGC.MACAUDIT]: Maintenance gate check failed; allowing login", ex);
+            Log.Warn("[NGC.MACAUDIT]: Maintenance gate DB check failed; allowing login", ex);
         }
 
         return false;
@@ -310,7 +524,13 @@ internal sealed class MacAuditSettings
     public string? HttpAuthHeader { get; private set; }
     public string InnerLoginService { get; private set; } = "OpenSim.Services.LLLoginService.dll:LLLoginService";
     public bool EnableMaintenanceGate { get; private set; } = true;
-    public string MaintenanceGateUrl { get; private set; } = "http://127.0.0.1/hg/hgauthnew.php";
+    public string MaintenanceDbConnectionString { get; private set; } = string.Empty;
+    public string AccessControlServiceDll { get; private set; } = "TasiaAddons.LoginSecurity.dll:TasiaAddons.LoginSecurity.AccessControlService.AccessControlService";
+    public bool EnableToSCheck { get; private set; } = false;
+    public int ToSVersion { get; private set; } = 1;
+    public string ToSUrl { get; private set; } = string.Empty;
+    public string ToSAcceptanceServiceDll { get; private set; } = "TasiaAddons.LoginSecurity.dll:TasiaAddons.LoginSecurity.Data.SQLiteToSAcceptanceData";
+    public string ToSConnectionString { get; private set; } = "Data Source=Data/accesscontrol.db;Version=3";
 
     public static MacAuditSettings FromConfig(IConfigSource source)
     {
@@ -334,7 +554,13 @@ internal sealed class MacAuditSettings
         settings.HttpEndpoint = Normalize(config.GetString("HTTPSinkEndpoint", string.Empty));
         settings.HttpAuthHeader = Normalize(config.GetString("HTTPSinkAuthHeader", string.Empty));
         settings.EnableMaintenanceGate = config.GetBoolean("EnableMaintenanceGate", true);
-        settings.MaintenanceGateUrl = config.GetString("MaintenanceGateUrl", settings.MaintenanceGateUrl);
+        settings.MaintenanceDbConnectionString = config.GetString("MaintenanceDbConnectionString", settings.MaintenanceDbConnectionString);
+        settings.AccessControlServiceDll = config.GetString("AccessControlService", settings.AccessControlServiceDll);
+        settings.EnableToSCheck = config.GetBoolean("EnableToSCheck", false);
+        settings.ToSVersion = config.GetInt("ToSVersion", 1);
+        settings.ToSUrl = config.GetString("ToSUrl", string.Empty);
+        settings.ToSAcceptanceServiceDll = config.GetString("ToSAcceptanceService", settings.ToSAcceptanceServiceDll);
+        settings.ToSConnectionString = config.GetString("ToSConnectionString", settings.ToSConnectionString);
         string? innerSetting = Normalize(config.GetString("InnerLoginService", settings.InnerLoginService));
         if (!string.IsNullOrEmpty(innerSetting))
             settings.InnerLoginService = NormalizeServiceReference(innerSetting);

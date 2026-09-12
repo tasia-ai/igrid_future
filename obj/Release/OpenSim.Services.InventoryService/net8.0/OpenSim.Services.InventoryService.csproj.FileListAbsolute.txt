@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.InventoryService.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.InventoryService.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.InventoryService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/OpenSim.Services.InventoryService.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/OpenSim.Services.InventoryService.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/OpenSim.Services.InventoryService.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/OpenSim.Services.InventoryService.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/OpenSim..BAB23D88.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/OpenSim.Services.InventoryService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/refint/OpenSim.Services.InventoryService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/OpenSim.Services.InventoryService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/OpenSim.Services.InventoryService.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.InventoryService/net8.0/ref/OpenSim.Services.InventoryService.dll

@@ -43,6 +43,11 @@
 ; * [[<ConfigName>@]<port>/]<dll name>[:<class name>]
 ; *
 [Startup]
+    ;# {MemoryLimit} {} {Maximum process working set before forced GC (soft limit)} {} 2GB
+    ;; Enforced by the MemoryLimiter watchdog. Accepts e.g. "2GB", "1536MB" or a
+    ;; plain byte count. "0" / "unlimited" disables the watchdog. Default: 2GB.
+    MemoryLimit = 2GB
+
     ; Place to create a PID file
     ; If no path if specified then a PID file is not created.
     ; PIDFile = "/tmp/Robust.exe.pid"

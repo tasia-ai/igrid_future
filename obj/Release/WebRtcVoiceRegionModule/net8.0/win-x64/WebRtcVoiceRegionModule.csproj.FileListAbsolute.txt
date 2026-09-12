@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/WebRtcVoiceRegionModule.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/WebRtcVoiceRegionModule.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/WebRtcVoiceRegionModule.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/WebRtcVoiceRegionModule.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/WebRtcVoiceRegionModule.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/WebRtcVoiceRegionModule.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/WebRtcVoiceRegionModule.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/WebRtcVo.539D511F.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/WebRtcVoiceRegionModule.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/refint/WebRtcVoiceRegionModule.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/WebRtcVoiceRegionModule.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/WebRtcVoiceRegionModule.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceRegionModule/net8.0/win-x64/ref/WebRtcVoiceRegionModule.dll

@@ -40,6 +40,7 @@ using OpenSim.Services.Connectors.Hypergrid;
 
 using OpenMetaverse;
 using log4net;
+using MySqlConnector;
 using Nini.Config;
 using Mono.Addins;
 
@@ -73,6 +74,7 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
         protected bool m_DisplayChangingHomeURI = false;
 
         UUID m_scopeID = UUID.Zero;
+        protected IConfigSource m_ConfigSource;
 
         ~UserManagementModule()
         {
@@ -100,6 +102,7 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
 
         public virtual void Initialise(IConfigSource config)
         {
+            m_ConfigSource = config;
             string umanmod = config.Configs["Modules"].GetString("UserManagementModule", Name);
             if (umanmod == Name)
             {
@@ -215,6 +218,12 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
             if(!m_Enabled || m_Scenes.Count <= 0)
                 return;
 
+            if (TryGetVirtualAvatarName(uuid, out string firstName, out string lastName, out _))
+            {
+                client.SendNameReply(uuid, firstName, lastName);
+                return;
+            }
+
             if (m_userCacheByID.TryGetValue(uuid, out UserData user))
             {
                 if (user.HasGridUserTried)
@@ -243,7 +252,40 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
             });
         }
 
-        public virtual void HandleAvatarPickerRequest(IClientAPI client, UUID avatarID, UUID RequestID, string query)
+        private bool TryGetVirtualAvatarName(UUID avatarID, out string firstName, out string lastName, out string displayName)
+        {
+            firstName = string.Empty;
+            lastName = string.Empty;
+            displayName = string.Empty;
+            try
+            {
+                IConfig dbConfig = m_ConfigSource?.Configs["DatabaseService"];
+                string connectionString = dbConfig?.GetString("ConnectionString", string.Empty) ?? string.Empty;
+                if (string.IsNullOrEmpty(connectionString))
+                    return false;
+
+                MySqlConnectionStringBuilder builder = new(connectionString) { Database = "robust" };
+                using MySqlConnection dbcon = new(builder.ConnectionString);
+                dbcon.Open();
+                using MySqlCommand cmd = new("SELECT FirstName, LastName, DisplayName FROM TasiaVirtualAvatars WHERE VirtualID = @Id AND Enabled = 1", dbcon);
+                cmd.Parameters.AddWithValue("@Id", avatarID.ToString());
+                using MySqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.SingleRow);
+                if (!reader.Read())
+                    return false;
+
+                firstName = reader.GetString("FirstName");
+                lastName = reader.GetString("LastName");
+                displayName = reader.GetString("DisplayName");
+                return !string.IsNullOrEmpty(firstName);
+            }
+            catch (MySqlException e)
+            {
+                m_log.ErrorFormat("[USER MANAGEMENT MODULE]: Virtual avatar name lookup failed: {0}", e.Message);
+                return false;
+            }
+        }
+
+        protected virtual void HandleAvatarPickerRequest(IClientAPI client, UUID avatarID, UUID RequestID, string query)
         {
             //EventManager.TriggerAvatarPickerRequest();
 
@@ -699,6 +741,32 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
                 }
                 missing.Add(id);
             }
+
+            List<string> virtualIds = new();
+            foreach (string id in missing)
+            {
+                if (!UUID.TryParse(id, out UUID virtualID)
+                    || !TryGetVirtualAvatarName(virtualID, out string firstName, out string lastName, out string displayName))
+                    continue;
+
+                UserData virtualUser = new()
+                {
+                    Id = virtualID,
+                    FirstName = firstName,
+                    LastName = lastName,
+                    HomeURL = string.Empty,
+                    IsUnknownUser = false,
+                    IsLocal = true,
+                    HasGridUserTried = true,
+                    DisplayName = displayName,
+                    NameChanged = DateTime.UtcNow
+                };
+                m_userCacheByID.Add(virtualID, virtualUser, 1800000);
+                ret.Add(virtualUser);
+                virtualIds.Add(id);
+            }
+            if (virtualIds.Count > 0)
+                missing.RemoveAll(id => virtualIds.Contains(id));
 
             if (missing.Count == 0)
                 return ret;

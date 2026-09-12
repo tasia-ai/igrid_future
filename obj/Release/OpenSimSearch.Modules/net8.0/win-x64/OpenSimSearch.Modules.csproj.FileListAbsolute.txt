@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSimSearch.Modules.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSimSearch.Modules.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSimSearch.Modules.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/OpenSimSearch.Modules.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/OpenSimSearch.Modules.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/OpenSimSearch.Modules.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/OpenSimSearch.Modules.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/OpenSimS.62EF2F53.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/OpenSimSearch.Modules.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/refint/OpenSimSearch.Modules.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/OpenSimSearch.Modules.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/OpenSimSearch.Modules.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimSearch.Modules/net8.0/win-x64/ref/OpenSimSearch.Modules.dll

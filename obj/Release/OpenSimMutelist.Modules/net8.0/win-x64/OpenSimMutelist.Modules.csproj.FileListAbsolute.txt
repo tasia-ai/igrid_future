@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSimMutelist.Modules.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSimMutelist.Modules.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSimMutelist.Modules.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/OpenSimMutelist.Modules.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/OpenSimMutelist.Modules.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/OpenSimMutelist.Modules.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/OpenSimMutelist.Modules.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/OpenSimM.D0D58768.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/OpenSimMutelist.Modules.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/refint/OpenSimMutelist.Modules.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/OpenSimMutelist.Modules.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/OpenSimMutelist.Modules.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSimMutelist.Modules/net8.0/win-x64/ref/OpenSimMutelist.Modules.dll

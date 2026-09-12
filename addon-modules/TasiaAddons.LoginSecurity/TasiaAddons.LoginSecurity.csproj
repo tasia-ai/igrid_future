@@ -42,6 +42,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="$(SolutionDir)/Source/Tasia.Extensions.SDK/Tasia.Extensions.SDK.csproj" />
   </ItemGroup>
 </Project>

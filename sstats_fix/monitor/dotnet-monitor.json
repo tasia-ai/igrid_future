@@ -1,0 +1,134 @@
+{
+  "$schema": "https://aka.ms/dotnet-monitor-schema/dotnet-monitor-schema.json",
+  "MonitorUrls": "http://+:52323",
+
+  "Auth": {
+    "Mode": "Basic",
+    "Username": "admin",
+    "Password": "CHANGE_ME_MONITOR_PASSWORD"
+  },
+
+  "DiagnosticPort": {
+    "ConnectionMode": "Connect",
+    "Endpoint": "/tmp/dotnet-monitor.sock"
+  },
+
+  "Metrics": {
+    "Enabled": true,
+    "Endpoints": "http://+:52325",
+    "IncludeScopes": false,
+    "HoldTime": "00:00:10",
+    "UploadInterval": "00:00:30",
+    "MetricCount": 60,
+    "Providers": [
+      {
+        "Name": "System.Runtime",
+        "EventCounterIntervalSeconds": 5
+      },
+      {
+        "Name": "Microsoft.AspNetCore.Hosting",
+        "EventCounterIntervalSeconds": 5
+      },
+      {
+        "Name": "Microsoft.AspNetCore.HttpConnections",
+        "EventCounterIntervalSeconds": 5
+      },
+      {
+        "Name": "Microsoft.Extensions.Hosting",
+        "EventCounterIntervalSeconds": 5
+      },
+      {
+        "Name": "OpenSim.Framework.Monitoring",
+        "EventCounterIntervalSeconds": 10
+      }
+    ]
+  },
+
+  "Logs": {
+    "Enabled": true,
+    "DefaultLevel": "Information",
+    "HttpApi": {
+      "Enabled": true,
+      "Level": "Information"
+    }
+  },
+
+  "Storage": {
+    "DumpTempFolder": "/tmp/dotnet-monitor-dumps",
+    "LogsTempFolder": "/tmp/dotnet-monitor-logs"
+  },
+
+  "CollectionRules": {
+    "rules": {
+      "High CPU Usage": {
+        "Trigger": {
+          "Type": "EventCounter",
+          "Settings": {
+            "ProviderName": "System.Runtime",
+            "CounterName": "cpu-usage",
+            "GreaterThan": 80
+          }
+        },
+        "Action": {
+          "Type": "CollectTrace",
+          "Settings": {
+            "Duration": "00:00:30",
+            "Profile": "Cpu"
+          }
+        }
+      },
+      "High Memory Working Set": {
+        "Trigger": {
+          "Type": "EventCounter",
+          "Settings": {
+            "ProviderName": "System.Runtime",
+            "CounterName": "working-set",
+            "GreaterThan": 2048
+          }
+        },
+        "Action": {
+          "Type": "CollectDump",
+          "Settings": {
+            "Type": "Full",
+            "Egress": "FileSystem",
+            "DumpPath": "/tmp/opensim-dumps"
+          }
+        }
+      },
+      "High Exception Rate": {
+        "Trigger": {
+          "Type": "EventCounter",
+          "Settings": {
+            "ProviderName": "System.Runtime",
+            "CounterName": "exception-count",
+            "GreaterThan": 50
+          }
+        },
+        "Action": {
+          "Type": "CollectTrace",
+          "Settings": {
+            "Duration": "00:00:15",
+            "Profile": "Logs"
+          }
+        }
+      },
+      "Request Duration High": {
+        "Trigger": {
+          "Type": "EventCounter",
+          "Settings": {
+            "ProviderName": "Microsoft.AspNetCore.Hosting",
+            "CounterName": "request-duration",
+            "GreaterThan": 5000
+          }
+        },
+        "Action": {
+          "Type": "CollectTrace",
+          "Settings": {
+            "Duration": "00:00:20",
+            "Profile": "HttpMetrics"
+          }
+        }
+      }
+    }
+  }
+}

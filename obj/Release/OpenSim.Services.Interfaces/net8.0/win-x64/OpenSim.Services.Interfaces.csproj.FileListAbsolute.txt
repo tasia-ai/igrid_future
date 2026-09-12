@@ -1,0 +1,11 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.Interfaces.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.Interfaces.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.Interfaces/net8.0/win-x64/OpenSim.Services.Interfaces.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.Interfaces/net8.0/win-x64/OpenSim.Services.Interfaces.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.Interfaces/net8.0/win-x64/OpenSim.Services.Interfaces.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.Interfaces/net8.0/win-x64/OpenSim.Services.Interfaces.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.Interfaces/net8.0/win-x64/OpenSim..6DFE365E.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.Interfaces/net8.0/win-x64/OpenSim.Services.Interfaces.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.Interfaces/net8.0/win-x64/refint/OpenSim.Services.Interfaces.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.Interfaces/net8.0/win-x64/OpenSim.Services.Interfaces.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.Interfaces/net8.0/win-x64/ref/OpenSim.Services.Interfaces.dll

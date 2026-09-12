@@ -7,6 +7,8 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace OSHttpServer
 {
@@ -17,6 +19,7 @@ namespace OSHttpServer
     {
         private readonly ConcurrentDictionary<int, HttpClientContext> m_activeContexts = new();
         private readonly ILogWriter m_logWriter;
+        private int m_shutdown;
 
         /// <summary>
         /// A request have been received from one of the contexts.
@@ -80,35 +83,38 @@ namespace OSHttpServer
         /// <returns>
         /// A created <see cref="IHttpClientContext"/>.
         /// </returns>
-        public IHttpClientContext CreateSecureContext(Socket socket, X509Certificate certificate,
-             SslProtocols protocol, RemoteCertificateValidationCallback _clientCallback = null)
+        public async Task<IHttpClientContext> CreateSecureContextAsync(Socket socket, X509Certificate certificate,
+             SslProtocols protocol, RemoteCertificateValidationCallback _clientCallback = null,
+             CancellationToken cancellationToken = default)
         {
             var networkStream = new NetworkStream(socket, true);
-            var remoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
-
             SslStream sslStream = null;
             try
             {
-                if (_clientCallback == null)
+                var remoteEndPoint = (IPEndPoint)socket.RemoteEndPoint;
+                sslStream = _clientCallback == null
+                    ? new SslStream(networkStream, false)
+                    : new SslStream(networkStream, false, _clientCallback);
+
+                var options = new SslServerAuthenticationOptions
                 {
-                    sslStream = new SslStream(networkStream, false);
-                    sslStream.AuthenticateAsServer(certificate, false, protocol, false);
-                }
-                else
-                {
-                    sslStream = new SslStream(networkStream, false,
-                            new RemoteCertificateValidationCallback(_clientCallback));
-                    sslStream.AuthenticateAsServer(certificate, true, protocol, false);
-                }
+                    ServerCertificate = certificate,
+                    ClientCertificateRequired = _clientCallback != null,
+                    EnabledSslProtocols = protocol,
+                    CertificateRevocationCheckMode = X509RevocationMode.NoCheck
+                };
+                await sslStream.AuthenticateAsServerAsync(options, cancellationToken).ConfigureAwait(false);
+                return CreateContext(true, remoteEndPoint, sslStream, socket);
             }
             catch (Exception e)
             {
-                m_logWriter.Write(this, LogPrio.Error, e.Message);
-                sslStream.Close();
+                m_logWriter.Write(this, LogPrio.Error, $"TLS handshake failed for {socket.RemoteEndPoint}: {e.Message}");
+                if (sslStream is not null)
+                    await sslStream.DisposeAsync().ConfigureAwait(false);
+                else
+                    networkStream.Dispose();
                 return null;
             }
-
-            return CreateContext(true, remoteEndPoint, sslStream, socket);
         }
 
         /// <summary>
@@ -132,6 +138,21 @@ namespace OSHttpServer
         /// </summary>
         public void Shutdown()
         {
+            if (Interlocked.Exchange(ref m_shutdown, 1) != 0)
+                return;
+
+            foreach (HttpClientContext context in m_activeContexts.Values)
+            {
+                try
+                {
+                    context.Disconnect(SocketError.HostDown);
+                }
+                catch
+                {
+                    context.Close();
+                }
+            }
+            m_activeContexts.Clear();
             ContextTimeoutManager.Stop();
         }
     }
@@ -155,8 +176,9 @@ namespace OSHttpServer
         /// <param name="certificate">HTTPS certificate to use.</param>
         /// <param name="protocol">Kind of HTTPS protocol. Usually TLS or SSL.</param>
         /// <returns>A created <see cref="IHttpClientContext"/>.</returns>
-        IHttpClientContext CreateSecureContext(Socket socket, X509Certificate certificate,
-             SslProtocols protocol, RemoteCertificateValidationCallback _clientCallback = null);
+        Task<IHttpClientContext> CreateSecureContextAsync(Socket socket, X509Certificate certificate,
+             SslProtocols protocol, RemoteCertificateValidationCallback _clientCallback = null,
+             CancellationToken cancellationToken = default);
 
         /// <summary>
         /// A request have been received from one of the contexts.

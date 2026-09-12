@@ -206,6 +206,7 @@ namespace OpenSim.Server.Base
         {
             Watchdog.Enabled = true;
             MemoryWatchdog.Enabled = true;
+            MemoryLimiter.Start(Config);
 
             while (m_Running)
             {

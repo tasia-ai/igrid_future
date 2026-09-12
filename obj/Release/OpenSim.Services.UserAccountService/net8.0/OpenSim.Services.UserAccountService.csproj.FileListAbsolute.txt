@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.UserAccountService.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.UserAccountService.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.UserAccountService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/OpenSim.Services.UserAccountService.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/OpenSim.Services.UserAccountService.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/OpenSim.Services.UserAccountService.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/OpenSim.Services.UserAccountService.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/OpenSim..1860034C.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/OpenSim.Services.UserAccountService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/refint/OpenSim.Services.UserAccountService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/OpenSim.Services.UserAccountService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/OpenSim.Services.UserAccountService.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.UserAccountService/net8.0/ref/OpenSim.Services.UserAccountService.dll

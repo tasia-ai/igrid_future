@@ -585,8 +585,48 @@ namespace OpenSim.Data.MySQL
         #endregion Avatar Notes Queries
 
         #region Avatar Properties
+        private bool GetVirtualAvatarProperties(ref UserProfileProperties props)
+        {
+            try
+            {
+                MySqlConnectionStringBuilder builder = new(ConnectionString) { Database = "robust" };
+                using MySqlConnection dbcon = new(builder.ConnectionString);
+                dbcon.Open();
+                const string query = @"SELECT AboutText, ProfileImage, FirstLifeImage, FirstLifeText, WebUrl
+                    FROM TasiaVirtualAvatars WHERE VirtualID = @Id AND Enabled = 1";
+                using MySqlCommand cmd = new(query, dbcon);
+                cmd.Parameters.AddWithValue("@Id", props.UserId.ToString());
+                using MySqlDataReader reader = cmd.ExecuteReader(CommandBehavior.SingleRow);
+                if (!reader.Read())
+                    return false;
+
+                props.WebUrl = reader.GetString("WebUrl");
+                UUID.TryParse(reader.GetString("ProfileImage"), out props.ImageId);
+                props.AboutText = reader.GetString("AboutText");
+                UUID.TryParse(reader.GetString("FirstLifeImage"), out props.FirstLifeImageId);
+                props.FirstLifeText = reader.GetString("FirstLifeText");
+                props.PartnerId = UUID.Zero;
+                props.WantToMask = 0;
+                props.WantToText = string.Empty;
+                props.SkillsMask = 0;
+                props.SkillsText = string.Empty;
+                props.Language = string.Empty;
+                props.PublishProfile = true;
+                props.PublishMature = false;
+                return true;
+            }
+            catch (MySqlException e)
+            {
+                m_log.ErrorFormat("[PROFILES_DATA]: Virtual profile lookup exception {0}", e.Message);
+                return false;
+            }
+        }
+
         public bool GetAvatarProperties(ref UserProfileProperties props, ref string result)
         {
+            if (GetVirtualAvatarProperties(ref props))
+                return true;
+
             string query = "SELECT * FROM userprofile WHERE useruuid = ?Id";
 
             try

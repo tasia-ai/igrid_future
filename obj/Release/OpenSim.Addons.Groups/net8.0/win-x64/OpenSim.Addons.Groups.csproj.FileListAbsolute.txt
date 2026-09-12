@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Addons.Groups.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Addons.Groups.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Addons.Groups.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/OpenSim.Addons.Groups.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/OpenSim.Addons.Groups.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/OpenSim.Addons.Groups.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/OpenSim.Addons.Groups.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/OpenSim..82EECF2D.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/OpenSim.Addons.Groups.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/refint/OpenSim.Addons.Groups.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/OpenSim.Addons.Groups.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/OpenSim.Addons.Groups.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Addons.Groups/net8.0/win-x64/ref/OpenSim.Addons.Groups.dll

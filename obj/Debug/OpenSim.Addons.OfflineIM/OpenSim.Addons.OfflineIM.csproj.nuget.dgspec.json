@@ -1,0 +1,1597 @@
+{
+  "format": 1,
+  "restore": {
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Addons/OfflineIM/OpenSim.Addons.OfflineIM.csproj": {}
+  },
+  "projects": {
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Addons/OfflineIM/OpenSim.Addons.OfflineIM.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Addons/OfflineIM/OpenSim.Addons.OfflineIM.csproj",
+        "projectName": "OpenSim.Addons.OfflineIM",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Addons/OfflineIM/OpenSim.Addons.OfflineIM.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Addons.OfflineIM/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/MySQL/OpenSim.Data.MySQL.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/MySQL/OpenSim.Data.MySQL.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/Framework/OpenSim.Region.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/Framework/OpenSim.Region.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Base/OpenSim.Server.Base.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Base/OpenSim.Server.Base.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Handlers/OpenSim.Server.Handlers.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Handlers/OpenSim.Server.Handlers.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Mono.Addins": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.CecilReflector": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Capabilities/OpenSim.Capabilities.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Capabilities/OpenSim.Capabilities.csproj",
+        "projectName": "OpenSim.Capabilities",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Capabilities/OpenSim.Capabilities.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Capabilities/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/OpenSim.Framework.Servers.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/OpenSim.Framework.Servers.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/MySQL/OpenSim.Data.MySQL.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/MySQL/OpenSim.Data.MySQL.csproj",
+        "projectName": "OpenSim.Data.MySQL",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/MySQL/OpenSim.Data.MySQL.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Data.MySQL/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/Framework/OpenSim.Region.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/Framework/OpenSim.Region.Framework.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Mono.Addins": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.CecilReflector": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "MySqlConnector": {
+              "target": "Package",
+              "version": "[2.4.0, )"
+            },
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj",
+        "projectName": "OpenSim.Data",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Data/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Mono.Addins": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.CecilReflector": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "MySqlConnector": {
+              "target": "Package",
+              "version": "[2.4.0, )"
+            },
+            "System.Data.SQLite": {
+              "target": "Package",
+              "version": "[1.0.119, )"
+            },
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj",
+        "projectName": "OpenSim.Framework.Console",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Framework.Console/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj",
+        "projectName": "OpenSim.Framework.Monitoring",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Framework.Monitoring/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj",
+        "projectName": "OpenSim.Framework",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Framework/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Mono.Addins": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.CecilReflector": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.Setup": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "System.Drawing.Common": {
+              "target": "Package",
+              "version": "[6.0.0, )"
+            },
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Serialization/OpenSim.Framework.Serialization.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Serialization/OpenSim.Framework.Serialization.csproj",
+        "projectName": "OpenSim.Framework.Serialization",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Serialization/OpenSim.Framework.Serialization.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Framework.Serialization/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj",
+        "projectName": "OpenSim.Framework.Servers.HttpServer",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Framework.Servers.HttpServer/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/OpenSim.Framework.Servers.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/OpenSim.Framework.Servers.csproj",
+        "projectName": "OpenSim.Framework.Servers",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/OpenSim.Framework.Servers.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Framework.Servers/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/Framework/OpenSim.Region.Framework.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/Framework/OpenSim.Region.Framework.csproj",
+        "projectName": "OpenSim.Region.Framework",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/Framework/OpenSim.Region.Framework.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Region.Framework/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Capabilities/OpenSim.Capabilities.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Capabilities/OpenSim.Capabilities.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Serialization/OpenSim.Framework.Serialization.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Serialization/OpenSim.Framework.Serialization.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/OpenSim.Framework.Servers.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/OpenSim.Framework.Servers.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/PhysicsModules/SharedBase/OpenSim.Region.PhysicsModules.SharedBase.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/PhysicsModules/SharedBase/OpenSim.Region.PhysicsModules.SharedBase.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Mono.Addins": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.CecilReflector": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "System.Drawing.Common": {
+              "target": "Package",
+              "version": "[6.0.0, )"
+            },
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/PhysicsModules/SharedBase/OpenSim.Region.PhysicsModules.SharedBase.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/PhysicsModules/SharedBase/OpenSim.Region.PhysicsModules.SharedBase.csproj",
+        "projectName": "OpenSim.Region.PhysicsModules.SharedBase",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/PhysicsModules/SharedBase/OpenSim.Region.PhysicsModules.SharedBase.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Region.PhysicsModules.SharedBase/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Base/OpenSim.Server.Base.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Base/OpenSim.Server.Base.csproj",
+        "projectName": "OpenSim.Server.Base",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Base/OpenSim.Server.Base.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Server.Base/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/OpenSim.Framework.Servers.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/OpenSim.Framework.Servers.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Mono.Addins": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.CecilReflector": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.Setup": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Handlers/OpenSim.Server.Handlers.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Handlers/OpenSim.Server.Handlers.csproj",
+        "projectName": "OpenSim.Server.Handlers",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Handlers/OpenSim.Server.Handlers.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Server.Handlers/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Base/OpenSim.Server.Base.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Base/OpenSim.Server.Base.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/UserAccountService/OpenSim.Services.UserAccountService.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/UserAccountService/OpenSim.Services.UserAccountService.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Mono.Addins": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.CecilReflector": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj",
+        "projectName": "OpenSim.Services.Base",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Services.Base/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Connectors/OpenSim.Services.Connectors.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Connectors/OpenSim.Services.Connectors.csproj",
+        "projectName": "OpenSim.Services.Connectors",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Connectors/OpenSim.Services.Connectors.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Services.Connectors/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Capabilities/OpenSim.Capabilities.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Capabilities/OpenSim.Capabilities.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Monitoring/OpenSim.Framework.Monitoring.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/Framework/OpenSim.Region.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Region/Framework/OpenSim.Region.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Base/OpenSim.Server.Base.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Server/Base/OpenSim.Server.Base.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Mono.Addins": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "Mono.Addins.CecilReflector": {
+              "target": "Package",
+              "version": "[1.4.1, )"
+            },
+            "System.Drawing.Common": {
+              "target": "Package",
+              "version": "[6.0.0, )"
+            },
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj",
+        "projectName": "OpenSim.Services.Interfaces",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Services.Interfaces/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/UserAccountService/OpenSim.Services.UserAccountService.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/UserAccountService/OpenSim.Services.UserAccountService.csproj",
+        "projectName": "OpenSim.Services.UserAccountService",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/UserAccountService/OpenSim.Services.UserAccountService.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/OpenSim.Services.UserAccountService/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Data/OpenSim.Data.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Console/OpenSim.Framework.Console.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/OpenSim.Framework.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Framework/Servers/HttpServer/OpenSim.Framework.Servers.HttpServer.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Base/OpenSim.Services.Base.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Connectors/OpenSim.Services.Connectors.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Connectors/OpenSim.Services.Connectors.csproj"
+              },
+              "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj": {
+                "projectPath": "/home/marty/igrid-server-code-2026-07-03/OpenSim/Services/Interfaces/OpenSim.Services.Interfaces.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj",
+        "projectName": "SmartThreadPool",
+        "projectPath": "/home/marty/igrid-server-code-2026-07-03/ThirdParty/SmartThreadPool/SmartThreadPool.csproj",
+        "packagesPath": "/home/marty/.nuget/packages/",
+        "outputPath": "/home/marty/igrid-server-code-2026-07-03//obj/Debug/SmartThreadPool/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/marty/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.bepinex.dev/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "log4net": {
+              "target": "Package",
+              "version": "[3.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

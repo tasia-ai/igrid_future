@@ -91,6 +91,11 @@ namespace OpenSim.Server.Handlers
         // Active proxy sessions: circuit_code -> session
         private readonly ConcurrentDictionary<uint, ProxySession> m_sessions = new();
 
+        // Zero-length keepalive frame: [00 00 00 00]
+        // Written periodically on both viewer and sim streams to prevent
+        // NAT/firewall/QUIC idle timeout from killing the connection.
+        private static readonly byte[] s_keepaliveFrame = new byte[] { 0, 0, 0, 0 };
+
         #region IServiceConnector
 
         public string Name => "QuicProxyConnector";
@@ -538,7 +543,26 @@ namespace OpenSim.Server.Handlers
                 // Resolve target sim — QUIC endpoint from registry
                 if (!QuicCircuitRegistry.TryGetQUIC(circuitCode, out IPEndPoint quicEndpoint))
                 {
-                    m_log.Warn($"[QuicProxy] No QUIC route for circuit {circuitCode}, dropping connection");
+                    // Race condition: sim may still be registering this circuit.
+                    // Wait briefly for the registration POST to arrive.
+                    m_log.Info($"[QuicProxy] No QUIC route for circuit {circuitCode} yet, waiting for registration...");
+                    int waited = 0;
+                    int waitBudget = 2000; // max 2 seconds
+                    while (waited < waitBudget)
+                    {
+                        await Task.Delay(200, ct);
+                        waited += 200;
+                        if (QuicCircuitRegistry.TryGetQUIC(circuitCode, out quicEndpoint))
+                        {
+                            m_log.Info($"[QuicProxy] Circuit {circuitCode} QUIC route appeared after {waited}ms");
+                            break;
+                        }
+                    }
+                }
+
+                if (quicEndpoint == null)
+                {
+                    m_log.Warn($"[QuicProxy] No QUIC route for circuit {circuitCode} after wait, dropping connection");
                     return;
                 }
 
@@ -576,10 +600,14 @@ namespace OpenSim.Server.Handlers
                     ViewerStream = viewerStream,
                     SimConn = simConn,
                     SimStream = simStream,
-                    CircuitCode = circuitCode
+                    CircuitCode = circuitCode,
+                    KeepaliveCts = CancellationTokenSource.CreateLinkedTokenSource(ct)
                 };
 
                 m_sessions[circuitCode] = session;
+
+                // Start keepalive on both streams to prevent idle timeout
+                _ = KeepaliveLoopAsync(session, session.KeepaliveCts.Token);
 
                 // Bidirectional QUIC stream bridging
                 var tasks = new[]
@@ -709,6 +737,7 @@ namespace OpenSim.Server.Handlers
         /// Bridge framed LLUDP packets from the viewer's QUIC stream to the sim's QUIC stream.
         /// Both sides use the same framing (4-byte big-endian length prefix).
         /// The entire framed packet (prefix + payload) is forwarded as-is.
+        /// Zero-length frames are keepalive markers and are silently consumed.
         /// </summary>
         private async Task BridgeViewerToSim(ProxySession session, CancellationToken ct)
         {
@@ -727,7 +756,11 @@ namespace OpenSim.Server.Handlers
                     int payloadLen = (headerBuf[0] << 24) | (headerBuf[1] << 16) |
                                      (headerBuf[2] << 8) | headerBuf[3];
 
-                    if (payloadLen <= 0 || payloadLen > 64 * 1024)
+                    // Zero-length frame = keepalive marker — silently consume
+                    if (payloadLen == 0)
+                        continue;
+
+                    if (payloadLen < 0 || payloadLen > 64 * 1024)
                         break;
 
                     // Read payload into buffer starting at offset 4 (after prefix slot)
@@ -754,6 +787,7 @@ namespace OpenSim.Server.Handlers
         /// Bridge framed LLUDP packets from the sim's QUIC stream to the viewer's QUIC stream.
         /// The sim frames packets with the same 4-byte length prefix convention.
         /// The entire framed packet (prefix + payload) is forwarded as-is.
+        /// Zero-length frames are keepalive markers and are silently consumed.
         /// </summary>
         private async Task BridgeSimToViewer(ProxySession session, CancellationToken ct)
         {
@@ -772,7 +806,11 @@ namespace OpenSim.Server.Handlers
                     int payloadLen = (headerBuf[0] << 24) | (headerBuf[1] << 16) |
                                      (headerBuf[2] << 8) | headerBuf[3];
 
-                    if (payloadLen <= 0 || payloadLen > 64 * 1024)
+                    // Zero-length frame = keepalive marker — silently consume
+                    if (payloadLen == 0)
+                        continue;
+
+                    if (payloadLen < 0 || payloadLen > 64 * 1024)
                         break;
 
                     // Read payload
@@ -803,6 +841,10 @@ namespace OpenSim.Server.Handlers
             if (session == null)
                 return;
 
+            // Stop keepalive
+            try { session.KeepaliveCts?.Cancel(); } catch { }
+            try { session.KeepaliveCts?.Dispose(); } catch { }
+
             bool removed = false;
             if (m_sessions.TryGetValue(circuitCode, out ProxySession current) && ReferenceEquals(current, session))
             {
@@ -821,6 +863,47 @@ namespace OpenSim.Server.Handlers
                 m_log.Info($"[QuicProxy] Closed bridge for circuit {circuitCode}");
             else
                 m_log.Info($"[QuicProxy] Closed stale bridge for circuit {circuitCode}; newer session kept alive");
+        }
+
+        /// <summary>
+        /// Send periodic keepalive flushes on both viewer and sim QUIC streams
+        /// to prevent NAT/firewall idle timeout from killing the connection.
+        /// Writes a zero-length frame marker ([00 00 00 00]) that the receiving
+        /// side silently consumes. This ensures actual bytes are sent on the wire,
+        /// which resets the QUIC connection idle timer on both sides.
+        /// </summary>
+        private async Task KeepaliveLoopAsync(ProxySession session, CancellationToken ct)
+        {
+            int intervalMs = Math.Max(m_idleTimeoutMs / 3, 15000); // flush every 1/3 of idle timeout, min 15s
+            byte[] keepalive = s_keepaliveFrame;
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(intervalMs, ct);
+
+                    try
+                    {
+                        if (session.ViewerStream != null && session.ViewerStream.CanWrite)
+                        {
+                            await session.ViewerStream.WriteAsync(keepalive.AsMemory(0, keepalive.Length), ct);
+                            await session.ViewerStream.FlushAsync(ct);
+                        }
+                        if (session.SimStream != null && session.SimStream.CanWrite)
+                        {
+                            await session.SimStream.WriteAsync(keepalive.AsMemory(0, keepalive.Length), ct);
+                            await session.SimStream.FlushAsync(ct);
+                        }
+                    }
+                    catch (OperationCanceledException) { break; }
+                    catch (Exception)
+                    {
+                        // Stream write failure — connection is likely dead, exit loop
+                        break;
+                    }
+                }
+            }
+            catch (OperationCanceledException) { }
         }
 
         private SslStreamCertificateContext m_cachedCertContext;
@@ -963,6 +1046,9 @@ namespace OpenSim.Server.Handlers
             public QuicStream SimStream { get; set; }
 
             public uint CircuitCode { get; set; }
+
+            // Keepalive cancellation
+            public CancellationTokenSource KeepaliveCts { get; set; }
         }
 
         #endregion

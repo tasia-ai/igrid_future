@@ -50,6 +50,7 @@ namespace OSHttpServer
         private static readonly ConcurrentQueue<HttpClientContext> m_lowPrio = new();
         private static AutoResetEvent m_processWaitEven = new(false);
         private static bool m_shuttingDown;
+        private static int m_userCount;
 
         private static int m_ActiveSendingCount;
         private static double m_lastTimeOutCheckTime = 0;
@@ -66,9 +67,13 @@ namespace OSHttpServer
         {
             lock (m_threadLock)
             {
-                if (m_internalThread != null)
+                m_userCount++;
+                if (m_internalThread is { IsAlive: true })
                     return;
 
+                m_internalThread = null;
+                m_shuttingDown = false;
+                m_processWaitEven ??= new AutoResetEvent(false);
                 m_lastTimeOutCheckTime = GetTimeStamp();
                 using(ExecutionContext.SuppressFlow())
                     m_internalThread = new Thread(ThreadRunProcess);
@@ -83,10 +88,30 @@ namespace OSHttpServer
 
         public static void Stop()
         {
-            if (m_processWaitEven != null)
+            Thread threadToJoin;
+            lock (m_threadLock)
             {
-                m_processWaitEven.Set();
+                if (m_userCount > 0)
+                    m_userCount--;
+                if (m_userCount > 0 || m_internalThread is null)
+                    return;
+
                 m_shuttingDown = true;
+                m_processWaitEven?.Set();
+                threadToJoin = m_internalThread;
+            }
+
+            if (threadToJoin != Thread.CurrentThread)
+                threadToJoin.Join(TimeSpan.FromSeconds(5));
+
+            lock (m_threadLock)
+            {
+                if (ReferenceEquals(m_internalThread, threadToJoin) && !threadToJoin.IsAlive)
+                {
+                    m_internalThread = null;
+                    m_shuttingDown = false;
+                    m_processWaitEven ??= new AutoResetEvent(false);
+                }
             }
         }
 

@@ -2,6 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <OutputType>Exe</OutputType>
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Nini">
@@ -108,9 +109,14 @@
     <Compile Remove="Handlers\QuicProxyConnector.cs" />
   </ItemGroup>
   <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.Net.Quic.AppLocalMsQuic" Value="true" />
     <PackageReference Include="log4net" Version="3.2.0" />
+    <PackageReference Include="Microsoft.Native.Quic.MsQuic.OpenSSL" Version="2.5.6" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Mono.Addins" Version="1.4.1" />
 	  <PackageReference Include="Mono.Addins.Setup" Version="1.4.1" />
     <PackageReference Include="Mono.Addins.CecilReflector" Version="1.4.1" />
   </ItemGroup>
+  <Target Name="CopyAppLocalOpenSslMsQuic" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <Copy SourceFiles="$(PkgMicrosoft_Native_Quic_MsQuic_OpenSSL)\build\native\bin\x64\msquic.dll" DestinationFolder="$(PublishDir)" />
+  </Target>
 </Project>

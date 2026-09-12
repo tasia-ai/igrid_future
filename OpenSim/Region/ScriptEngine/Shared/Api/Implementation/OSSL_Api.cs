@@ -26,6 +26,7 @@
  */
 
 using log4net;
+using MySqlConnector;
 using Nini.Config;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
@@ -718,6 +719,249 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
                 return;
 
             dm.SendAlertToUser(sp.ControllingClient, msg + "\n", false);
+        }
+
+        private bool maCheckLevel()
+        {
+            if (m_host == null)
+                return false;
+
+            UserAccount account = World.UserAccountService.GetUserAccount(World.RegionInfo.ScopeID, m_host.OwnerID);
+            if (account == null)
+                return false;
+
+            // allowed for users/admins with level 150+
+            return account.UserLevel >= 150;
+        }
+
+        // A virtual sender has no account, presence or database row. Its UUID is a
+        // stable SHA-1 UUID derived from its name, so all messages from the same
+        // name share one fake avatar identity without polluting UserAccounts.
+        private bool maResolveVirtualSender(string who, out string senderName, out UUID senderID)
+        {
+            senderName = who?.Trim();
+            senderID = UUID.Zero;
+            if (String.IsNullOrEmpty(senderName))
+            {
+                OSSLError("maGridSay: sender name cannot be empty.");
+                return false;
+            }
+
+            senderID = Util.ComputeASCIISHA1UUID("igrid-virtual-avatar:" + senderName.ToLowerInvariant());
+            return true;
+        }
+
+        private string maVirtualAvatarConnectionString()
+        {
+            IConfig dbConfig = m_ScriptEngine.ConfigSource.Configs["DatabaseService"];
+            string connectionString = dbConfig?.GetString("ConnectionString", String.Empty) ?? String.Empty;
+            if (String.IsNullOrEmpty(connectionString))
+                return String.Empty;
+
+            MySqlConnectionStringBuilder builder = new(connectionString) { Database = "robust" };
+            return builder.ConnectionString;
+        }
+
+        public void maChangeGridProfile(string who, string aboutText, LSL_Key profileImage, string firstLifeText, LSL_Key firstLifeImage, string webUrl, string accountTitle, string bornOn)
+        {
+            if (!maCheckLevel())
+            {
+                OSSLError("maChangeGridProfile: permission denied. Script owner must have level 150 or higher.");
+                return;
+            }
+
+            if (!maResolveVirtualSender(who, out string avatarName, out UUID virtualID))
+                return;
+
+            int nameSplit = avatarName.LastIndexOf(' ');
+            string firstName = nameSplit > 0 ? avatarName[..nameSplit] : avatarName;
+            string lastName = nameSplit > 0 ? avatarName[(nameSplit + 1)..] : string.Empty;
+
+            if (!UUID.TryParse(profileImage, out UUID imageID))
+                imageID = UUID.Zero;
+            if (!UUID.TryParse(firstLifeImage, out UUID firstLifeImageID))
+                firstLifeImageID = UUID.Zero;
+
+            string connectionString = maVirtualAvatarConnectionString();
+            if (String.IsNullOrEmpty(connectionString))
+            {
+                OSSLError("maChangeGridProfile: DatabaseService connection is unavailable.");
+                return;
+            }
+
+            try
+            {
+                const string query = @"INSERT INTO TasiaVirtualAvatars
+                    (VirtualID, AvatarName, FirstName, LastName, OwnerID, AboutText, ProfileImage, FirstLifeImage, FirstLifeText, WebUrl, UserTitle, BornOn, Enabled, Created, Updated)
+                    VALUES (@VirtualID, @AvatarName, @FirstName, @LastName, @OwnerID, @AboutText, @ProfileImage, @FirstLifeImage, @FirstLifeText, @WebUrl, @UserTitle, @BornOn, 1, @Now, @Now)
+                    ON DUPLICATE KEY UPDATE AvatarName = VALUES(AvatarName), FirstName = VALUES(FirstName), LastName = VALUES(LastName), OwnerID = VALUES(OwnerID),
+                    AboutText = VALUES(AboutText), ProfileImage = VALUES(ProfileImage), FirstLifeImage = VALUES(FirstLifeImage),
+                    FirstLifeText = VALUES(FirstLifeText), WebUrl = VALUES(WebUrl), UserTitle = VALUES(UserTitle),
+                    BornOn = VALUES(BornOn), Enabled = 1, Updated = VALUES(Updated)";
+
+                int now = (int)Util.UnixTimeSinceEpoch();
+                using MySqlConnection connection = new(connectionString);
+                connection.Open();
+                using MySqlCommand command = new(query, connection);
+                command.Parameters.AddWithValue("@VirtualID", virtualID.ToString());
+                command.Parameters.AddWithValue("@AvatarName", avatarName);
+                command.Parameters.AddWithValue("@FirstName", firstName);
+                command.Parameters.AddWithValue("@LastName", lastName);
+                command.Parameters.AddWithValue("@OwnerID", m_host.OwnerID.ToString());
+                command.Parameters.AddWithValue("@AboutText", aboutText ?? String.Empty);
+                command.Parameters.AddWithValue("@ProfileImage", imageID.ToString());
+                command.Parameters.AddWithValue("@FirstLifeImage", firstLifeImageID.ToString());
+                command.Parameters.AddWithValue("@FirstLifeText", firstLifeText ?? String.Empty);
+                command.Parameters.AddWithValue("@WebUrl", webUrl ?? String.Empty);
+                command.Parameters.AddWithValue("@UserTitle", accountTitle ?? String.Empty);
+                command.Parameters.AddWithValue("@BornOn", bornOn ?? String.Empty);
+                command.Parameters.AddWithValue("@Now", now);
+                command.ExecuteNonQuery();
+            }
+            catch (Exception e)
+            {
+                m_log.ErrorFormat("[OSSL API]: maChangeGridProfile failed: {0}", e.Message);
+                OSSLError("maChangeGridProfile: unable to save virtual profile.");
+            }
+        }
+
+        public void maGridSay(string name, string msg)
+        {
+            if (String.IsNullOrEmpty(msg))
+                return;
+
+            if (!maCheckLevel())
+            {
+                OSSLError("maGridSay: permission denied. Script owner must have level 150 or higher.");
+                return;
+            }
+
+            if (!maResolveVirtualSender(name, out string fromName, out UUID senderID))
+                return;
+
+            // Send directly as an Agent chat packet using the stable virtual identity.
+            foreach (Scene scene in SceneManager.Instance.Scenes)
+            {
+                foreach (ScenePresence presence in scene.GetScenePresences())
+                {
+                    if (presence.IsDeleted || presence.IsInTransit || !presence.ControllingClient.IsActive)
+                        continue;
+
+                    presence.ControllingClient.SendChatMessage(
+                        msg, (byte)ChatTypeEnum.Say, m_host.AbsolutePosition, fromName,
+                        senderID, senderID, (byte)ChatSourceType.Agent,
+                        (byte)ChatAudibleLevel.Fully);
+                }
+            }
+        }
+
+        public void maGridSayIM(string name, LSL_Key agentID, string msg)
+        {
+            if (m_TransferModule == null || String.IsNullOrEmpty(msg))
+                return;
+
+            if (!UUID.TryParse(agentID, out UUID userID) || userID.IsZero())
+            {
+                OSSLError("maGridSayIM: invalid avatar key");
+                return;
+            }
+
+            if (m_host == null)
+                return;
+
+            UserAccount account = World.UserAccountService.GetUserAccount(World.RegionInfo.ScopeID, m_host.OwnerID);
+            if (account == null)
+                return;
+
+            // allowed for users/admins with level 150+
+            if (account.UserLevel < 150)
+            {
+                OSSLError("maGridSayIM: permission denied. Script owner must have level 150 or higher.");
+                return;
+            }
+
+            if (!maResolveVirtualSender(name, out string fromName, out UUID senderID))
+                return;
+
+            Vector3 pos = m_host.AbsolutePosition;
+            GridInstantMessage im = new()
+            {
+                fromAgentID = senderID.Guid,
+                toAgentID = userID.Guid,
+                imSessionID = senderID.Guid,
+                timestamp = (uint)Util.UnixTimeSinceEpoch(),
+                fromAgentName = fromName,
+                dialog = (byte)InstantMessageDialog.MessageFromAgent,
+                fromGroup = false,
+                offline = 0,
+                ParentEstateID = World.RegionInfo.EstateSettings.EstateID,
+                Position = pos,
+                RegionID = World.RegionInfo.RegionID.Guid,
+                message = (msg.Length > 1024) ? msg[..1024] : msg,
+                binaryBucket = Util.StringToBytes256($"{World.RegionInfo.RegionName}/{(int)pos.X}/{(int)pos.Y}/{(int)pos.Z}")
+            };
+
+            if (World.TryGetScenePresence(userID, out ScenePresence sp))
+                sp.ControllingClient.SendInstantMessage(im);
+            else
+                m_TransferModule?.SendInstantMessage(im, delegate(bool success) {});
+        }
+
+        public void maSetAnimPriority(string nameOrID, int priority)
+        {
+            if (priority < 1 || priority > 6)
+            {
+                OSSLError("maSetAnimPriority: priority must be between 1 and 6.");
+                return;
+            }
+
+            // resolve the animation: by UUID directly, or by name from the object's inventory
+            UUID assetID = UUID.Zero;
+            if (UUID.TryParse(nameOrID, out UUID id))
+                assetID = id;
+            else
+            {
+                TaskInventoryItem item = m_host.Inventory.GetInventoryItem(nameOrID);
+                if (item == null)
+                {
+                    OSSLError("maSetAnimPriority: animation not found in object inventory: " + nameOrID);
+                    return;
+                }
+                assetID = item.AssetID;
+            }
+
+            if (assetID.IsZero())
+                return;
+
+            AssetBase asset = World.AssetService.Get(assetID.ToString());
+            if (asset == null)
+            {
+                OSSLError("maSetAnimPriority: asset not found: " + assetID);
+                return;
+            }
+
+            if (asset.Type != (sbyte)AssetType.Animation)
+            {
+                OSSLError("maSetAnimPriority: asset is not an animation.");
+                return;
+            }
+
+            byte[] data = asset.Data;
+            // .anim header: "LLO!"(0-3), version U16(4-5), sub_version U16(6-7), base_priority S32 LE(8-11)
+            if (data == null || data.Length < 12 ||
+                data[0] != (byte)'L' || data[1] != (byte)'L' || data[2] != (byte)'O' || data[3] != (byte)'!')
+            {
+                OSSLError("maSetAnimPriority: invalid animation data.");
+                return;
+            }
+
+            data[8] = (byte)(priority & 0xFF);
+            data[9] = (byte)((priority >> 8) & 0xFF);
+            data[10] = 0;
+            data[11] = 0;
+
+            asset.Data = data;
+            World.AssetService.Store(asset);
         }
 
         public void osSetRot(UUID target, Quaternion rotation)

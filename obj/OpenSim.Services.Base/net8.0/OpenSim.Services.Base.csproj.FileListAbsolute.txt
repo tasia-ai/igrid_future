@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Services.Base.dll
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Services.Base.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Services.Base/net8.0/OpenSim.Services.Base.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Services.Base/net8.0/OpenSim.Services.Base.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Services.Base/net8.0/OpenSim.Services.Base.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Services.Base/net8.0/OpenSim.Services.Base.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Services.Base/net8.0/OpenSim..C60BE7C8.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Services.Base/net8.0/OpenSim.Services.Base.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Services.Base/net8.0/refint/OpenSim.Services.Base.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Services.Base/net8.0/OpenSim.Services.Base.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Services.Base/net8.0/ref/OpenSim.Services.Base.dll
+/tmp/optional-build/OpenSim.Services.Base.dll
+/tmp/optional-build/OpenSim.Services.Base.pdb

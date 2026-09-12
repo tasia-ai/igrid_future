@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Region.OptionalModules.Currency.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Region.OptionalModules.Currency.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Region.OptionalModules.Currency.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/OpenSim.Region.OptionalModules.Currency.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/OpenSim.Region.OptionalModules.Currency.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/OpenSim.Region.OptionalModules.Currency.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/OpenSim.Region.OptionalModules.Currency.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/OpenSim..A0FF39CF.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/OpenSim.Region.OptionalModules.Currency.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/refint/OpenSim.Region.OptionalModules.Currency.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/OpenSim.Region.OptionalModules.Currency.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/OpenSim.Region.OptionalModules.Currency.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Region.OptionalModules.Currency/net8.0/win-x64/ref/OpenSim.Region.OptionalModules.Currency.dll

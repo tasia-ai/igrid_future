@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/WebRtcVoiceServiceModule.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/WebRtcVoiceServiceModule.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/WebRtcVoiceServiceModule.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/WebRtcVoiceServiceModule.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/WebRtcVoiceServiceModule.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/WebRtcVoiceServiceModule.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/WebRtcVoiceServiceModule.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/WebRtcVo.A4677F60.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/WebRtcVoiceServiceModule.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/refint/WebRtcVoiceServiceModule.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/WebRtcVoiceServiceModule.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/WebRtcVoiceServiceModule.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/WebRtcVoiceServiceModule/net8.0/win-x64/ref/WebRtcVoiceServiceModule.dll

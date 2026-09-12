@@ -1,0 +1,9 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/Tasia.Extensions.SDK.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/Tasia.Extensions.SDK.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/Tasia.Extensions.SDK/net8.0/Tasia.Extensions.SDK.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/Tasia.Extensions.SDK/net8.0/Tasia.Extensions.SDK.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/Tasia.Extensions.SDK/net8.0/Tasia.Extensions.SDK.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/Tasia.Extensions.SDK/net8.0/Tasia.Extensions.SDK.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/Tasia.Extensions.SDK/net8.0/refint/Tasia.Extensions.SDK.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/Tasia.Extensions.SDK/net8.0/Tasia.Extensions.SDK.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/Tasia.Extensions.SDK/net8.0/ref/Tasia.Extensions.SDK.dll

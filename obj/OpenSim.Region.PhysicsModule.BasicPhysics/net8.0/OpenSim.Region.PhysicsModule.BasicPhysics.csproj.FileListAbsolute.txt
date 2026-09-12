@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Region.PhysicsModule.BasicPhysics.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Region.PhysicsModule.BasicPhysics.dll
+/home/marty/igrid-server-code-2026-07-03/build/OpenSim.Region.PhysicsModule.BasicPhysics.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/OpenSim.Region.PhysicsModule.BasicPhysics.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/OpenSim.Region.PhysicsModule.BasicPhysics.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/OpenSim.Region.PhysicsModule.BasicPhysics.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/OpenSim.Region.PhysicsModule.BasicPhysics.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/OpenSim..02E099D2.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/OpenSim.Region.PhysicsModule.BasicPhysics.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/refint/OpenSim.Region.PhysicsModule.BasicPhysics.dll
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/OpenSim.Region.PhysicsModule.BasicPhysics.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/OpenSim.Region.PhysicsModule.BasicPhysics.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/OpenSim.Region.PhysicsModule.BasicPhysics/net8.0/ref/OpenSim.Region.PhysicsModule.BasicPhysics.dll

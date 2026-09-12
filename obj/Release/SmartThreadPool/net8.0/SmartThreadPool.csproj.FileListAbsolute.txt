@@ -1,0 +1,10 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/SmartThreadPool.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/SmartThreadPool.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/SmartThreadPool/net8.0/SmartThreadPool.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/SmartThreadPool/net8.0/SmartThreadPool.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/SmartThreadPool/net8.0/SmartThreadPool.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/SmartThreadPool/net8.0/SmartThreadPool.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/SmartThreadPool/net8.0/SmartThreadPool.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/SmartThreadPool/net8.0/refint/SmartThreadPool.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/SmartThreadPool/net8.0/SmartThreadPool.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/SmartThreadPool/net8.0/ref/SmartThreadPool.dll

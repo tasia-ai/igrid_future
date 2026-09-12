@@ -51,6 +51,13 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         public const int MAX_PAYLOAD = 64 * 1024; // 64KB
 
         /// <summary>
+        /// Zero-length keepalive frame sent periodically to prevent
+        /// NAT/firewall/QUIC idle timeout from killing the connection.
+        /// A 4-byte all-zero frame ([00 00 00 00]) is the keepalive marker.
+        /// </summary>
+        public static readonly byte[] KeepaliveFrame = new byte[] { 0, 0, 0, 0 };
+
+        /// <summary>
         /// Encode a packet payload into a framed buffer.
         /// </summary>
         /// <param name="payload">Raw LL packet bytes.</param>
@@ -104,6 +111,14 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
             if (length < 0 || length > MAX_PAYLOAD)
                 return false;
+
+            // Zero-length frame is a keepalive marker — silently consume it
+            // and continue reading (do not produce a payload).
+            if (length == 0)
+            {
+                offset += HEADER_SIZE;
+                return false;
+            }
 
             if (availableLength - offset - HEADER_SIZE < length)
                 return false;

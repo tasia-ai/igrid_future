@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.Security;
@@ -21,8 +22,14 @@ namespace OSHttpServer
         private readonly SslProtocols m_sslProtocols = SslProtocols.Tls | SslProtocols.Tls11 | SslProtocols.Tls12 | SslProtocols.Tls13;
 
         private TcpListener m_listener;
+        private readonly ConcurrentDictionary<Socket, byte> m_initializingSockets = new();
+        private readonly ConcurrentDictionary<int, Task> m_initializationTasks = new();
+        private readonly SemaphoreSlim m_initializationSlots = new(128, 128);
+        private int m_nextInitializationId;
+        private Task m_acceptLoopTask;
         private ILogWriter m_logWriter = NullLogWriter.Instance;
-        private bool m_shutdown;
+        private volatile bool m_shutdown;
+        private static readonly TimeSpan TlsHandshakeTimeout = TimeSpan.FromSeconds(10);
         public readonly CancellationTokenSource m_CancellationSource = new();
         protected RemoteCertificateValidationCallback m_clientCertValCallback = null;
 
@@ -124,64 +131,140 @@ namespace OSHttpServer
         /// </summary>
         public bool UseTraceLogs { get; set; }
 
-        private async void AcceptLoop()
+        private async Task AcceptLoop()
         {
             try
             {
-                while (true)
+                while (!m_shutdown)
                 {
-                    if (m_shutdown)
+                    Socket socket = null;
+                    try
                     {
-                        m_shutdownEvent.Set();
+                        socket = await m_listener.AcceptSocketAsync(m_CancellationSource.Token).ConfigureAwait(false);
+                        if (!socket.Connected)
+                        {
+                            socket.Dispose();
+                            continue;
+                        }
+
+                        socket.NoDelay = true;
+
+                        if (!OnAcceptingSocket(socket))
+                        {
+                            socket.Dispose();
+                            continue;
+                        }
+
+                        if (!socket.Connected)
+                        {
+                            socket.Dispose();
+                            continue;
+                        }
+
+                        if (!m_initializationSlots.Wait(0))
+                        {
+                            m_logWriter.Write(this, LogPrio.Warning,
+                                $"HTTP connection initialization limit reached; rejecting {socket.RemoteEndPoint}");
+                            socket.Dispose();
+                            continue;
+                        }
+
+                        Socket acceptedSocket = socket;
+                        socket = null;
+                        m_initializingSockets.TryAdd(acceptedSocket, 0);
+                        if (m_shutdown)
+                        {
+                            m_initializingSockets.TryRemove(acceptedSocket, out _);
+                            acceptedSocket.Dispose();
+                            m_initializationSlots.Release();
+                            continue;
+                        }
+
+                        int initializationId = Interlocked.Increment(ref m_nextInitializationId);
+                        Task initializationTask = InitializeSocketAsync(acceptedSocket);
+                        m_initializationTasks[initializationId] = initializationTask;
+                        _ = initializationTask.ContinueWith(
+                            _ => m_initializationTasks.TryRemove(initializationId, out _),
+                            CancellationToken.None,
+                            TaskContinuationOptions.ExecuteSynchronously,
+                            TaskScheduler.Default);
+                    }
+                    catch (OperationCanceledException) when (m_shutdown)
+                    {
                         break;
                     }
-
-                    Socket socket = await m_listener.AcceptSocketAsync(m_CancellationSource.Token).ConfigureAwait(false); ;
-                    if (!socket.Connected)
+                    catch (ObjectDisposedException) when (m_shutdown)
                     {
-                        socket.Dispose();
-                        continue;
+                        break;
                     }
-
-                    socket.NoDelay = true;
-
-                    if (!OnAcceptingSocket(socket))
+                    catch (Exception err)
                     {
-                        socket.Disconnect(true);
-                        continue;
-                    }
-                    if (socket.Connected)
-                    {
-                        m_logWriter.Write(this, LogPrio.Debug, $"Accepted connection from: {socket.RemoteEndPoint}");
-
-                        if (m_certificate is not null)
+                        socket?.Dispose();
+                        m_logWriter.Write(this, LogPrio.Error, $"Failed to accept or initialize HTTP connection: {err}");
+                        try
                         {
-                            if (IsPlainHttpRequest(socket))
-                            {
-                                m_logWriter.Write(this, LogPrio.Debug,
-                                    $"Accepted plaintext HTTP request on HTTPS listener {m_address}:{m_port} from {socket.RemoteEndPoint}");
-                                m_contextFactory.CreateContext(socket);
-                            }
-                            else
-                            {
-                                m_contextFactory.CreateSecureContext(socket, m_certificate, m_sslProtocols, m_clientCertValCallback);
-                            }
+                            ExceptionThrown?.Invoke(this, err);
                         }
-                        else
-                            m_contextFactory.CreateContext(socket);
+                        catch (Exception eventError)
+                        {
+                            m_logWriter.Write(this, LogPrio.Error, $"HTTP exception handler failed: {eventError}");
+                        }
                     }
-                    else
-                        socket.Dispose();
                 }
             }
-            catch (OperationCanceledException)
+            finally
             {
                 m_shutdownEvent.Set();
             }
+        }
+
+        private async Task InitializeSocketAsync(Socket socket)
+        {
+            Socket trackedSocket = socket;
+            try
+            {
+                m_logWriter.Write(this, LogPrio.Debug, $"Accepted connection from: {socket.RemoteEndPoint}");
+                IHttpClientContext context;
+
+                if (m_certificate is null)
+                {
+                    context = m_contextFactory.CreateContext(socket);
+                }
+                else if (await IsPlainHttpRequestAsync(socket).ConfigureAwait(false))
+                {
+                    m_logWriter.Write(this, LogPrio.Debug,
+                        $"Accepted plaintext HTTP request on HTTPS listener {m_address}:{m_port} from {socket.RemoteEndPoint}");
+                    context = m_contextFactory.CreateContext(socket);
+                }
+                else
+                {
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(m_CancellationSource.Token);
+                    timeout.CancelAfter(TlsHandshakeTimeout);
+                    context = await m_contextFactory.CreateSecureContextAsync(
+                        socket, m_certificate, m_sslProtocols, m_clientCertValCallback, timeout.Token).ConfigureAwait(false);
+                }
+
+                // The context owns the socket after successful creation.
+                if (context is not null)
+                    socket = null;
+            }
             catch (Exception err)
             {
-                m_logWriter.Write(this, LogPrio.Debug, err.Message);
-                ExceptionThrown?.Invoke(this, err);
+                m_logWriter.Write(this, LogPrio.Error, $"Failed to initialize HTTP connection: {err}");
+                try
+                {
+                    ExceptionThrown?.Invoke(this, err);
+                }
+                catch (Exception eventError)
+                {
+                    m_logWriter.Write(this, LogPrio.Error, $"HTTP exception handler failed: {eventError}");
+                }
+            }
+            finally
+            {
+                m_initializingSockets.TryRemove(trackedSocket, out _);
+                socket?.Dispose();
+                m_initializationSlots.Release();
             }
         }
 
@@ -191,16 +274,20 @@ namespace OSHttpServer
         /// Sniffing lets the same port accept both HTTP and HTTPS without a
         /// redirect or external proxy.
         /// </summary>
-        private bool IsPlainHttpRequest(Socket socket)
+        private async Task<bool> IsPlainHttpRequestAsync(Socket socket)
         {
             try
             {
-                // Avoid blocking normal TLS handshakes for long. TLS clients send
-                // ClientHello immediately; HTTP clients send the request line.
-                if (!socket.Poll(500000, SelectMode.SelectRead))
+                // TLS clients send ClientHello immediately; HTTP clients send a
+                // request line. Bound the probe so a silent peer cannot retain
+                // resources indefinitely.
+                byte[] probe = new byte[8];
+                DateTime deadline = DateTime.UtcNow.AddMilliseconds(500);
+                while (socket.Available == 0 && DateTime.UtcNow < deadline)
+                    await Task.Delay(10, m_CancellationSource.Token).ConfigureAwait(false);
+                if (socket.Available == 0)
                     return false;
 
-                byte[] probe = new byte[8];
                 int read = socket.Receive(probe, 0, probe.Length, SocketFlags.Peek);
                 if (read <= 0)
                     return false;
@@ -256,7 +343,7 @@ namespace OSHttpServer
 
             m_listener = new TcpListener(m_address, m_port);
             m_listener.Start(backlog);
-            Task.Run(AcceptLoop).ConfigureAwait(false);
+            m_acceptLoopTask = AcceptLoop();
         }
 
         /// <summary>
@@ -265,12 +352,31 @@ namespace OSHttpServer
         /// <exception cref="SocketException"></exception>
         public void Stop()
         {
+            if (m_shutdown)
+                return;
+
             m_shutdown = true;
             m_CancellationSource.Cancel();
+            m_listener?.Stop();
+
+            foreach (Socket socket in m_initializingSockets.Keys)
+                socket.Dispose();
+
+            if (m_acceptLoopTask is not null && !m_acceptLoopTask.Wait(TimeSpan.FromSeconds(5)))
+                m_logWriter.Write(this, LogPrio.Error, "Failed to stop HTTP accept loop within timeout.");
+
+            // Catch any socket registered concurrently with the first snapshot.
+            foreach (Socket socket in m_initializingSockets.Keys)
+                socket.Dispose();
+
+            Task[] initializationTasks = m_initializationTasks.Values.ToArray();
+            if (initializationTasks.Length > 0 &&
+                !Task.WaitAll(initializationTasks, TimeSpan.FromSeconds(5)))
+                m_logWriter.Write(this, LogPrio.Error, "Failed to stop all HTTP connection initializers within timeout.");
+
+            m_initializingSockets.Clear();
+            m_initializationTasks.Clear();
             m_contextFactory.Shutdown();
-            if (!m_shutdownEvent.WaitOne())
-                m_logWriter.Write(this, LogPrio.Error, "Failed to shutdown listener properly.");
-            m_listener.Stop();
             m_listener = null;
             Dispose();
         }

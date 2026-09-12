@@ -1,0 +1,13 @@
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.FreeswitchService.runtimeconfig.json
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.FreeswitchService.dll
+/home/marty/igrid-server-code-2026-07-03/build/Release/OpenSim.Services.FreeswitchService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/OpenSim.Services.FreeswitchService.csproj.AssemblyReference.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/OpenSim.Services.FreeswitchService.GeneratedMSBuildEditorConfig.editorconfig
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/OpenSim.Services.FreeswitchService.csproj.CoreCompileInputs.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/OpenSim.Services.FreeswitchService.sourcelink.json
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/OpenSim..03A72AFF.Up2Date
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/OpenSim.Services.FreeswitchService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/refint/OpenSim.Services.FreeswitchService.dll
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/OpenSim.Services.FreeswitchService.pdb
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/OpenSim.Services.FreeswitchService.genruntimeconfig.cache
+/home/marty/igrid-server-code-2026-07-03/obj/Release/OpenSim.Services.FreeswitchService/net8.0/win-x64/ref/OpenSim.Services.FreeswitchService.dll

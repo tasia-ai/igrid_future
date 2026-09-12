@@ -59,6 +59,8 @@ namespace OpenSim.Region.CoreModules.World.Estate
 
         protected EstateManagementCommands m_commands;
 
+        private HashSet<UUID> m_estateManagersAllowed = new();
+
         /// <summary>
         /// If false, region restart requests from the client are blocked even if they are otherwise legitimate.
         /// </summary>
@@ -94,6 +96,19 @@ namespace OpenSim.Region.CoreModules.World.Estate
                 AllowRegionRestartFromClient = config.GetBoolean("AllowRegionRestartFromClient", true);
                 m_ignoreEstateMinorAccessControl = config.GetBoolean("IgnoreEstateMinorAccessControl", true);
                 m_ignoreEstatePaymentAccessControl = config.GetBoolean("IgnoreEstatePaymentAccessControl", true);
+
+                // UUID list of users allowed to add/remove estate managers (empty = everyone with estate owner access can)
+                string managersAllowed = config.GetString("EstateManagersAllowed", string.Empty);
+                if (!string.IsNullOrWhiteSpace(managersAllowed))
+                {
+                    foreach (string uuidStr in managersAllowed.Split(','))
+                    {
+                        string trimmed = uuidStr.Trim();
+                        if (UUID.TryParse(trimmed, out UUID uuid))
+                            m_estateManagersAllowed.Add(uuid);
+                    }
+                    m_log.InfoFormat("[ESTATE MANAGEMENT]: {0} UUID(s) in EstateManagersAllowed list", m_estateManagersAllowed.Count);
+                }
             }
         }
 
@@ -1208,6 +1223,13 @@ namespace OpenSim.Region.CoreModules.World.Estate
                 {
                         remote_client.SendAlertMessage("Method EstateAccess Failed, you don't have permissions");
                         continue;
+                }
+
+                // Check EstateManagersAllowed whitelist - only listed UUIDs can add/remove managers
+                if (m_estateManagersAllowed.Count > 0 && !m_estateManagersAllowed.Contains(agentID))
+                {
+                    remote_client.SendAlertMessage("Only the grid owner can add or remove estate managers");
+                    continue;
                 }
 
                 if ((estateAccessType & 256) != 0) // Manager add
