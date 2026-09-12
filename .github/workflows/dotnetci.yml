@@ -137,22 +137,14 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           Push-Location Quick-G
-          # The source archive intentionally contains no generated module cache.
-          # Resolve all transitive modules and create go.sum before commands that
-          # default to read-only module mode on the Windows runner.
-          go get github.com/quic-go/quic-go@v0.48.2
-          if ($LASTEXITCODE -ne 0) {
-            throw "Quick-G dependency resolution failed with exit code $LASTEXITCODE"
-          }
-          go mod tidy
-          if ($LASTEXITCODE -ne 0) {
-            throw "go mod tidy failed with exit code $LASTEXITCODE"
-          }
-          go test ./...
+          # This checkout has no generated go.sum. Explicit module-update mode
+          # lets Go resolve the pinned dependency and write checksums even when
+          # the runner has GOFLAGS=-mod=readonly configured globally.
+          go test -mod=mod ./...
           if ($LASTEXITCODE -ne 0) {
             throw "Quick-G tests failed with exit code $LASTEXITCODE"
           }
-          go build -trimpath -ldflags "-s -w" -o ../build/Release/Quick-G.exe .
+          go build -mod=mod -trimpath -ldflags "-s -w" -o ../build/Release/Quick-G.exe .
           if ($LASTEXITCODE -ne 0) {
             throw "Quick-G build failed with exit code $LASTEXITCODE"
           }
