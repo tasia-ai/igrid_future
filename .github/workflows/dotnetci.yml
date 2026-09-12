@@ -27,16 +27,85 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout
+      - name: Checkout source on Linux
+        if: runner.os == 'Linux'
         uses: actions/checkout@v4
-        with:
-          # The repository contains an archival lowercase docs/ path with a
-          # filename that is legal on Linux but illegal on Windows (":").
-          # It is not part of the build, so exclude only that tree.
-          sparse-checkout: |
-            /*
-            !/docs/
-          sparse-checkout-cone-mode: false
+
+      - name: Download source on Windows without archival docs
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = Join-Path $env:RUNNER_TEMP 'opensim-source.zip'
+          $extractScript = Join-Path $env:RUNNER_TEMP 'extract-opensim-source.py'
+          $url = "https://api.github.com/repos/${{ github.repository }}/zipball/${{ github.sha }}"
+
+          Write-Host "Downloading source archive for ${{ github.sha }}"
+          Invoke-WebRequest `
+            -Uri $url `
+            -Headers @{
+              Authorization = "Bearer $env:GH_TOKEN"
+              Accept = 'application/vnd.github+json'
+              'X-GitHub-Api-Version' = '2022-11-28'
+            } `
+            -OutFile $archive
+
+          @'
+          import os
+          import pathlib
+          import shutil
+          import sys
+          import zipfile
+
+          archive = pathlib.Path(sys.argv[1])
+          destination = pathlib.Path(sys.argv[2]).resolve()
+          extracted = 0
+          skipped_docs = 0
+
+          with zipfile.ZipFile(archive) as zf:
+              for info in zf.infolist():
+                  parts = pathlib.PurePosixPath(info.filename).parts
+                  if len(parts) <= 1:
+                      continue
+
+                  relative_parts = parts[1:]
+                  if relative_parts[0] == 'docs':
+                      skipped_docs += 1
+                      continue
+
+                  target = (destination.joinpath(*relative_parts)).resolve()
+                  try:
+                      target.relative_to(destination)
+                  except ValueError:
+                      raise RuntimeError(f'Unsafe archive path: {info.filename}')
+
+                  if info.is_dir():
+                      target.mkdir(parents=True, exist_ok=True)
+                      continue
+
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  with zf.open(info, 'r') as source, open(target, 'wb') as output:
+                      shutil.copyfileobj(source, output)
+                  extracted += 1
+
+          print(f'Extracted {extracted} files; skipped {skipped_docs} docs entries.')
+          '@ | Set-Content -Path $extractScript -Encoding UTF8
+
+          python $extractScript $archive $PWD
+          if ($LASTEXITCODE -ne 0) {
+            throw "Source extraction failed with exit code $LASTEXITCODE"
+          }
+
+          if (-not (Test-Path 'OpenSim.sln')) {
+            throw 'OpenSim.sln was not extracted'
+          }
+          if (Test-Path 'docs') {
+            throw 'Lowercase archival docs directory unexpectedly exists on Windows'
+          }
+
+          Write-Host 'Windows-safe source tree is ready.'
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
