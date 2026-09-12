@@ -177,23 +177,23 @@ jobs:
           FTP_HOST: easierit.org
           FTP_USER: tasiagit
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_REMOTE_DIR: server
           PACKAGE_NAME: ${{ matrix.package }}
         run: |
           @'
           import ftplib
           import os
           import pathlib
-          import sys
 
           host = os.environ['FTP_HOST']
           user = os.environ['FTP_USER']
           password = os.environ.get('FTP_PASSWORD', '')
+          remote_dir = os.environ.get('FTP_REMOTE_DIR', 'server').strip('/ ')
           package_name = os.environ['PACKAGE_NAME']
           local_path = pathlib.Path('artifacts') / package_name
 
           if not password:
-              print('FTP_PASSWORD GitHub secret is not configured; skipping FTP upload.')
-              sys.exit(0)
+              raise RuntimeError('FTP_PASSWORD GitHub secret is not configured')
 
           if not local_path.is_file() or local_path.stat().st_size <= 0:
               raise RuntimeError(f'Package missing or empty: {local_path}')
@@ -203,8 +203,17 @@ jobs:
               ftp.login(user=user, passwd=password)
               ftp.set_pasv(True)
 
+              for directory in pathlib.PurePosixPath(remote_dir).parts:
+                  if directory in ('', '.'):
+                      continue
+                  try:
+                      ftp.mkd(directory)
+                  except ftplib.error_perm:
+                      pass
+                  ftp.cwd(directory)
+
               temp_name = package_name + '.uploading'
-              print(f'Uploading {local_path} -> /{package_name}')
+              print(f'Uploading {local_path} -> /{remote_dir}/{package_name}')
               with local_path.open('rb') as source:
                   ftp.storbinary(f'STOR {temp_name}', source, blocksize=1024 * 1024)
 
@@ -215,5 +224,5 @@ jobs:
 
               ftp.rename(temp_name, package_name)
 
-          print(f'FTP upload complete: /{package_name}')
+          print(f'FTP upload complete: /{remote_dir}/{package_name}')
           '@ | python -
