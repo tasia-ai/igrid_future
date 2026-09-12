@@ -1,43 +1,77 @@
-name: dotnet package
+name: OpenSim cross-platform build
 
 on:
   push:
-    branches: [ master, develop ]
+    branches: [ main, master, develop ]
   pull_request:
-    branches: [ master, develop ]
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
+    name: Build ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        dotnet-version: [ '8.0.x' ]
+        include:
+          - os: ubuntu-latest
+            artifact: opensim-linux-x64
+          - os: windows-latest
+            artifact: opensim-windows-x64
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup .NET ${{matrix.dotnet-version }}
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: ${{ matrix.dotnet-version }}
-    
-    - name: Display dotnet version
-      run: dotnet --version
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
 
-    - name: Restore dependencies
-      run: dotnet restore
+      - name: Show .NET information
+        run: dotnet --info
 
-    - name: Build
-      run: dotnet build --configuration Release
+      - name: Restore
+        run: dotnet restore OpenSim.sln
 
-#    - name: Run Tests
-#      run: dotnet test --logger "trx;LogFileName=<TestResults.trx>"
-#
-#      - name: Create the package
-#        run: dotnet pack --configuration Release <my project>
-#      - name: Publish the package to GPR
-#        run: dotnet nuget push <my project>/bin/Release/*.nupkg
-#
-#    - name: Publish the package to GPR
-#      run: dotnet nuget push <my project>/bin/Release/*.nupkg
+      - name: Build Release
+        run: dotnet build OpenSim.sln --configuration Release --no-restore
+
+      - name: Verify memory limiter assembly was built
+        shell: pwsh
+        run: |
+          $monitoring = Get-ChildItem -Path build/Release -Recurse -Filter OpenSim.Framework.Monitoring.dll -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $monitoring) {
+            throw "OpenSim.Framework.Monitoring.dll was not produced"
+          }
+          Write-Host "Memory limiter assembly: $($monitoring.FullName)"
+
+          $opensim = Get-ChildItem -Path build/Release -Recurse -Filter OpenSim.dll -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($opensim) {
+            Write-Host "OpenSim assembly: $($opensim.FullName)"
+          }
+
+          $robust = Get-ChildItem -Path build/Release -Recurse -Filter Robust.dll -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($robust) {
+            Write-Host "Robust assembly: $($robust.FullName)"
+          }
+
+      - name: Package build output
+        shell: pwsh
+        run: |
+          if (Test-Path artifacts) { Remove-Item artifacts -Recurse -Force }
+          New-Item -ItemType Directory -Path artifacts | Out-Null
+          Copy-Item build/Release/* artifacts/ -Recurse -Force
+
+      - name: Upload compiled binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
