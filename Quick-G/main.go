@@ -49,7 +49,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go monitorParentPipe(ctx, *parent, cancel)
-	go serveControl(ctx, *control)
 
 	pair, err := tls.LoadX509KeyPair(*cert, *key)
 	if err != nil {
@@ -60,6 +59,7 @@ func main() {
 		log.Fatalf("listen: %v", err)
 	}
 	defer listener.Close()
+	go serveControl(ctx, *control)
 	go func() { <-ctx.Done(); listener.Close() }()
 	log.Printf("Quick-G listening on UDP %d (parent %d)", *port, *parent)
 	for {
@@ -77,6 +77,10 @@ func main() {
 
 func serveControl(ctx context.Context, port int) {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"ready":true}`)
+	})
 	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
 		var v registration
 		if r.Method != http.MethodPost || json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&v) != nil || v.CircuitCode == 0 {

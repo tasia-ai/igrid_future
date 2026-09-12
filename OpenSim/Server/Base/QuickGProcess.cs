@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using log4net;
 using Nini.Config;
 
@@ -12,6 +14,7 @@ namespace OpenSim.Server.Base
     {
         private static readonly ILog m_log = LogManager.GetLogger(typeof(QuickGProcess));
         private static Process m_process;
+        private static readonly HttpClient s_healthClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(250) };
 
         internal static void Start(IConfigSource source)
         {
@@ -46,23 +49,52 @@ namespace OpenSim.Server.Base
                 config?.GetString("PrivateKeyPath", "SSL/quic/quic-key.pem") ?? "SSL/quic/quic-key.pem",
                 config?.GetString("ALPN", "opensim-ll/1") ?? "opensim-ll/1");
 
-            m_process = Process.Start(new ProcessStartInfo(executable, arguments)
+            try
             {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardInput = true,
-                WorkingDirectory = AppContext.BaseDirectory
-            });
-            if (m_process == null || m_process.WaitForExit(500))
+                m_process = Process.Start(new ProcessStartInfo(executable, arguments)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardInput = true,
+                    WorkingDirectory = AppContext.BaseDirectory
+                });
+            }
+            catch (Exception e)
             {
-                int exitCode = m_process?.ExitCode ?? -1;
-                m_process?.Dispose();
-                m_process = null;
-                m_log.WarnFormat("[QUICK-G]: Helper failed during startup (exit {0}); continuing with native QUIC", exitCode);
+                m_log.WarnFormat("[QUICK-G]: Could not launch helper: {0}; continuing with native QUIC", e.Message);
                 return;
             }
-            Environment.SetEnvironmentVariable("OPENSIM_QUICKG_CONTROL_PORT", (config?.GetInt("ControlPort", 19001) ?? 19001).ToString());
+
+            int controlPort = config?.GetInt("ControlPort", 19001) ?? 19001;
+            if (!WaitUntilReady(controlPort))
+            {
+                int exitCode = m_process.HasExited ? m_process.ExitCode : -1;
+                Stop();
+                m_log.WarnFormat("[QUICK-G]: Helper failed its startup health check (exit {0}); continuing with native QUIC", exitCode);
+                return;
+            }
+
+            Environment.SetEnvironmentVariable("OPENSIM_QUICKG_CONTROL_PORT", controlPort.ToString());
             m_log.InfoFormat("[QUICK-G]: Started compatibility helper (pid {0})", m_process.Id);
+        }
+
+        private static bool WaitUntilReady(int controlPort)
+        {
+            Stopwatch timeout = Stopwatch.StartNew();
+            while (timeout.ElapsedMilliseconds < 5000 && m_process != null && !m_process.HasExited)
+            {
+                try
+                {
+                    using HttpResponseMessage response = s_healthClient.GetAsync(
+                        $"http://127.0.0.1:{controlPort}/health").GetAwaiter().GetResult();
+                    if (response.IsSuccessStatusCode)
+                        return true;
+                }
+                catch (HttpRequestException) { }
+                catch (TaskCanceledException) { }
+                System.Threading.Thread.Sleep(100);
+            }
+            return false;
         }
 
         internal static void Stop()
@@ -74,6 +106,9 @@ namespace OpenSim.Server.Base
                 return;
             try
             {
+                // Closing ROBUST's end of the anonymous pipe is Quick-G's normal
+                // shutdown signal. Do this before waiting for graceful exit.
+                try { process.StandardInput.Close(); } catch { }
                 if (!process.HasExited && !process.WaitForExit(3000))
                     process.Kill(true);
                 process.WaitForExit(2000);
