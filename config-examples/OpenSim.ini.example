@@ -4,8 +4,9 @@
 [Startup]
   ;# {MemoryLimit} {} {Maximum process working set before forced GC (soft limit)} {} 2GB
   ;; Enforced by the MemoryLimiter watchdog. Accepts e.g. "2GB", "1536MB" or a
-  ;; plain byte count. "0" / "unlimited" disables the watchdog. Default: 2GB.
+  ;; number of MB. "0" / "unlimited" disables all limiting. Default: 2GB.
   MemoryLimit = 2GB
+  ;; A bare numeric value is megabytes: 0 = unlimited, 2048 = 2048 MB.
 
   ; Required for the remote sound script call if not using auto-loaded add-ons.
   ; region_modules = "TasiaAddon.RemoteSound.dll"

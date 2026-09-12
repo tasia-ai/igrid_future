@@ -124,6 +124,35 @@ jobs:
       - name: Build Release
         run: dotnet build OpenSim.sln --configuration Release --no-restore
 
+      - name: Build Quick-G for Windows package
+        if: runner.os == 'Windows'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+          cache: false
+
+      - name: Compile Quick-G
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location Quick-G
+          # This checkout has no generated go.sum. Explicit module-update mode
+          # lets Go resolve the pinned dependency and write checksums even when
+          # the runner has GOFLAGS=-mod=readonly configured globally.
+          go test -mod=mod ./...
+          if ($LASTEXITCODE -ne 0) {
+            throw "Quick-G tests failed with exit code $LASTEXITCODE"
+          }
+          go build -mod=mod -trimpath -ldflags "-s -w" -o ../build/Release/Quick-G.exe .
+          if ($LASTEXITCODE -ne 0) {
+            throw "Quick-G build failed with exit code $LASTEXITCODE"
+          }
+          Pop-Location
+          if (-not (Test-Path build/Release/Quick-G.exe)) {
+            throw 'Quick-G.exe was not produced'
+          }
+
       - name: Restore official OpenSim Windows native libraries
         if: runner.os == 'Windows'
         shell: pwsh
@@ -160,7 +189,7 @@ jobs:
 
             $downloaded = Get-Item $destination -ErrorAction Stop
             if ($downloaded.Length -ne $expectedSize) {
-              throw "Unexpected size for $name: $($downloaded.Length) bytes; expected $expectedSize"
+              throw "Unexpected size for ${name}: $($downloaded.Length) bytes; expected $expectedSize"
             }
 
             Write-Host "Verified $name ($($downloaded.Length) bytes)"

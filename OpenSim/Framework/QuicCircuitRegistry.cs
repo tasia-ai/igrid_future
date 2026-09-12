@@ -29,6 +29,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Collections.Generic;
 using System.Linq;
+using System;
 
 namespace OpenSim.Framework
 {
@@ -40,6 +41,8 @@ namespace OpenSim.Framework
     /// </summary>
     public static class QuicCircuitRegistry
     {
+        public static event Action<uint, IPEndPoint> QuicEndpointRegistered;
+        public static event Action<uint> CircuitUnregistered;
         /// <summary>circuitCode → sim UDP endpoint</summary>
         private static readonly ConcurrentDictionary<uint, IPEndPoint> s_circuits = new();
 
@@ -84,6 +87,7 @@ namespace OpenSim.Framework
         public static void RegisterQUIC(uint circuitCode, IPEndPoint quicEndpoint)
         {
             s_quicEndpoints[circuitCode] = quicEndpoint;
+            QuicEndpointRegistered?.Invoke(circuitCode, quicEndpoint);
         }
 
         /// <summary>
@@ -104,6 +108,7 @@ namespace OpenSim.Framework
         {
             s_circuits.TryRemove(circuitCode, out _);
             s_quicEndpoints.TryRemove(circuitCode, out _);
+            CircuitUnregistered?.Invoke(circuitCode);
         }
 
         /// <summary>

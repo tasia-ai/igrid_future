@@ -31,6 +31,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Net.Quic;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -84,6 +85,8 @@ namespace OpenSim.Server.Handlers
 
         private QuicListener m_listener;
         private CancellationTokenSource m_cts;
+        private readonly string m_quickGControlPort = Environment.GetEnvironmentVariable("OPENSIM_QUICKG_CONTROL_PORT");
+        private static readonly HttpClient s_quickGClient = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
 
         // Grid service for region/sim discovery (lazy-loaded)
         private IGridService m_gridService;
@@ -130,6 +133,12 @@ namespace OpenSim.Server.Handlers
                 m_idleTimeoutMs = quicConfig.GetInt("IdleTimeoutMs", m_idleTimeoutMs);
                 m_broadcastTimeoutMs = quicConfig.GetInt("BroadcastTimeoutMs", m_broadcastTimeoutMs);
 
+                if (!string.IsNullOrEmpty(m_quickGControlPort))
+                {
+                    QuicCircuitRegistry.QuicEndpointRegistered += ForwardRegistryRouteToQuickG;
+                    QuicCircuitRegistry.CircuitUnregistered += ForwardRegistryUnregisterToQuickG;
+                }
+
                 // Load IGridService for sim discovery (graceful if unavailable)
                 try { LoadGridService(configSource); }
                 catch (Exception ex) { m_log.Warn($"[QuicProxy] LoadGridService error: {ex.Message}"); }
@@ -142,8 +151,13 @@ namespace OpenSim.Server.Handlers
                 try { PreloadKnownSims(); }
                 catch (Exception ex) { m_log.Warn($"[QuicProxy] PreloadKnownSims error: {ex.Message}"); }
 
-                m_log.Info($"[QuicProxy] Starting QUIC proxy on port {m_listenPort}...");
-                StartListener();
+                if (!string.IsNullOrEmpty(m_quickGControlPort))
+                    m_log.Info($"[QuicProxy] Quick-G owns QUIC port {m_listenPort}; native listener bypassed");
+                else
+                {
+                    m_log.Info($"[QuicProxy] Starting QUIC proxy on port {m_listenPort}...");
+                    StartListener();
+                }
             }
             catch (Exception ex)
             {
@@ -226,6 +240,8 @@ namespace OpenSim.Server.Handlers
                     response["str_response_string"] = "{\"success\":false,\"error\":\"Missing circuitCode\"}";
                     return response;
                 }
+
+                ForwardToQuickG("register", body);
 
                 uint circuitCode = (uint)map["circuitCode"].AsInteger();
 
@@ -334,6 +350,8 @@ namespace OpenSim.Server.Handlers
                     return response;
                 }
 
+                ForwardToQuickG("unregister", body);
+
                 uint circuitCode = (uint)map["circuitCode"].AsInteger();
 
                 IPEndPoint simEndpoint = null;
@@ -379,6 +397,29 @@ namespace OpenSim.Server.Handlers
                 response["str_response_string"] = "{\"success\":false,\"error\":\"" + ex.Message.Replace("\"", "'") + "\"}";
             }
             return response;
+        }
+
+        private void ForwardToQuickG(string operation, string body)
+        {
+            if (string.IsNullOrEmpty(m_quickGControlPort))
+                return;
+
+            using StringContent content = new StringContent(body, Encoding.UTF8, "application/json");
+            HttpResponseMessage result = s_quickGClient.PostAsync(
+                $"http://127.0.0.1:{m_quickGControlPort}/{operation}", content).GetAwaiter().GetResult();
+            if (!result.IsSuccessStatusCode)
+                throw new InvalidOperationException($"Quick-G {operation} returned {(int)result.StatusCode}");
+        }
+
+        private void ForwardRegistryRouteToQuickG(uint circuitCode, IPEndPoint endpoint)
+        {
+            string body = $"{{\"circuitCode\":{circuitCode},\"quicHost\":\"{endpoint.Address}\",\"quicPort\":{endpoint.Port}}}";
+            ForwardToQuickG("register", body);
+        }
+
+        private void ForwardRegistryUnregisterToQuickG(uint circuitCode)
+        {
+            ForwardToQuickG("unregister", $"{{\"circuitCode\":{circuitCode}}}");
         }
 
         /// <summary>
