@@ -425,7 +425,10 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 {
                     ["circuitCode"] = OSD.FromInteger((int)circuitCode),
                     ["simHost"] = OSD.FromString(m_simHost),
-                    ["simPort"] = OSD.FromInteger(m_simPort)
+                    ["simPort"] = OSD.FromInteger(m_simPort),
+                    ["regionName"] = OSD.FromString(m_regionName ?? string.Empty),
+                    ["regionId"] = OSD.FromString(m_regionId ?? string.Empty),
+                    ["brainLease"] = OSD.FromBoolean(m_brainLeaseHeld)
                 };
 
                 if (!m_brainLeaseHeld)
@@ -467,7 +470,10 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 {
                     ["circuitCode"] = OSD.FromInteger((int)circuitCode),
                     ["simHost"] = OSD.FromString(m_simHost),
-                    ["simPort"] = OSD.FromInteger(m_simPort)
+                    ["simPort"] = OSD.FromInteger(m_simPort),
+                    ["regionName"] = OSD.FromString(m_regionName ?? string.Empty),
+                    ["regionId"] = OSD.FromString(m_regionId ?? string.Empty),
+                    ["brainLease"] = OSD.FromBoolean(m_brainLeaseHeld)
                 };
 
                 if (!m_brainLeaseHeld)

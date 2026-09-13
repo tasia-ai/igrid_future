@@ -82,6 +82,8 @@ namespace OpenSim.Server.Handlers
         private string m_keyPath = "";
         private int m_idleTimeoutMs = 60000;
         private int m_broadcastTimeoutMs = 3000; // max wait for broadcast response
+        private int m_quicPoolStart = 0; // first valid simulator QUIC port (0 = no pool validation)
+        private int m_quicPoolEnd = 0; // last valid simulator QUIC port
 
         private QuicListener m_listener;
         private CancellationTokenSource m_cts;
@@ -132,6 +134,8 @@ namespace OpenSim.Server.Handlers
                 m_keyPath = quicConfig.GetString("PrivateKeyPath", m_keyPath);
                 m_idleTimeoutMs = quicConfig.GetInt("IdleTimeoutMs", m_idleTimeoutMs);
                 m_broadcastTimeoutMs = quicConfig.GetInt("BroadcastTimeoutMs", m_broadcastTimeoutMs);
+                m_quicPoolStart = quicConfig.GetInt("QuicPoolStart", m_quicPoolStart);
+                m_quicPoolEnd = quicConfig.GetInt("QuicPoolEnd", m_quicPoolEnd);
 
                 if (!string.IsNullOrEmpty(m_quickGControlPort))
                 {
@@ -244,6 +248,12 @@ namespace OpenSim.Server.Handlers
                 ForwardToQuickG("register", body);
 
                 uint circuitCode = (uint)map["circuitCode"].AsInteger();
+                string regionName = map.ContainsKey("regionName") ? map["regionName"].AsString() : string.Empty;
+                string regionId = map.ContainsKey("regionId") ? map["regionId"].AsString() : string.Empty;
+                string regionTag = !string.IsNullOrEmpty(regionName) ? regionName : regionId;
+                if (string.IsNullOrEmpty(regionTag))
+                    regionTag = "unknown-region";
+                bool brainLease = map.ContainsKey("brainLease") && map["brainLease"].AsBoolean();
 
                 if (map.ContainsKey("simPort") || map.ContainsKey("quicPort"))
                 {
@@ -255,7 +265,7 @@ namespace OpenSim.Server.Handlers
                         IPAddress simAddress = ResolveRegistrationAddress(simHost);
                         var simEndpoint = new IPEndPoint(simAddress, simPort);
                         QuicCircuitRegistry.Register(circuitCode, simEndpoint);
-                        m_log.Info($"[QuicProxy] Circuit {circuitCode} registered -> LLUDP {simEndpoint}");
+                        m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} registered -> LLUDP {simEndpoint}");
                     }
 
                     string quicHost = map.ContainsKey("quicHost") ? map["quicHost"].AsString() : simHost;
@@ -263,16 +273,16 @@ namespace OpenSim.Server.Handlers
 
                     if (quicPort > 0 && quicPort <= 65535)
                     {
-                        if (quicPort == m_listenPort)
+                        if (quicPort == m_listenPort || (m_quicPoolStart > 0 && (quicPort < m_quicPoolStart || quicPort > m_quicPoolEnd)))
                         {
-                            m_log.Warn($"[QuicProxy] Refusing circuit {circuitCode} QUIC route to proxy listen port {m_listenPort}; check simulator QUIC port config");
+                            m_log.Warn($"[QuicProxy] Circuit {circuitCode} region {regionTag} sent stale quicPort {quicPort} (pool {m_quicPoolStart}-{m_quicPoolEnd}, lease={brainLease}); keeping LLUDP only");
                         }
                         else
                         {
                             IPAddress quicAddress = ResolveRegistrationAddress(quicHost);
                             var quicEndpoint = new IPEndPoint(quicAddress, quicPort);
                             QuicCircuitRegistry.RegisterQUIC(circuitCode, quicEndpoint);
-                            m_log.Info($"[QuicProxy] Circuit {circuitCode} registered -> QUIC {quicEndpoint}");
+                            m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} registered -> QUIC {quicEndpoint}");
                         }
                     }
                 }

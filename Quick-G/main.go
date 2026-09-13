@@ -28,6 +28,8 @@ type registration struct {
 	SimHost     string `json:"simHost"`
 	QuicPort    int    `json:"quicPort"`
 	SimPort     int    `json:"simPort"`
+	RegionName  string `json:"regionName"`
+	RegionID    string `json:"regionId"`
 }
 
 type routeTarget struct {
@@ -163,7 +165,7 @@ func main() {
 	}
 	defer listener.Close()
 
-	go serveControl(ctx, *control, *brainPort, cancel)
+	go serveControl(ctx, *control, *brainPort, cancel, *port, *regionPortStart, *regionPortEnd, excluded)
 	if *brainPort != 0 {
 		go serveBrain(ctx, *brainBind, *brainPort, brain)
 		go brain.reaper(ctx)
@@ -209,7 +211,7 @@ func parseExcludedPorts(value string) (map[int]bool, error) {
 	return result, nil
 }
 
-func serveControl(ctx context.Context, port int, brainPort int, cancel context.CancelFunc) {
+func serveControl(ctx context.Context, port int, brainPort int, cancel context.CancelFunc, listenPort, poolStart, poolEnd int, excluded map[int]bool) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -241,13 +243,25 @@ func serveControl(ctx context.Context, port int, brainPort int, cancel context.C
 		}
 		network := "udp"
 		host, targetPort := v.SimHost, v.SimPort
+		regionTag := v.RegionName
+		if regionTag == "" {
+			regionTag = v.RegionID
+		}
+		if regionTag == "" {
+			regionTag = "unknown-region"
+		}
 		if v.QuicPort > 0 {
-			network = "quic"
-			host, targetPort = v.QuicHost, v.QuicPort
-			if host == "" {
-				host = v.SimHost
+			if v.QuicPort == listenPort || v.QuicPort < poolStart || v.QuicPort > poolEnd || excluded[v.QuicPort] {
+				log.Printf("register circuit %d region %s: REJECTED stale quicPort %d (pool %d-%d); keeping UDP backend %s:%d", v.CircuitCode, regionTag, v.QuicPort, poolStart, poolEnd, v.SimHost, v.SimPort)
+			} else {
+				network = "quic"
+				host, targetPort = v.QuicHost, v.QuicPort
+				if host == "" {
+					host = v.SimHost
+				}
 			}
-		} else {
+		}
+		if network == "udp" {
 			host = localBackendHost(host)
 		}
 		if host == "" || targetPort <= 0 || targetPort > 65535 {
@@ -257,7 +271,7 @@ func serveControl(ctx context.Context, port int, brainPort int, cancel context.C
 		routes.Lock()
 		routes.m[v.CircuitCode] = routeTarget{Network: network, Address: net.JoinHostPort(host, strconv.Itoa(targetPort)), Seen: time.Now().UTC()}
 		routes.Unlock()
-		log.Printf("register circuit %d -> %s %s", v.CircuitCode, network, net.JoinHostPort(host, strconv.Itoa(targetPort)))
+		log.Printf("register circuit %d -> %s %s region %s", v.CircuitCode, network, net.JoinHostPort(host, strconv.Itoa(targetPort)), regionTag)
 		writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	})
 	mux.HandleFunc("/unregister", func(w http.ResponseWriter, r *http.Request) {
