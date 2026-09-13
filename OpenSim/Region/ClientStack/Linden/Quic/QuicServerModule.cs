@@ -171,6 +171,11 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             // Subscribe to circuit creation events for proxy registration
             m_udpServer.OnQuicCircuitCreated += OnQuicCircuitCreated;
 
+            // In Quick-G brain mode there is no native QUIC listener, so
+            // bridged viewer circuits arrive as plain loopback UDP. Complete
+            // the viewer QUIC handshake (quicready) for those circuits.
+            m_udpServer.OnLoopbackCircuitCreated += OnLoopbackCircuitCreated;
+
             if (m_brainLeaseHeld)
             {
                 StartBrainHeartbeat();
@@ -196,7 +201,10 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
             // Unsubscribe from circuit creation events
             if (m_udpServer != null)
+            {
                 m_udpServer.OnQuicCircuitCreated -= OnQuicCircuitCreated;
+                m_udpServer.OnLoopbackCircuitCreated -= OnLoopbackCircuitCreated;
+            }
 
             StopListener();
         }
@@ -372,6 +380,37 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
             // Fire-and-forget the registration call
             _ = RegisterCircuitWithProxyAsync(circuitCode);
+        }
+
+        /// <summary>
+        /// Called when a plain-LLUDP UseCircuitCode arrives from loopback
+        /// (Quick-G bridged viewer traffic) while this region runs in
+        /// Quick-G brain mode. Sends the quicready handshake so the Tasia
+        /// Viewer unblocks its queued session packets. Without this the
+        /// viewer stalls after UseCircuitCode and cleanly closes the QUIC
+        /// connection.
+        /// </summary>
+        private void OnLoopbackCircuitCreated(uint circuitCode, UUID agentId, IPEndPoint endPoint)
+        {
+            if (!m_brainLeaseHeld || m_scene == null)
+                return;
+
+            try
+            {
+                ScenePresence presence = m_scene.GetScenePresence(agentId);
+                if (presence?.ControllingClient == null)
+                {
+                    m_log.Debug($"[QuicServer] Loopback circuit {circuitCode} for agent {agentId}: no scene presence yet, quicready deferred");
+                    return;
+                }
+
+                presence.ControllingClient.SendGenericMessage("quicready", UUID.Zero, new List<string>());
+                m_log.Info($"[QuicServer] Sent quicready for bridged circuit {circuitCode} agent {agentId} via {endPoint}");
+            }
+            catch (Exception ex)
+            {
+                m_log.Warn($"[QuicServer] Failed to send quicready for circuit {circuitCode}: {ex.Message}");
+            }
         }
 
         /// <summary>
