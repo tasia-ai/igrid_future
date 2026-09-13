@@ -30,6 +30,7 @@ type registration struct {
 	SimPort     int    `json:"simPort"`
 	RegionName  string `json:"regionName"`
 	RegionID    string `json:"regionId"`
+	AgentType   string `json:"agentType"`
 }
 
 type routeTarget struct {
@@ -268,10 +269,21 @@ func serveControl(ctx context.Context, port int, brainPort int, cancel context.C
 			http.Error(w, "bad endpoint", http.StatusBadRequest)
 			return
 		}
+		newAddr := net.JoinHostPort(host, strconv.Itoa(targetPort))
+		if v.AgentType == "child" {
+			routes.RLock()
+			existing, ok := routes.m[v.CircuitCode]
+			routes.RUnlock()
+			if ok && existing.Address != newAddr {
+				log.Printf("register circuit %d region %s: IGNORING child-agent flip %s -> %s %s; keeping root route", v.CircuitCode, regionTag, existing.Address, network, newAddr)
+				writeJSON(w, http.StatusOK, map[string]any{"success": true})
+				return
+			}
+		}
 		routes.Lock()
-		routes.m[v.CircuitCode] = routeTarget{Network: network, Address: net.JoinHostPort(host, strconv.Itoa(targetPort)), Seen: time.Now().UTC()}
+		routes.m[v.CircuitCode] = routeTarget{Network: network, Address: newAddr, Seen: time.Now().UTC()}
 		routes.Unlock()
-		log.Printf("register circuit %d -> %s %s region %s", v.CircuitCode, network, net.JoinHostPort(host, strconv.Itoa(targetPort)), regionTag)
+		log.Printf("register circuit %d -> %s %s region %s", v.CircuitCode, network, newAddr, regionTag)
 		writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	})
 	mux.HandleFunc("/unregister", func(w http.ResponseWriter, r *http.Request) {

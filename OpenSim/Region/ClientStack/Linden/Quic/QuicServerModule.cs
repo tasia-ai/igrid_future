@@ -379,7 +379,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             m_log.Debug($"[QuicServer] Circuit created: {circuitCode} for agent {agentId}, registering with proxy at {m_proxyRegistrationUrl}...");
 
             // Fire-and-forget the registration call
-            _ = RegisterCircuitWithProxyAsync(circuitCode);
+            _ = RegisterCircuitWithProxyAsync(circuitCode, agentId);
         }
 
         /// <summary>
@@ -415,11 +415,26 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         /// <summary>
         /// POST to the QUIC proxy to register this circuit.
+        /// agentType is root for teleport/login destinations and child for
+        /// automatic neighbour setups, so bridges can tell a teleport route
+        /// flip (accept) from a neighbour child-agent flip (ignore).
         /// </summary>
-        private async Task RegisterCircuitWithProxyAsync(uint circuitCode)
+        private async Task RegisterCircuitWithProxyAsync(uint circuitCode, UUID agentId)
         {
             try
             {
+                string agentType = "unknown";
+                try
+                {
+                    if (m_scene != null)
+                    {
+                        ScenePresence presence = m_scene.GetScenePresence(agentId);
+                        if (presence != null)
+                            agentType = presence.IsChildAgent ? "child" : "root";
+                    }
+                }
+                catch { agentType = "unknown"; }
+
                 string url = m_proxyRegistrationUrl + "/register";
                 var payload = new OSDMap
                 {
@@ -428,7 +443,8 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     ["simPort"] = OSD.FromInteger(m_simPort),
                     ["regionName"] = OSD.FromString(m_regionName ?? string.Empty),
                     ["regionId"] = OSD.FromString(m_regionId ?? string.Empty),
-                    ["brainLease"] = OSD.FromBoolean(m_brainLeaseHeld)
+                    ["brainLease"] = OSD.FromBoolean(m_brainLeaseHeld),
+                    ["agentType"] = OSD.FromString(agentType)
                 };
 
                 if (!m_brainLeaseHeld)

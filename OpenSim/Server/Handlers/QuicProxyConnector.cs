@@ -254,6 +254,7 @@ namespace OpenSim.Server.Handlers
                 if (string.IsNullOrEmpty(regionTag))
                     regionTag = "unknown-region";
                 bool brainLease = map.ContainsKey("brainLease") && map["brainLease"].AsBoolean();
+                string agentType = map.ContainsKey("agentType") ? map["agentType"].AsString() : "unknown";
 
                 if (map.ContainsKey("simPort") || map.ContainsKey("quicPort"))
                 {
@@ -264,8 +265,17 @@ namespace OpenSim.Server.Handlers
                     {
                         IPAddress simAddress = ResolveRegistrationAddress(simHost);
                         var simEndpoint = new IPEndPoint(simAddress, simPort);
-                        QuicCircuitRegistry.Register(circuitCode, simEndpoint);
-                        m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} registered -> LLUDP {simEndpoint}");
+                        if (string.Equals(agentType, "child", StringComparison.OrdinalIgnoreCase) &&
+                            QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint currentSim) &&
+                            (currentSim.Port != simEndpoint.Port || !currentSim.Address.Equals(simEndpoint.Address)))
+                        {
+                            m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} child-agent flip {currentSim} -> {simEndpoint} ignored; keeping root route");
+                        }
+                        else
+                        {
+                            QuicCircuitRegistry.Register(circuitCode, simEndpoint);
+                            m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} agent {agentType} registered -> LLUDP {simEndpoint}");
+                        }
                     }
 
                     string quicHost = map.ContainsKey("quicHost") ? map["quicHost"].AsString() : simHost;
