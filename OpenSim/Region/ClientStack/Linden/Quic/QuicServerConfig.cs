@@ -41,7 +41,13 @@ namespace OpenSim.Region.ClientStack.LindenUDP
     public class QuicServerConfig
     {
         public bool Enabled { get; private set; } = false;
+
+        /// <summary>
+        /// Simulator-local QUIC listener port. Set to 0 to ask the Quick-G brain
+        /// for an automatically leased port before the region listener starts.
+        /// </summary>
         public int Port { get; private set; } = 9001;
+
         public string Alpn { get; private set; } = "opensim-ll/1";
         public int IdleTimeoutMs { get; private set; } = 60000;
         public int KeepaliveMs { get; private set; } = 30000;
@@ -53,6 +59,14 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         public bool LogHandshake { get; private set; } = true;
         public string CertificatePath { get; private set; } = "";
         public string PrivateKeyPath { get; private set; } = "";
+
+        /// <summary>
+        /// Direct Quick-G brain URL used only when Port=0. When blank, the region
+        /// derives the host from ProxyRegistrationURL and uses BrainPort.
+        /// </summary>
+        public string BrainURL { get; private set; } = "";
+        public int BrainPort { get; private set; } = 19002;
+        public int BrainHeartbeatSeconds { get; private set; } = 30;
 
         /// <summary>
         /// Load configuration from the [ClientStack.Quic] section.
@@ -78,8 +92,18 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             config.LogHandshake = quicConfig.GetBoolean("LogHandshake", config.LogHandshake);
             config.CertificatePath = quicConfig.GetString("CertificatePath", config.CertificatePath);
             config.PrivateKeyPath = quicConfig.GetString("PrivateKeyPath", config.PrivateKeyPath);
+            config.BrainURL = quicConfig.GetString("BrainURL", config.BrainURL);
+            config.BrainPort = quicConfig.GetInt("BrainPort", config.BrainPort);
+            config.BrainHeartbeatSeconds = Math.Max(5, quicConfig.GetInt("BrainHeartbeatSeconds", config.BrainHeartbeatSeconds));
 
             return config;
+        }
+
+        internal void UseAssignedPort(int port)
+        {
+            if (port <= 0 || port > 65535)
+                throw new ArgumentOutOfRangeException(nameof(port));
+            Port = port;
         }
 
         /// <summary>
