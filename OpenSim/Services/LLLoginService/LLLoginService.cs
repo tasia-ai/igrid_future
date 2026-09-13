@@ -734,10 +734,9 @@ namespace OpenSim.Services.LLLoginService
         }
 
         /// <summary>
-        /// Derive the sim's QUIC listener endpoint from destination data.
-        /// Uses the region generator convention: LLUDP/HTTP 20xx -> QUIC 90xx,
-        /// with HTTPS 91xx -> QUIC 90xx as a fallback.
-        /// IP is set to loopback since all containers use host networking.
+        /// Resolve the sim's explicit QUIC listener endpoint from destination data.
+        /// Brain/UDP bridge mode has no native per-region QUIC listener, so do not
+        /// invent a QUIC backend port from LLUDP or HTTP ports.
         /// </summary>
         private IPEndPoint GetQuicEndpoint(GridRegion destination, IPEndPoint udpEndpoint)
         {
@@ -752,24 +751,6 @@ namespace OpenSim.Services.LLLoginService
                     (m_quicAdvertisePort <= 0 || destination.QuicPort != (uint)m_quicAdvertisePort))
                 {
                     quicPort = (int)destination.QuicPort;
-                }
-
-                // Region generator convention on this grid:
-                // LLUDP/HTTP 20xx -> simulator QUIC 90xx.
-                if ((quicPort <= 0 || quicPort > 65535) && udpEndpoint != null && udpEndpoint.Port > 0)
-                {
-                    int derived = udpEndpoint.Port + 7000;
-                    if (derived > 0 && derived <= 65535)
-                        quicPort = derived;
-                }
-
-                // Fallback for regions that publish an HTTPS ServerURI:
-                // HTTPS 91xx -> simulator QUIC 90xx.
-                if ((quicPort <= 0 || quicPort > 65535) && !string.IsNullOrWhiteSpace(destination?.ServerURI))
-                {
-                    Uri uri = new Uri(destination.ServerURI);
-                    if (string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase) || uri.Port >= 8000)
-                        quicPort = uri.Port - 100;
                 }
 
                 if (quicPort <= 0 || quicPort > 65535)

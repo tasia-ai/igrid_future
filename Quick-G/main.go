@@ -218,6 +218,8 @@ func serveControl(ctx context.Context, port int, brainPort int, cancel context.C
 			if host == "" {
 				host = v.SimHost
 			}
+		} else {
+			host = localBackendHost(host)
 		}
 		if host == "" || targetPort <= 0 || targetPort > 65535 {
 			http.Error(w, "bad endpoint", http.StatusBadRequest)
@@ -250,6 +252,20 @@ func serveControl(ctx context.Context, port int, brainPort int, cancel context.C
 	if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Printf("control server: %v", err)
 	}
+}
+
+func localBackendHost(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" || strings.EqualFold(host, "localhost") {
+		return "127.0.0.1"
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsUnspecified() {
+			return "127.0.0.1"
+		}
+		return host
+	}
+	return "127.0.0.1"
 }
 
 func serveBrain(ctx context.Context, bind string, port int, brain *brainState) {

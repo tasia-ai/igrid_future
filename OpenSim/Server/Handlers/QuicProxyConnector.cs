@@ -260,8 +260,6 @@ namespace OpenSim.Server.Handlers
 
                     string quicHost = map.ContainsKey("quicHost") ? map["quicHost"].AsString() : simHost;
                     int quicPort = map.ContainsKey("quicPort") ? map["quicPort"].AsInteger() : 0;
-                    if ((quicPort <= 0 || quicPort > 65535) && simPort > 0)
-                        quicPort = simPort + 7000;
 
                     if (quicPort > 0 && quicPort <= 65535)
                     {
