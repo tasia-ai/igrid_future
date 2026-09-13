@@ -1418,13 +1418,18 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 if (simEndpoint == null || simEndpoint.Port <= 0)
                     return;
 
+                // Teleport contexts move the root agent: bridges must accept
+                // the route flip. Neighbour/far-child contexts only set up a
+                // child agent sharing the root circuit code: bridges must keep
+                // the existing root route.
+                string agentType = context != null && context.StartsWith("teleport", StringComparison.Ordinal)
+                    ? "root" : "child";
+
+                // Only an explicitly configured per-region QUIC port is ever
+                // sent. Derived ports (old LLUDP+7000 / URI-port conventions)
+                // pointed bridges at listeners that do not exist and froze
+                // sessions, so they are never invented here.
                 int quicPort = GetSimulatorQuicPort(destination, simEndpoint);
-                if (quicPort <= 0 || quicPort > 65535)
-                {
-                    m_log.DebugFormat("{0} Could not derive simulator QUIC port for {1} during {2}",
-                        LogHeader, destination.RegionName, context);
-                    return;
-                }
 
                 string url = m_quicProxyRegistrationUrl.TrimEnd('/') + "/register";
 
@@ -1435,17 +1440,23 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 string destHost = destination.ExternalHostName;
                 if (string.IsNullOrWhiteSpace(destHost))
                     destHost = simEndpoint.Address.ToString();
-                string quicHost = !string.IsNullOrWhiteSpace(destination.QuicHost)
-                    ? destination.QuicHost : destHost;
 
                 var payload = new OMVOSDMap
                 {
                     ["circuitCode"] = OMVOSD.FromInteger((int)agentCircuit.circuitcode),
                     ["simHost"] = OMVOSD.FromString(destHost),
                     ["simPort"] = OMVOSD.FromInteger(simEndpoint.Port),
-                    ["quicHost"] = OMVOSD.FromString(quicHost),
-                    ["quicPort"] = OMVOSD.FromInteger(quicPort)
+                    ["regionName"] = OMVOSD.FromString(destination.RegionName ?? string.Empty),
+                    ["regionId"] = OMVOSD.FromString(destination.RegionID.ToString()),
+                    ["agentType"] = OMVOSD.FromString(agentType)
                 };
+                if (quicPort > 0 && quicPort <= 65535)
+                {
+                    string quicHost = !string.IsNullOrWhiteSpace(destination.QuicHost)
+                        ? destination.QuicHost : destHost;
+                    payload["quicHost"] = OMVOSD.FromString(quicHost);
+                    payload["quicPort"] = OMVOSD.FromInteger(quicPort);
+                }
 
                 string json = OMVOSDParser.SerializeJsonString(payload);
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -1485,37 +1496,11 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                     return configured;
             }
 
-            if (simEndpoint != null && simEndpoint.Port > 0)
-            {
-                int derived = simEndpoint.Port + 7000;
-                if (m_quicAdvertisePort > 0 && derived == m_quicAdvertisePort)
-                {
-                    m_log.WarnFormat("{0} Refusing to derive simulator QUIC port {1} because it is the proxy advertise port; check QUIC config for {2}",
-                        LogHeader, derived, destination?.RegionName);
-                    return 0;
-                }
-                if (derived > 0 && derived <= 65535)
-                    return derived;
-            }
-
-            if (!string.IsNullOrWhiteSpace(destination?.ServerURI))
-            {
-                try
-                {
-                    Uri uri = new(destination.ServerURI);
-                    if (string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase) || uri.Port >= 8000)
-                    {
-                        int derived = uri.Port - 100;
-                        if (m_quicAdvertisePort > 0 && derived == m_quicAdvertisePort)
-                            return 0;
-                        return derived;
-                    }
-                }
-                catch
-                {
-                }
-            }
-
+            // Never invent a simulator QUIC port from LLUDP or HTTP ports.
+            // Retired conventions (LLUDP+7000, ServerURI-port-100) pointed
+            // bridges at listeners that do not exist and froze sessions.
+            // A quicPort is only ever sent when it is explicitly configured
+            // for the destination region.
             return 0;
         }
 
