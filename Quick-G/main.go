@@ -13,7 +13,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,26 +30,95 @@ type registration struct {
 	SimPort     int    `json:"simPort"`
 }
 
+type regionRequest struct {
+	RegionID      string `json:"regionId"`
+	RegionName    string `json:"regionName"`
+	Host          string `json:"host"`
+	SimPort       int    `json:"simPort"`
+	RequestedPort int    `json:"requestedPort"`
+	QuicPort      int    `json:"quicPort"`
+}
+
+type regionLease struct {
+	RegionID   string    `json:"regionId"`
+	RegionName string    `json:"regionName"`
+	Host       string    `json:"host"`
+	SimPort    int       `json:"simPort"`
+	QuicPort   int       `json:"quicPort"`
+	LastSeen   time.Time `json:"lastSeen"`
+}
+
+type brainState struct {
+	sync.Mutex
+	leases     map[string]*regionLease
+	ports      map[int]string
+	portStart  int
+	portEnd    int
+	publicPort int
+	ttl        time.Duration
+	excluded   map[int]bool
+}
+
 var routes = struct {
 	sync.RWMutex
 	m map[uint32]string
 }{m: make(map[uint32]string)}
 
 func main() {
-	parent := flag.Int("parent-pid", 0, "ROBUST process id")
+	parent := flag.Int("parent-pid", 0, "ROBUST process id; 0 enables manual standalone mode")
 	port := flag.Int("listen-port", 9001, "public QUIC port")
-	control := flag.Int("control-port", 19001, "loopback registration port")
+	control := flag.Int("control-port", 19001, "loopback ROBUST control port")
+	brainBind := flag.String("brain-bind", "127.0.0.1", "region brain bind address")
+	brainPort := flag.Int("brain-port", 19002, "region brain HTTP port; 0 disables")
+	regionPortStart := flag.Int("region-port-start", 22000, "first auto-assignable simulator QUIC port")
+	regionPortEnd := flag.Int("region-port-end", 22500, "last auto-assignable simulator QUIC port")
+	regionPortExclude := flag.String("region-port-exclude", "", "comma-separated simulator QUIC ports never to allocate")
+	leaseSeconds := flag.Int("brain-lease-seconds", 90, "region lease expiry in seconds")
 	cert := flag.String("cert", "SSL/quic/quic-cert.pem", "PEM certificate")
 	key := flag.String("key", "SSL/quic/quic-key.pem", "PEM private key")
 	alpn := flag.String("alpn", "opensim-ll/1", "QUIC ALPN")
 	flag.Parse()
-	if *parent <= 0 {
-		log.Fatal("--parent-pid is required")
+
+	if *port <= 0 || *port > 65535 {
+		log.Fatalf("invalid --listen-port %d", *port)
+	}
+	if *control <= 0 || *control > 65535 {
+		log.Fatalf("invalid --control-port %d", *control)
+	}
+	if *brainPort < 0 || *brainPort > 65535 {
+		log.Fatalf("invalid --brain-port %d", *brainPort)
+	}
+	if *brainPort != 0 && *brainPort == *control {
+		log.Fatal("--brain-port and --control-port must be different")
+	}
+	if *regionPortStart <= 0 || *regionPortEnd > 65535 || *regionPortStart > *regionPortEnd {
+		log.Fatalf("invalid region port range %d-%d", *regionPortStart, *regionPortEnd)
+	}
+	if *leaseSeconds < 15 {
+		*leaseSeconds = 15
+	}
+
+	excluded, err := parseExcludedPorts(*regionPortExclude)
+	if err != nil {
+		log.Fatalf("invalid --region-port-exclude: %v", err)
+	}
+	brain := &brainState{
+		leases:     make(map[string]*regionLease),
+		ports:      make(map[int]string),
+		portStart:  *regionPortStart,
+		portEnd:    *regionPortEnd,
+		publicPort: *port,
+		ttl:        time.Duration(*leaseSeconds) * time.Second,
+		excluded:   excluded,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go monitorParent(ctx, *parent, cancel)
+	if *parent > 0 {
+		go monitorParent(ctx, *parent, cancel)
+	} else {
+		log.Printf("Quick-G manual mode: no ROBUST parent supplied; waiting for ROBUST control/shutdown")
+	}
 
 	pair, err := tls.LoadX509KeyPair(*cert, *key)
 	if err != nil {
@@ -58,9 +129,23 @@ func main() {
 		log.Fatalf("listen: %v", err)
 	}
 	defer listener.Close()
-	go serveControl(ctx, *control, cancel)
+
+	go serveControl(ctx, *control, *brainPort, cancel)
+	if *brainPort != 0 {
+		go serveBrain(ctx, *brainBind, *brainPort, brain)
+		go brain.reaper(ctx)
+	}
 	go func() { <-ctx.Done(); listener.Close() }()
-	log.Printf("Quick-G listening on UDP %d (parent %d)", *port, *parent)
+
+	if *parent > 0 {
+		log.Printf("Quick-G listening on UDP %d (parent %d)", *port, *parent)
+	} else {
+		log.Printf("Quick-G listening on UDP %d (manual mode)", *port)
+	}
+	if *brainPort != 0 {
+		log.Printf("Quick-G brain listening on %s:%d, region QUIC pool %d-%d", *brainBind, *brainPort, *regionPortStart, *regionPortEnd)
+	}
+
 	for {
 		conn, err := listener.Accept(ctx)
 		if err != nil {
@@ -74,64 +159,358 @@ func main() {
 	}
 }
 
-func serveControl(ctx context.Context, port int, cancel context.CancelFunc) {
+func parseExcludedPorts(value string) (map[int]bool, error) {
+	result := make(map[int]bool)
+	for _, item := range strings.Split(value, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		port, err := strconv.Atoi(item)
+		if err != nil || port <= 0 || port > 65535 {
+			return nil, fmt.Errorf("%q is not a valid port", item)
+		}
+		result[port] = true
+	}
+	return result, nil
+}
+
+func serveControl(ctx context.Context, port int, brainPort int, cancel context.CancelFunc) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, `{"ready":true}`)
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		routes.RLock()
+		routeCount := len(routes.m)
+		routes.RUnlock()
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ready":     true,
+			"routes":    routeCount,
+			"brainPort": brainPort,
+		})
 	})
 	mux.HandleFunc("/shutdown", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		io.WriteString(w, `{"stopping":true}`)
+		writeJSON(w, http.StatusOK, map[string]any{"stopping": true})
 		go cancel()
 	})
 	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
 		var v registration
 		if r.Method != http.MethodPost || json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&v) != nil || v.CircuitCode == 0 {
-			http.Error(w, "bad registration", 400)
+			http.Error(w, "bad registration", http.StatusBadRequest)
 			return
 		}
-		host, port := v.QuicHost, v.QuicPort
+		host, targetPort := v.QuicHost, v.QuicPort
 		if host == "" {
 			host = v.SimHost
 		}
-		if port <= 0 && v.SimPort > 0 {
-			port = v.SimPort + 7000
+		if targetPort <= 0 && v.SimPort > 0 {
+			targetPort = v.SimPort + 7000
 		}
-		if port <= 0 || port > 65535 {
-			http.Error(w, "bad endpoint", 400)
+		if host == "" || targetPort <= 0 || targetPort > 65535 {
+			http.Error(w, "bad endpoint", http.StatusBadRequest)
 			return
 		}
 		routes.Lock()
-		routes.m[v.CircuitCode] = net.JoinHostPort(host, strconv.Itoa(port))
+		routes.m[v.CircuitCode] = net.JoinHostPort(host, strconv.Itoa(targetPort))
 		routes.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, `{"success":true}`)
+		writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	})
 	mux.HandleFunc("/unregister", func(w http.ResponseWriter, r *http.Request) {
 		var v registration
-		if json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&v) != nil {
-			http.Error(w, "bad registration", 400)
+		if r.Method != http.MethodPost || json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&v) != nil || v.CircuitCode == 0 {
+			http.Error(w, "bad registration", http.StatusBadRequest)
 			return
 		}
 		routes.Lock()
 		delete(routes.m, v.CircuitCode)
 		routes.Unlock()
-		io.WriteString(w, `{"success":true}`)
+		writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	})
+
 	s := &http.Server{Addr: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), Handler: mux, ReadHeaderTimeout: 3 * time.Second}
 	go func() {
 		<-ctx.Done()
-		shutdown, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		s.Shutdown(shutdown)
+		shutdown, stop := context.WithTimeout(context.Background(), time.Second)
+		defer stop()
+		_ = s.Shutdown(shutdown)
 	}()
 	if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Printf("control server: %v", err)
 	}
+}
+
+func serveBrain(ctx context.Context, bind string, port int, brain *brainState) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/allocate", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var request regionRequest
+		if json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&request) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		lease, err := brain.allocate(request)
+		if err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		log.Printf("brain lease: %s (%s) -> QUIC %d", lease.RegionName, lease.RegionID, lease.QuicPort)
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "quicPort": lease.QuicPort, "leaseSeconds": int(brain.ttl.Seconds())})
+	})
+	mux.HandleFunc("/heartbeat", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var request regionRequest
+		if json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&request) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		lease, err := brain.heartbeat(request)
+		if err != nil {
+			writeJSON(w, http.StatusConflict, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "quicPort": lease.QuicPort})
+	})
+	mux.HandleFunc("/release", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var request regionRequest
+		if json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&request) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		brain.release(request)
+		writeJSON(w, http.StatusOK, map[string]any{"success": true})
+	})
+	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ready":      true,
+			"portStart":  brain.portStart,
+			"portEnd":    brain.portEnd,
+			"leaseCount": brain.count(),
+			"leases":     brain.snapshot(),
+		})
+	})
+
+	s := &http.Server{Addr: net.JoinHostPort(bind, strconv.Itoa(port)), Handler: mux, ReadHeaderTimeout: 3 * time.Second}
+	go func() {
+		<-ctx.Done()
+		shutdown, stop := context.WithTimeout(context.Background(), time.Second)
+		defer stop()
+		_ = s.Shutdown(shutdown)
+	}()
+	if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Printf("brain server: %v", err)
+	}
+}
+
+func (b *brainState) allocate(request regionRequest) (*regionLease, error) {
+	key := regionKey(request)
+	if key == "" {
+		return nil, errors.New("regionId or host/simPort is required")
+	}
+
+	b.Lock()
+	defer b.Unlock()
+	now := time.Now().UTC()
+	b.pruneLocked(now)
+
+	if lease := b.leases[key]; lease != nil {
+		lease.RegionName = request.RegionName
+		lease.Host = request.Host
+		lease.SimPort = request.SimPort
+		lease.LastSeen = now
+		copy := *lease
+		return &copy, nil
+	}
+
+	selected := request.RequestedPort
+	if selected != 0 {
+		if err := b.portAvailableLocked(selected, key); err != nil {
+			return nil, err
+		}
+	} else {
+		for candidate := b.portStart; candidate <= b.portEnd; candidate++ {
+			if b.excluded[candidate] || candidate == b.publicPort {
+				continue
+			}
+			if _, used := b.ports[candidate]; !used {
+				selected = candidate
+				break
+			}
+		}
+		if selected == 0 {
+			return nil, errors.New("region QUIC port pool is exhausted")
+		}
+	}
+
+	lease := &regionLease{
+		RegionID:   request.RegionID,
+		RegionName: request.RegionName,
+		Host:       request.Host,
+		SimPort:    request.SimPort,
+		QuicPort:   selected,
+		LastSeen:   now,
+	}
+	b.leases[key] = lease
+	b.ports[selected] = key
+	copy := *lease
+	return &copy, nil
+}
+
+func (b *brainState) heartbeat(request regionRequest) (*regionLease, error) {
+	key := regionKey(request)
+	if key == "" {
+		return nil, errors.New("regionId or host/simPort is required")
+	}
+
+	b.Lock()
+	defer b.Unlock()
+	now := time.Now().UTC()
+	b.pruneLocked(now)
+	if lease := b.leases[key]; lease != nil {
+		if request.QuicPort != 0 && request.QuicPort != lease.QuicPort {
+			return nil, fmt.Errorf("region already owns QUIC port %d", lease.QuicPort)
+		}
+		lease.RegionName = request.RegionName
+		lease.Host = request.Host
+		lease.SimPort = request.SimPort
+		lease.LastSeen = now
+		copy := *lease
+		return &copy, nil
+	}
+
+	// Re-adopt a running region after a Quick-G brain restart. The region sends
+	// its current listener port in the heartbeat, so no simulator restart is needed.
+	if request.QuicPort == 0 {
+		return nil, errors.New("lease not found; heartbeat must include quicPort")
+	}
+	if err := b.portAvailableLocked(request.QuicPort, key); err != nil {
+		return nil, err
+	}
+	lease := &regionLease{
+		RegionID:   request.RegionID,
+		RegionName: request.RegionName,
+		Host:       request.Host,
+		SimPort:    request.SimPort,
+		QuicPort:   request.QuicPort,
+		LastSeen:   now,
+	}
+	b.leases[key] = lease
+	b.ports[request.QuicPort] = key
+	copy := *lease
+	return &copy, nil
+}
+
+func (b *brainState) release(request regionRequest) {
+	key := regionKey(request)
+	if key == "" {
+		return
+	}
+	b.Lock()
+	defer b.Unlock()
+	if lease := b.leases[key]; lease != nil {
+		delete(b.ports, lease.QuicPort)
+		delete(b.leases, key)
+		log.Printf("brain release: %s (%s) QUIC %d", lease.RegionName, lease.RegionID, lease.QuicPort)
+	}
+}
+
+func (b *brainState) portAvailableLocked(port int, key string) error {
+	if port < b.portStart || port > b.portEnd {
+		return fmt.Errorf("requested port %d is outside pool %d-%d", port, b.portStart, b.portEnd)
+	}
+	if b.excluded[port] || port == b.publicPort {
+		return fmt.Errorf("requested port %d is reserved", port)
+	}
+	if owner, used := b.ports[port]; used && owner != key {
+		return fmt.Errorf("requested port %d is already leased", port)
+	}
+	return nil
+}
+
+func (b *brainState) reaper(ctx context.Context) {
+	interval := 30 * time.Second
+	if b.ttl/3 < interval {
+		interval = b.ttl / 3
+	}
+	if interval < 5*time.Second {
+		interval = 5 * time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			b.Lock()
+			b.pruneLocked(now.UTC())
+			b.Unlock()
+		}
+	}
+}
+
+func (b *brainState) pruneLocked(now time.Time) {
+	for key, lease := range b.leases {
+		if now.Sub(lease.LastSeen) > b.ttl {
+			delete(b.ports, lease.QuicPort)
+			delete(b.leases, key)
+			log.Printf("brain lease expired: %s (%s) QUIC %d", lease.RegionName, lease.RegionID, lease.QuicPort)
+		}
+	}
+}
+
+func (b *brainState) count() int {
+	b.Lock()
+	defer b.Unlock()
+	b.pruneLocked(time.Now().UTC())
+	return len(b.leases)
+}
+
+func (b *brainState) snapshot() []regionLease {
+	b.Lock()
+	defer b.Unlock()
+	b.pruneLocked(time.Now().UTC())
+	result := make([]regionLease, 0, len(b.leases))
+	for _, lease := range b.leases {
+		result = append(result, *lease)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].QuicPort < result[j].QuicPort })
+	return result
+}
+
+func regionKey(request regionRequest) string {
+	if id := strings.TrimSpace(request.RegionID); id != "" {
+		return "id:" + strings.ToLower(id)
+	}
+	if host := strings.TrimSpace(request.Host); host != "" && request.SimPort > 0 {
+		return "endpoint:" + strings.ToLower(host) + ":" + strconv.Itoa(request.SimPort)
+	}
+	return ""
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
 }
 
 func bridge(ctx context.Context, viewer quic.Connection, alpn string) {
@@ -184,6 +563,7 @@ func readFrame(r io.Reader) ([]byte, error) {
 	_, e := io.ReadFull(r, b)
 	return b, e
 }
+
 func writeFrame(w io.Writer, b []byte) error {
 	var h [4]byte
 	binary.BigEndian.PutUint32(h[:], uint32(len(b)))
@@ -193,6 +573,7 @@ func writeFrame(w io.Writer, b []byte) error {
 	_, e := w.Write(b)
 	return e
 }
+
 func findRoute(packet []byte) (uint32, string) {
 	routes.RLock()
 	defer routes.RUnlock()
