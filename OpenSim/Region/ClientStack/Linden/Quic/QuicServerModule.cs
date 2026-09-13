@@ -171,6 +171,13 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             // Subscribe to circuit creation events for proxy registration
             m_udpServer.OnQuicCircuitCreated += OnQuicCircuitCreated;
 
+            if (m_brainLeaseHeld)
+            {
+                StartBrainHeartbeat();
+                m_log.Info($"[QuicServer] Region loaded, sim={m_simHost}:{m_simPort}, Quick-G brain transport active, logical quic={m_config.Port}, proxy={m_proxyRegistrationUrl}");
+                return;
+            }
+
             StartListener();
             if (m_listener == null)
             {
@@ -276,7 +283,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
                 m_config.UseAssignedPort(assignedPort);
                 m_brainLeaseHeld = true;
-                m_log.Info($"[QuicServer] Quick-G brain assigned {m_regionName} → QUIC {assignedPort}");
+                m_log.Info($"[QuicServer] Quick-G brain assigned {m_regionName} -> QUIC {assignedPort}");
                 return true;
             }
             catch (Exception ex)
@@ -379,14 +386,14 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 {
                     ["circuitCode"] = OSD.FromInteger((int)circuitCode),
                     ["simHost"] = OSD.FromString(m_simHost),
-                    ["simPort"] = OSD.FromInteger(m_simPort),
-                    // Register the simulator's QUIC listener address so the proxy
-                    // can establish QUIC→QUIC bridges. Use the same hostname the
-                    // sim advertises for LLUDP — this must resolve from the proxy's
-                    // network (Docker bridge, host network, etc.).
-                    ["quicHost"] = OSD.FromString(m_simHost),
-                    ["quicPort"] = OSD.FromInteger(m_config.Port)
+                    ["simPort"] = OSD.FromInteger(m_simPort)
                 };
+
+                if (!m_brainLeaseHeld)
+                {
+                    payload["quicHost"] = OSD.FromString(m_simHost);
+                    payload["quicPort"] = OSD.FromInteger(m_config.Port);
+                }
 
                 string json = OSDParser.SerializeJsonString(payload);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -394,7 +401,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 HttpResponseMessage response = await m_httpClient.PostAsync(url, content);
                 if (response.IsSuccessStatusCode)
                 {
-                    m_log.Info($"[QuicServer] Circuit {circuitCode} registered with proxy → {m_simHost}:{m_simPort}");
+                    m_log.Info($"[QuicServer] Circuit {circuitCode} registered with proxy -> {m_simHost}:{m_simPort}");
                 }
                 else
                 {
@@ -403,7 +410,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             }
             catch (Exception ex)
             {
-                // Registration failure is non-fatal — proxy will use broadcast fallback
+                // Registration failure is non-fatal - proxy will use broadcast fallback
                 m_log.Warn($"[QuicServer] Failed to register circuit {circuitCode} with proxy: {ex.Message}");
             }
         }
@@ -421,10 +428,14 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 {
                     ["circuitCode"] = OSD.FromInteger((int)circuitCode),
                     ["simHost"] = OSD.FromString(m_simHost),
-                    ["simPort"] = OSD.FromInteger(m_simPort),
-                    ["quicHost"] = OSD.FromString("127.0.0.1"),
-                    ["quicPort"] = OSD.FromInteger(m_config.Port)
+                    ["simPort"] = OSD.FromInteger(m_simPort)
                 };
+
+                if (!m_brainLeaseHeld)
+                {
+                    payload["quicHost"] = OSD.FromString("127.0.0.1");
+                    payload["quicPort"] = OSD.FromInteger(m_config.Port);
+                }
 
                 string json = OSDParser.SerializeJsonString(payload);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -533,7 +544,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 clientConnection.OnDisconnected += (reason) =>
                     OnQuicDisconnected(clientConnection, reason);
 
-                // Wire up packet handler — bridges QUIC packets into the LLUDP pipeline
+                // Wire up packet handler - bridges QUIC packets into the LLUDP pipeline
                 clientConnection.OnPacketReceived += (payload) =>
                 {
                     if (m_udpServer != null)
@@ -558,7 +569,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 m_brainHeartbeatTimer = null;
                 m_cts?.Cancel();
 
-                // QuicListener implements IAsyncDisposable — use DisposeAsync
+                // QuicListener implements IAsyncDisposable - use DisposeAsync
                 if (m_listener != null)
                 {
                     m_listener.DisposeAsync().AsTask().GetAwaiter().GetResult();
