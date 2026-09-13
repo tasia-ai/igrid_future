@@ -17,9 +17,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            artifact: opensim-linux
-            package: opensim-linux.tar.gz
           - os: windows-latest
             artifact: opensim-windows
             package: opensim-windows.zip
