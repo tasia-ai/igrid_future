@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using Nini.Config;
@@ -14,8 +15,7 @@ namespace OpenSim.Server.Base
     {
         private static readonly ILog m_log = LogManager.GetLogger(typeof(QuickGProcess));
         private static Process m_process;
-        private static bool m_retrying;
-        private static readonly HttpClient s_healthClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(250) };
+        private static readonly HttpClient s_healthClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(350) };
 
         internal static void Start(IConfigSource source)
         {
@@ -23,7 +23,8 @@ namespace OpenSim.Server.Base
             string enabled = config?.GetString("Enabled", "auto") ?? "auto";
             bool requested = enabled.Equals("true", StringComparison.OrdinalIgnoreCase) ||
                 enabled.Equals("yes", StringComparison.OrdinalIgnoreCase);
-            if (!requested && !enabled.Equals("auto", StringComparison.OrdinalIgnoreCase))
+            bool automatic = enabled.Equals("auto", StringComparison.OrdinalIgnoreCase);
+            if (!requested && !automatic)
                 return;
 
             // Windows reports 10.0 for both releases; Windows 11 starts at build 22000.
@@ -34,130 +35,216 @@ namespace OpenSim.Server.Base
                 return;
 
             int controlPort = config?.GetInt("ControlPort", 19001) ?? 19001;
+            int brainPort = config?.GetInt("BrainPort", 19002) ?? 19002;
+            bool allowNative = config?.GetBoolean(
+                "AllowNativeQuicFallback",
+                !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                ?? !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+            // A manually started Quick-G may already be running before ROBUST.
+            if (IsReady(controlPort))
+            {
+                MarkConnected(controlPort, brainPort);
+                m_log.Info("[QUICK-G]: Connected to already-running Quick-G");
+                return;
+            }
+
             string executable = config?.GetString("Executable", "Quick-G.exe") ?? "Quick-G.exe";
-            // Config paths are distribution-relative, independent of the shell's
-            // current working directory when ROBUST is launched as a service.
             if (!Path.IsPathRooted(executable))
                 executable = Path.Combine(AppContext.BaseDirectory, executable);
             executable = Path.GetFullPath(executable);
-            if (!File.Exists(executable))
+
+            string arguments = BuildArguments(config, controlPort, brainPort);
+            int exitCode = -1;
+
+            if (File.Exists(executable))
+            {
+                try
+                {
+                    m_process = Process.Start(new ProcessStartInfo(executable, arguments)
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        WorkingDirectory = AppContext.BaseDirectory
+                    });
+
+                    if (WaitUntilReady(controlPort, 5000))
+                    {
+                        MarkConnected(controlPort, brainPort);
+                        m_log.InfoFormat("[QUICK-G]: Started compatibility helper (pid {0})", m_process?.Id ?? 0);
+                        return;
+                    }
+
+                    if (m_process != null && m_process.HasExited)
+                        exitCode = m_process.ExitCode;
+                }
+                catch (Exception e)
+                {
+                    m_log.ErrorFormat("[QUICK-G]: Could not launch helper: {0}", e.Message);
+                }
+                finally
+                {
+                    if (!IsReady(controlPort))
+                        DisposeFailedChild();
+                }
+            }
+            else
             {
                 m_log.ErrorFormat("[QUICK-G]: Compatibility helper not found at {0}", executable);
-                HandleStartupFailure(source, config, controlPort, -1);
-                return;
             }
 
-            string arguments = string.Format(
-                "--parent-pid {0} --listen-port {1} --control-port {2} --cert \"{3}\" --key \"{4}\" --alpn \"{5}\"",
-                Process.GetCurrentProcess().Id,
-                config?.GetInt("Port", 9001) ?? 9001,
-                config?.GetInt("ControlPort", 19001) ?? 19001,
-                config?.GetString("CertificatePath", "SSL/quic/quic-cert.pem") ?? "SSL/quic/quic-cert.pem",
-                config?.GetString("PrivateKeyPath", "SSL/quic/quic-key.pem") ?? "SSL/quic/quic-key.pem",
-                config?.GetString("ALPN", "opensim-ll/1") ?? "opensim-ll/1");
-
-            try
-            {
-                m_process = Process.Start(new ProcessStartInfo(executable, arguments)
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WorkingDirectory = AppContext.BaseDirectory
-                });
-            }
-            catch (Exception e)
-            {
-                m_log.ErrorFormat("[QUICK-G]: Could not launch helper: {0}", e.Message);
-                HandleStartupFailure(source, config, controlPort, -1);
-                return;
-            }
-
-            if (!WaitUntilReady(controlPort))
-            {
-                int exitCode = m_process.HasExited ? m_process.ExitCode : -1;
-                Stop();
-                HandleStartupFailure(source, config, controlPort, exitCode);
-                return;
-            }
-
-            Environment.SetEnvironmentVariable("OPENSIM_QUICKG_CONTROL_PORT", controlPort.ToString());
-            m_log.InfoFormat("[QUICK-G]: Started compatibility helper (pid {0})", m_process.Id);
-        }
-
-        private static void HandleStartupFailure(IConfigSource source, IConfig config, int controlPort, int exitCode)
-        {
-            bool allowNative = config?.GetBoolean("AllowNativeQuicFallback", !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                ?? !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
             if (allowNative)
             {
                 m_log.Warn("[QUICK-G]: Continuing with explicitly allowed native QUIC fallback");
                 return;
             }
-            if (m_retrying)
-                throw new InvalidOperationException("Quick-G failed twice and native QUIC fallback is disabled");
 
-            WaitForRetry(exitCode);
-            if (WaitUntilReady(controlPort))
-            {
-                Environment.SetEnvironmentVariable("OPENSIM_QUICKG_CONTROL_PORT", controlPort.ToString());
-                m_log.Info("[QUICK-G]: Connected to the manually started compatibility helper");
-                return;
-            }
-
-            m_retrying = true;
-            try { Start(source); }
-            finally { m_retrying = false; }
+            WaitForManualQuickG(controlPort, brainPort, executable, exitCode);
         }
 
-        private static void WaitForRetry(int exitCode)
+        private static string BuildArguments(IConfig config, int controlPort, int brainPort)
         {
-            string message = $"[QUICK-G]: Startup failed (exit {exitCode}). Native QUIC fallback is disabled. " +
-                "Start Quick-G manually if desired, then press SPACE to check again and retry.";
-            m_log.Error(message);
-            Console.Error.WriteLine(message);
-            if (Console.IsInputRedirected)
-                throw new InvalidOperationException("Quick-G is required, but interactive retry is unavailable");
+            int listenPort = config?.GetInt("Port", 9001) ?? 9001;
+            string brainBind = config?.GetString("BrainBind", "127.0.0.1") ?? "127.0.0.1";
+            int regionPortStart = config?.GetInt("RegionPortStart", 22000) ?? 22000;
+            int regionPortEnd = config?.GetInt("RegionPortEnd", 22500) ?? 22500;
+            string regionPortExclude = config?.GetString("RegionPortExclude", "") ?? "";
+            int leaseSeconds = config?.GetInt("BrainLeaseSeconds", 90) ?? 90;
+            string cert = config?.GetString("CertificatePath", "SSL/quic/quic-cert.pem") ?? "SSL/quic/quic-cert.pem";
+            string key = config?.GetString("PrivateKeyPath", "SSL/quic/quic-key.pem") ?? "SSL/quic/quic-key.pem";
+            string alpn = config?.GetString("ALPN", "opensim-ll/1") ?? "opensim-ll/1";
 
-            while (Console.ReadKey(true).Key != ConsoleKey.Spacebar) { }
+            return string.Format(
+                "--parent-pid {0} --listen-port {1} --control-port {2} --brain-bind \"{3}\" --brain-port {4} " +
+                "--region-port-start {5} --region-port-end {6} --region-port-exclude \"{7}\" --brain-lease-seconds {8} " +
+                "--cert \"{9}\" --key \"{10}\" --alpn \"{11}\"",
+                Process.GetCurrentProcess().Id,
+                listenPort,
+                controlPort,
+                brainBind,
+                brainPort,
+                regionPortStart,
+                regionPortEnd,
+                regionPortExclude,
+                leaseSeconds,
+                cert,
+                key,
+                alpn);
         }
 
-        private static bool WaitUntilReady(int controlPort)
+        private static void WaitForManualQuickG(int controlPort, int brainPort, string executable, int exitCode)
+        {
+            if (Console.IsInputRedirected)
+                throw new InvalidOperationException(
+                    "Quick-G is required and native QUIC fallback is disabled, but interactive retry is unavailable");
+
+            while (true)
+            {
+                string message =
+                    $"[QUICK-G]: Quick-G is REQUIRED but is not running (last exit {exitCode}).\n" +
+                    $"           Start Quick-G manually: {executable}\n" +
+                    "           Then press SPACE to check again. ROBUST QUIC startup is paused.";
+
+                m_log.Error(message.Replace('\n', ' '));
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("============================================================");
+                Console.Error.WriteLine(" QUICK-G REQUIRED - ROBUST QUIC STARTUP PAUSED");
+                Console.Error.WriteLine("============================================================");
+                Console.Error.WriteLine(message);
+                Console.Error.WriteLine("============================================================");
+
+                while (Console.ReadKey(true).Key != ConsoleKey.Spacebar) { }
+
+                if (WaitUntilReady(controlPort, 5000))
+                {
+                    MarkConnected(controlPort, brainPort);
+                    m_log.Info("[QUICK-G]: Manual Quick-G detected; ROBUST QUIC startup continues");
+                    return;
+                }
+
+                Console.Error.WriteLine("[QUICK-G]: Still unavailable. Start Quick-G, then press SPACE again.");
+            }
+        }
+
+        private static bool IsReady(int controlPort)
+        {
+            try
+            {
+                using HttpResponseMessage response = s_healthClient.GetAsync(
+                    $"http://127.0.0.1:{controlPort}/health").GetAwaiter().GetResult();
+                return response.IsSuccessStatusCode;
+            }
+            catch (HttpRequestException) { }
+            catch (TaskCanceledException) { }
+            catch (Exception) { }
+            return false;
+        }
+
+        private static bool WaitUntilReady(int controlPort, int timeoutMs)
         {
             Stopwatch timeout = Stopwatch.StartNew();
-            while (timeout.ElapsedMilliseconds < 5000 && (m_process == null || !m_process.HasExited))
+            while (timeout.ElapsedMilliseconds < timeoutMs)
             {
-                try
-                {
-                    using HttpResponseMessage response = s_healthClient.GetAsync(
-                        $"http://127.0.0.1:{controlPort}/health").GetAwaiter().GetResult();
-                    if (response.IsSuccessStatusCode)
-                        return true;
-                }
-                catch (HttpRequestException) { }
-                catch (TaskCanceledException) { }
-                System.Threading.Thread.Sleep(100);
+                if (IsReady(controlPort))
+                    return true;
+                Thread.Sleep(100);
             }
             return false;
+        }
+
+        private static void MarkConnected(int controlPort, int brainPort)
+        {
+            Environment.SetEnvironmentVariable("OPENSIM_QUICKG_CONTROL_PORT", controlPort.ToString());
+            Environment.SetEnvironmentVariable("OPENSIM_QUICKG_BRAIN_PORT", brainPort > 0 ? brainPort.ToString() : null);
+        }
+
+        private static void DisposeFailedChild()
+        {
+            Process process = m_process;
+            m_process = null;
+            if (process == null)
+                return;
+
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(true);
+                    process.WaitForExit(2000);
+                }
+            }
+            catch { }
+            finally
+            {
+                process.Dispose();
+            }
         }
 
         internal static void Stop()
         {
             string controlPort = Environment.GetEnvironmentVariable("OPENSIM_QUICKG_CONTROL_PORT");
             Environment.SetEnvironmentVariable("OPENSIM_QUICKG_CONTROL_PORT", null);
+            Environment.SetEnvironmentVariable("OPENSIM_QUICKG_BRAIN_PORT", null);
+
             Process process = m_process;
             m_process = null;
             try
             {
-                // Request graceful cancellation through the loopback-only control
-                // endpoint. Parent-handle monitoring covers abnormal ROBUST exits.
+                // This also shuts down a manually started helper that ROBUST adopted.
                 if (!string.IsNullOrEmpty(controlPort))
                 {
                     using StringContent content = new StringContent(string.Empty);
-                    try { s_healthClient.PostAsync($"http://127.0.0.1:{controlPort}/shutdown", content).GetAwaiter().GetResult(); }
+                    try
+                    {
+                        s_healthClient.PostAsync(
+                            $"http://127.0.0.1:{controlPort}/shutdown", content).GetAwaiter().GetResult();
+                    }
                     catch { }
                 }
+
                 if (process == null)
                     return;
+
                 if (!process.HasExited && !process.WaitForExit(3000))
                     process.Kill(true);
                 process.WaitForExit(2000);
@@ -166,7 +253,10 @@ namespace OpenSim.Server.Base
             {
                 m_log.WarnFormat("[QUICK-G]: Error stopping helper: {0}", e.Message);
             }
-            finally { process.Dispose(); }
+            finally
+            {
+                process?.Dispose();
+            }
         }
     }
 }
