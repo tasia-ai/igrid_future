@@ -62,9 +62,9 @@ namespace OpenSim.Server.Handlers
     /// big-endian length-prefixed stream framing.
     ///
     /// Routing uses a multi-layer strategy:
-    ///   1. Pre-registration — LLLoginService registers circuit→sim in QuicCircuitRegistry
+    ///   1. Pre-registration - LLLoginService registers circuit->sim in QuicCircuitRegistry
     ///      during login (same process, zero-latency first connect).
-    ///   2. Sim registration — each sim's QuicServerModule registers circuits on creation
+    ///   2. Sim registration - each sim's QuicServerModule registers circuits on creation
     ///      via HTTP POST to the proxy (handles teleport re-routing).
     ///   3. Endpoint-aware unregister prevents old source simulators from removing
     ///      freshly registered destination routes during teleport.
@@ -135,7 +135,7 @@ namespace OpenSim.Server.Handlers
 
                 if (!string.IsNullOrEmpty(m_quickGControlPort))
                 {
-                    QuicCircuitRegistry.QuicEndpointRegistered += ForwardRegistryRouteToQuickG;
+                    QuicCircuitRegistry.SimEndpointRegistered += ForwardRegistryRouteToQuickG;
                     QuicCircuitRegistry.CircuitUnregistered += ForwardRegistryUnregisterToQuickG;
                 }
 
@@ -180,14 +180,14 @@ namespace OpenSim.Server.Handlers
                 IConfig gridConfig = configSource.Configs["GridService"];
                 if (gridConfig == null)
                 {
-                    m_log.Warn("[QuicProxy] No [GridService] section — sim discovery via grid unavailable");
+                    m_log.Warn("[QuicProxy] No [GridService] section - sim discovery via grid unavailable");
                     return;
                 }
 
                 string module = gridConfig.GetString("LocalServiceModule", string.Empty);
                 if (string.IsNullOrEmpty(module))
                 {
-                    m_log.Warn("[QuicProxy] GridService.LocalServiceModule not configured — sim discovery unavailable");
+                    m_log.Warn("[QuicProxy] GridService.LocalServiceModule not configured - sim discovery unavailable");
                     return;
                 }
 
@@ -206,10 +206,10 @@ namespace OpenSim.Server.Handlers
         /// </summary>
         private void RegisterHttpEndpoints(IHttpServer server)
         {
-            // POST /admin/quic/circuit/register — body: {"circuitCode":1234,"simHost":"sim-Grid_Welcome","simPort":2001}
+            // POST /admin/quic/circuit/register - body: {"circuitCode":1234,"simHost":"sim-Grid_Welcome","simPort":2001}
             server.AddHTTPHandler("/admin/quic/circuit/register", HandleCircuitRegister);
 
-            // POST /admin/quic/circuit/unregister — body: {"circuitCode":1234}
+            // POST /admin/quic/circuit/unregister - body: {"circuitCode":1234}
             server.AddHTTPHandler("/admin/quic/circuit/unregister", HandleCircuitUnregister);
 
             m_log.Info("[QuicProxy] Registered HTTP endpoints: /admin/quic/circuit/register, /admin/quic/circuit/unregister");
@@ -255,7 +255,7 @@ namespace OpenSim.Server.Handlers
                         IPAddress simAddress = ResolveRegistrationAddress(simHost);
                         var simEndpoint = new IPEndPoint(simAddress, simPort);
                         QuicCircuitRegistry.Register(circuitCode, simEndpoint);
-                        m_log.Info($"[QuicProxy] Circuit {circuitCode} registered → LLUDP {simEndpoint}");
+                        m_log.Info($"[QuicProxy] Circuit {circuitCode} registered -> LLUDP {simEndpoint}");
                     }
 
                     string quicHost = map.ContainsKey("quicHost") ? map["quicHost"].AsString() : simHost;
@@ -274,7 +274,7 @@ namespace OpenSim.Server.Handlers
                             IPAddress quicAddress = ResolveRegistrationAddress(quicHost);
                             var quicEndpoint = new IPEndPoint(quicAddress, quicPort);
                             QuicCircuitRegistry.RegisterQUIC(circuitCode, quicEndpoint);
-                            m_log.Info($"[QuicProxy] Circuit {circuitCode} registered → QUIC {quicEndpoint}");
+                            m_log.Info($"[QuicProxy] Circuit {circuitCode} registered -> QUIC {quicEndpoint}");
                         }
                     }
                 }
@@ -413,7 +413,7 @@ namespace OpenSim.Server.Handlers
 
         private void ForwardRegistryRouteToQuickG(uint circuitCode, IPEndPoint endpoint)
         {
-            string body = $"{{\"circuitCode\":{circuitCode},\"quicHost\":\"{endpoint.Address}\",\"quicPort\":{endpoint.Port}}}";
+            string body = $"{{\"circuitCode\":{circuitCode},\"simHost\":\"{endpoint.Address}\",\"simPort\":{endpoint.Port}}}";
             ForwardToQuickG("register", body);
         }
 
@@ -581,7 +581,7 @@ namespace OpenSim.Server.Handlers
 
                 m_log.Info($"[QuicProxy] Viewer from {viewerConn.RemoteEndPoint}, circuit={circuitCode}");
 
-                // Resolve target sim — QUIC endpoint from registry
+                // Resolve target sim - QUIC endpoint from registry
                 if (!QuicCircuitRegistry.TryGetQUIC(circuitCode, out IPEndPoint quicEndpoint))
                 {
                     // Race condition: sim may still be registering this circuit.
@@ -704,11 +704,11 @@ namespace OpenSim.Server.Handlers
             // Layer 1: Check in-process registry (pre-registered by LLLoginService or proxy HTTP endpoint)
             if (QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint endpoint))
             {
-                m_log.Debug($"[QuicProxy] Circuit {circuitCode} resolved via registry → {endpoint}");
+                m_log.Debug($"[QuicProxy] Circuit {circuitCode} resolved via registry -> {endpoint}");
                 return endpoint;
             }
 
-            // Layer 2: Broadcast fallback — send UseCircuitCode to all known sims,
+            // Layer 2: Broadcast fallback - send UseCircuitCode to all known sims,
             // the one that owns the circuit will respond.
             m_log.Info($"[QuicProxy] Circuit {circuitCode} not in registry, broadcasting to known sims...");
             return BroadcastLookup(circuitCode, useCircuitCodeBytes);
@@ -759,7 +759,7 @@ namespace OpenSim.Server.Handlers
 
                 if (QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint registeredEp))
                 {
-                    m_log.Info($"[QuicProxy] Circuit {circuitCode} resolved via broadcast → {registeredEp}");
+                    m_log.Info($"[QuicProxy] Circuit {circuitCode} resolved via broadcast -> {registeredEp}");
                     return registeredEp;
                 }
             }
@@ -797,7 +797,7 @@ namespace OpenSim.Server.Handlers
                     int payloadLen = (headerBuf[0] << 24) | (headerBuf[1] << 16) |
                                      (headerBuf[2] << 8) | headerBuf[3];
 
-                    // Zero-length frame = keepalive marker — silently consume
+                    // Zero-length frame = keepalive marker - silently consume
                     if (payloadLen == 0)
                         continue;
 
@@ -820,7 +820,7 @@ namespace OpenSim.Server.Handlers
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                m_log.Debug($"[QuicProxy] Viewer→Sim bridge ended: {ex.Message}");
+                m_log.Debug($"[QuicProxy] Viewer->Sim bridge ended: {ex.Message}");
             }
         }
 
@@ -847,7 +847,7 @@ namespace OpenSim.Server.Handlers
                     int payloadLen = (headerBuf[0] << 24) | (headerBuf[1] << 16) |
                                      (headerBuf[2] << 8) | headerBuf[3];
 
-                    // Zero-length frame = keepalive marker — silently consume
+                    // Zero-length frame = keepalive marker - silently consume
                     if (payloadLen == 0)
                         continue;
 
@@ -870,7 +870,7 @@ namespace OpenSim.Server.Handlers
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                m_log.Debug($"[QuicProxy] Sim→Viewer bridge ended: {ex.Message}");
+                m_log.Debug($"[QuicProxy] Sim->Viewer bridge ended: {ex.Message}");
             }
         }
 
@@ -939,7 +939,7 @@ namespace OpenSim.Server.Handlers
                     catch (OperationCanceledException) { break; }
                     catch (Exception)
                     {
-                        // Stream write failure — connection is likely dead, exit loop
+                        // Stream write failure - connection is likely dead, exit loop
                         break;
                     }
                 }
@@ -954,7 +954,7 @@ namespace OpenSim.Server.Handlers
         /// Load the TLS certificate context for QUIC, including intermediate
         /// CA certificates from the fullchain PEM file.
         /// Uses the same approach as QuicServerConfig.LoadCertificateContext()
-        /// on the sim side — loads leaf cert with private key from PEM, then
+        /// on the sim side - loads leaf cert with private key from PEM, then
         /// extracts intermediate CA certs from the fullchain PEM and includes
         /// them in the SslStreamCertificateContext.
         /// Cached and reused across all connections.
@@ -999,7 +999,7 @@ namespace OpenSim.Server.Handlers
                 }
                 else
                 {
-                    // No certificate configured or not found — generate self-signed for development
+                    // No certificate configured or not found - generate self-signed for development
                     m_log.Warn("[QuicProxy] No certificate found, generating self-signed");
                     certificate = GenerateSelfSignedCertificate();
                 }

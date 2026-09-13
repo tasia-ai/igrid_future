@@ -41,12 +41,13 @@ namespace OpenSim.Framework
     /// </summary>
     public static class QuicCircuitRegistry
     {
+        public static event Action<uint, IPEndPoint> SimEndpointRegistered;
         public static event Action<uint, IPEndPoint> QuicEndpointRegistered;
         public static event Action<uint> CircuitUnregistered;
-        /// <summary>circuitCode → sim UDP endpoint</summary>
+        /// <summary>circuitCode -> sim UDP endpoint</summary>
         private static readonly ConcurrentDictionary<uint, IPEndPoint> s_circuits = new();
 
-        /// <summary>circuitCode → sim QUIC endpoint</summary>
+        /// <summary>circuitCode -> sim QUIC endpoint</summary>
         private static readonly ConcurrentDictionary<uint, IPEndPoint> s_quicEndpoints = new();
 
         /// <summary>
@@ -69,6 +70,7 @@ namespace OpenSim.Framework
             // Also learn this sim for future broadcast fallback
             string key = $"{simEndpoint.Address}:{simEndpoint.Port}";
             s_knownSims[key] = simEndpoint;
+            SimEndpointRegistered?.Invoke(circuitCode, simEndpoint);
         }
 
         /// <summary>
@@ -82,7 +84,7 @@ namespace OpenSim.Framework
 
         /// <summary>
         /// Register a circuit code with its QUIC endpoint (sim's QUIC listener).
-        /// Needed by the proxy to establish a QUIC→QUIC bridge instead of QUIC→UDP.
+        /// Needed by the proxy to establish a QUIC->QUIC bridge instead of QUIC->UDP.
         /// </summary>
         public static void RegisterQUIC(uint circuitCode, IPEndPoint quicEndpoint)
         {

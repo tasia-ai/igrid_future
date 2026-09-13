@@ -30,6 +30,11 @@ type registration struct {
 	SimPort     int    `json:"simPort"`
 }
 
+type routeTarget struct {
+	Network string
+	Address string
+}
+
 type regionRequest struct {
 	RegionID      string `json:"regionId"`
 	RegionName    string `json:"regionName"`
@@ -61,8 +66,8 @@ type brainState struct {
 
 var routes = struct {
 	sync.RWMutex
-	m map[uint32]string
-}{m: make(map[uint32]string)}
+	m map[uint32]routeTarget
+}{m: make(map[uint32]routeTarget)}
 
 func main() {
 	parent := flag.Int("parent-pid", 0, "ROBUST process id; 0 enables manual standalone mode")
@@ -205,19 +210,21 @@ func serveControl(ctx context.Context, port int, brainPort int, cancel context.C
 			http.Error(w, "bad registration", http.StatusBadRequest)
 			return
 		}
-		host, targetPort := v.QuicHost, v.QuicPort
-		if host == "" {
-			host = v.SimHost
-		}
-		if targetPort <= 0 && v.SimPort > 0 {
-			targetPort = v.SimPort + 7000
+		network := "udp"
+		host, targetPort := v.SimHost, v.SimPort
+		if v.QuicPort > 0 {
+			network = "quic"
+			host, targetPort = v.QuicHost, v.QuicPort
+			if host == "" {
+				host = v.SimHost
+			}
 		}
 		if host == "" || targetPort <= 0 || targetPort > 65535 {
 			http.Error(w, "bad endpoint", http.StatusBadRequest)
 			return
 		}
 		routes.Lock()
-		routes.m[v.CircuitCode] = net.JoinHostPort(host, strconv.Itoa(targetPort))
+		routes.m[v.CircuitCode] = routeTarget{Network: network, Address: net.JoinHostPort(host, strconv.Itoa(targetPort))}
 		routes.Unlock()
 		writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	})
@@ -524,10 +531,18 @@ func bridge(ctx context.Context, viewer quic.Connection, alpn string) {
 		return
 	}
 	circuit, target := findRoute(first)
-	if target == "" {
+	if target.Address == "" {
 		log.Printf("no registered route in first packet")
 		return
 	}
+	if target.Network == "udp" {
+		bridgeUDP(ctx, circuit, stream, first, target.Address)
+		return
+	}
+	bridgeQUIC(ctx, circuit, stream, first, target.Address, alpn)
+}
+
+func bridgeQUIC(ctx context.Context, circuit uint32, stream quic.Stream, first []byte, target string, alpn string) {
 	sim, err := quic.DialAddr(ctx, target, &tls.Config{InsecureSkipVerify: true, NextProtos: []string{alpn}}, &quic.Config{KeepAlivePeriod: 20 * time.Second, MaxIdleTimeout: 60 * time.Second})
 	if err != nil {
 		log.Printf("circuit %d dial %s: %v", circuit, target, err)
@@ -544,6 +559,64 @@ func bridge(ctx context.Context, viewer quic.Connection, alpn string) {
 	done := make(chan struct{}, 2)
 	go func() { io.Copy(simStream, stream); simStream.Close(); done <- struct{}{} }()
 	go func() { io.Copy(stream, simStream); stream.Close(); done <- struct{}{} }()
+	select {
+	case <-ctx.Done():
+	case <-done:
+	}
+}
+
+func bridgeUDP(ctx context.Context, circuit uint32, stream quic.Stream, first []byte, target string) {
+	udpAddr, err := net.ResolveUDPAddr("udp", target)
+	if err != nil {
+		log.Printf("circuit %d resolve udp %s: %v", circuit, target, err)
+		return
+	}
+	udp, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		log.Printf("circuit %d dial udp %s: %v", circuit, target, err)
+		return
+	}
+	defer udp.Close()
+	if _, err = udp.Write(first); err != nil {
+		log.Printf("circuit %d udp write first %s: %v", circuit, target, err)
+		return
+	}
+	done := make(chan struct{}, 2)
+	go func() {
+		defer func() { done <- struct{}{} }()
+		for {
+			packet, err := readFrame(stream)
+			if err != nil {
+				return
+			}
+			if _, err = udp.Write(packet); err != nil {
+				log.Printf("circuit %d udp write %s: %v", circuit, target, err)
+				return
+			}
+		}
+	}()
+	go func() {
+		defer func() { done <- struct{}{} }()
+		buf := make([]byte, 65536)
+		for {
+			_ = udp.SetReadDeadline(time.Now().Add(time.Second))
+			n, err := udp.Read(buf)
+			if err != nil {
+				if ne, ok := err.(net.Error); ok && ne.Timeout() {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						continue
+					}
+				}
+				return
+			}
+			if err = writeFrame(stream, buf[:n]); err != nil {
+				return
+			}
+		}
+	}()
 	select {
 	case <-ctx.Done():
 	case <-done:
@@ -574,7 +647,7 @@ func writeFrame(w io.Writer, b []byte) error {
 	return e
 }
 
-func findRoute(packet []byte) (uint32, string) {
+func findRoute(packet []byte) (uint32, routeTarget) {
 	routes.RLock()
 	defer routes.RUnlock()
 	for code, target := range routes.m {
@@ -586,5 +659,5 @@ func findRoute(packet []byte) (uint32, string) {
 			}
 		}
 	}
-	return 0, ""
+	return 0, routeTarget{}
 }
