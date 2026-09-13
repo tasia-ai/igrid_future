@@ -255,16 +255,12 @@ func serveControl(ctx context.Context, port int, brainPort int, cancel context.C
 }
 
 func localBackendHost(host string) string {
-	host = strings.TrimSpace(host)
-	if host == "" || strings.EqualFold(host, "localhost") {
-		return "127.0.0.1"
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsLoopback() || ip.IsUnspecified() {
-			return "127.0.0.1"
-		}
-		return host
-	}
+	// UDP backends are always same-host simulators in this deployment.
+	// Force loopback: the registered simHost is the public/advertised
+	// address (Pangolin gateway IP), and sending simulator traffic out
+	// through the gateway hairpin blackholes it. The sim LLUDP socket
+	// binds 0.0.0.0 so loopback delivery always works.
+	_ = strings.TrimSpace(host)
 	return "127.0.0.1"
 }
 
