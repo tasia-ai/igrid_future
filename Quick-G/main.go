@@ -574,7 +574,7 @@ func bridge(ctx context.Context, viewer quic.Connection, alpn string) {
 	}
 	circuit, target := findRoute(first)
 	if target.Address == "" {
-		log.Printf("no registered route in first packet")
+		log.Printf("no registered route in first packet len=%d head=%s", len(first), packetHead(first, 16))
 		return
 	}
 	if target.Network == "udp" {
@@ -692,14 +692,36 @@ func writeFrame(w io.Writer, b []byte) error {
 func findRoute(packet []byte) (uint32, routeTarget) {
 	routes.RLock()
 	defer routes.RUnlock()
+	if len(routes.m) == 1 {
+		for code, target := range routes.m {
+			log.Printf("single pending route fallback for first packet len=%d head=%s -> circuit %d", len(packet), packetHead(packet, 16), code)
+			return code, target
+		}
+	}
 	for code, target := range routes.m {
-		var b [4]byte
-		binary.BigEndian.PutUint32(b[:], code)
+		var be [4]byte
+		var le [4]byte
+		binary.BigEndian.PutUint32(be[:], code)
+		binary.LittleEndian.PutUint32(le[:], code)
 		for i := 0; i+4 <= len(packet); i++ {
-			if string(packet[i:i+4]) == string(b[:]) {
+			if string(packet[i:i+4]) == string(be[:]) || string(packet[i:i+4]) == string(le[:]) {
 				return code, target
 			}
 		}
 	}
 	return 0, routeTarget{}
+}
+
+func packetHead(packet []byte, max int) string {
+	if max > len(packet) {
+		max = len(packet)
+	}
+	if max <= 0 {
+		return ""
+	}
+	parts := make([]string, 0, max)
+	for _, b := range packet[:max] {
+		parts = append(parts, fmt.Sprintf("%02x", b))
+	}
+	return strings.Join(parts, " ")
 }
