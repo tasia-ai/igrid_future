@@ -1178,6 +1178,16 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         public event Action<uint, UUID, IViewerTransport> OnQuicCircuitCreated;
 
         /// <summary>
+        /// Fired when a plain-LLUDP UseCircuitCode arrives from a loopback
+        /// endpoint (bridged viewer traffic from Quick-G on the same host).
+        /// The callback receives (circuitCode, agentId, endPoint).
+        /// Used by QuicServerModule in Quick-G brain mode to complete the
+        /// viewer QUIC handshake (quicready) for circuits that never touch
+        /// a native QUIC listener.
+        /// </summary>
+        public event Action<uint, UUID, IPEndPoint> OnLoopbackCircuitCreated;
+
+        /// <summary>
         /// Process an incoming packet that arrived via QUIC transport.
         /// For UseCircuitCode, creates the client and associates the transport.
         /// For other packets, synthesizes a UDPPacketBuffer and routes through
@@ -1823,6 +1833,22 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     }
 
                     m_log.Debug("[LLUDPSERVER]: Client created");
+
+                    // Quick-G brain/bridge mode: viewer circuits arrive via
+                    // plain UDP from loopback. Notify subscribers so the
+                    // viewer QUIC handshake (quicready) can be completed for
+                    // bridged circuits that never touch a native listener.
+                    if (endPoint.Address.Equals(IPAddress.Loopback) || endPoint.Address.Equals(IPAddress.IPv6Loopback))
+                    {
+                        try
+                        {
+                            OnLoopbackCircuitCreated?.Invoke(uccp.CircuitCode.Code, client.AgentId, endPoint);
+                        }
+                        catch (Exception ex)
+                        {
+                            m_log.Warn($"[LLUDPSERVER] OnLoopbackCircuitCreated handler error: {ex.Message}");
+                        }
+                    }
 
                     Queue<UDPPacketBuffer> queue = null;
                     lock (m_pendingCache)

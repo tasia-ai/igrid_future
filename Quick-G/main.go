@@ -33,6 +33,34 @@ type registration struct {
 type routeTarget struct {
 	Network string
 	Address string
+	Seen    time.Time
+}
+
+const routeTTL = 30 * time.Minute
+
+func sweepRoutes() {
+	routes.Lock()
+	defer routes.Unlock()
+	cutoff := time.Now().UTC().Add(-routeTTL)
+	for code, target := range routes.m {
+		if target.Seen.Before(cutoff) {
+			delete(routes.m, code)
+			log.Printf("expired stale route for circuit %d", code)
+		}
+	}
+}
+
+func routeSweeper(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			sweepRoutes()
+		}
+	}
 }
 
 type regionRequest struct {
@@ -141,6 +169,7 @@ func main() {
 		go brain.reaper(ctx)
 	}
 	go func() { <-ctx.Done(); listener.Close() }()
+	go routeSweeper(ctx)
 
 	if *parent > 0 {
 		log.Printf("Quick-G listening on UDP %d (parent %d)", *port, *parent)
@@ -226,8 +255,9 @@ func serveControl(ctx context.Context, port int, brainPort int, cancel context.C
 			return
 		}
 		routes.Lock()
-		routes.m[v.CircuitCode] = routeTarget{Network: network, Address: net.JoinHostPort(host, strconv.Itoa(targetPort))}
+		routes.m[v.CircuitCode] = routeTarget{Network: network, Address: net.JoinHostPort(host, strconv.Itoa(targetPort)), Seen: time.Now().UTC()}
 		routes.Unlock()
+		log.Printf("register circuit %d -> %s %s", v.CircuitCode, network, net.JoinHostPort(host, strconv.Itoa(targetPort)))
 		writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	})
 	mux.HandleFunc("/unregister", func(w http.ResponseWriter, r *http.Request) {
