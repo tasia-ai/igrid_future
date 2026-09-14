@@ -1321,8 +1321,17 @@ public partial class MainWindow : Window
     private void BtnLogOpenFolder_Click(object sender, RoutedEventArgs e)
     {
         var path = Path.Combine(_gridRoot, "generated", "robust", "data");
+        if (CboLogSource?.SelectedIndex == 1 && SelectedRegion() is { } region)
+            path = Path.Combine(GetRegionFolder(region), "data");
         if (Directory.Exists(path)) Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
         else MessageBox.Show("Path not found: " + path);
+    }
+
+    private string GetRegionFolder(RegionRow region)
+    {
+        if (!string.IsNullOrWhiteSpace(region.Folder))
+            return Path.Combine(_gridRoot, "generated", region.Folder.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar));
+        return Path.Combine(_gridRoot, "generated", "sims", region.Name);
     }
 
     private void ChkLogAuto_Checked(object sender, RoutedEventArgs e) => StartLogAuto();
@@ -1358,9 +1367,9 @@ public partial class MainWindow : Window
         {
             var r = SelectedRegion();
             if (r == null) { TxtLogView.Text = "Select a region in Regions tab first, then choose 'Region — select via Regions tab' and Refresh."; return; }
-            path = Path.Combine(_gridRoot, "generated", "sims", r.Name, "data", "OpenSimConsoleHistory.txt");
+            path = Path.Combine(GetRegionFolder(r), "data", "OpenSimConsoleHistory.txt");
         }
-        if (!File.Exists(path)) { TxtLogView.Text = $"Log not found: {path}\n(Grid not yet started? Generate configs first.)"; return; }
+        if (!File.Exists(path)) { TxtLogView.Text = $"Log not created yet: {path}\nStart the selected sim once, then refresh logs."; return; }
         try
         {
             var lines = await File.ReadAllLinesAsync(path);
