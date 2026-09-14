@@ -1,0 +1,41 @@
+{
+  "host": "127.0.0.1",
+  "port": 8015,
+  "public_base_url": "https://os.tasia.work.gd/ostools/",
+  "mode": "xmlrpc_passthrough",
+  "upstream_xmlrpc_url": "http://127.0.0.1:1026/",
+  "request_timeout": 15.0,
+  "helper_secret": "CHANGE_ME_TO_A_LONG_RANDOM_SECRET",
+  "verify_confirm": true,
+  "include_legacy_landUse_key": true,
+  "default_estimated_cost": 0,
+  "currency_ratio": 0.0,
+  "allow_noop_buy_currency": false,
+  "allow_noop_land_buy": false,
+  "buy_redirect_url": "https://os.tasia.work.gd/tokens",
+  "error_url": "https://os.tasia.work.gd/",
+  "rest_quote_url": "http://127.0.0.1:1026/api/quote",
+  "rest_buy_url": "http://127.0.0.1:1026/api/buy",
+  "rest_preflight_land_url": "http://127.0.0.1:1026/api/preflight-land",
+  "rest_buy_land_url": "http://127.0.0.1:1026/api/buy-land",
+  "rest_balance_url": "http://127.0.0.1:1026/api/balance",
+  "rest_method": "POST",
+  "rest_headers": {
+    "X-Grid-Name": "Fresh Metaverse"
+  },
+  "rest_auth_bearer": "",
+  "notifier": {
+    "enabled": false,
+    "base_url": "https://os.tasia.work.gd",
+    "token_path": "/wowonder/oauth/token",
+    "send_path": "/api/v1/im/send",
+    "client_id": "",
+    "client_secret": "",
+    "username": "",
+    "password": "",
+    "scope": "im.write",
+    "from_agent_id": "",
+    "region_id": "00000000-0000-0000-0000-000000000000",
+    "offline": true
+  }
+}

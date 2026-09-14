@@ -1,0 +1,25 @@
+# Fresh Metaverse — search portal (Amber's pastel fork of I-Grid)
+# Keep viewer search API working: https://os.tasia.work.gd/search?search=term etc -> index.php
+# Also allow GridInfo to advertise search = https://os.tasia.work.gd/search
+<IfModule mod_rewrite.c>
+RewriteEngine On
+# viewer SearchModule often POSTs xmlrpc to /search or /query — route to index.php handler
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{QUERY_STRING} (^|&)search= [OR]
+RewriteCond %{QUERY_STRING} (^|&)q= [OR]
+RewriteCond %{QUERY_STRING} (^|&)query= [OR]
+RewriteCond %{QUERY_STRING} (^|&)s=
+RewriteRule ^(.*)$ index.php [L,QSA]
+</IfModule>
+<IfModule mod_headers.c>
+Header set Access-Control-Allow-Origin "*"
+Header set X-Grid-Name "Fresh Metaverse"
+Header set X-Login-URI "os.tasia.work.gd:22000"
+# Let GridInfo clients know search URL
+Header set X-Search-URL "https://os.tasia.work.gd/search"
+</IfModule>
+# cute: protect robust creds if ever added as config.php
+<FilesMatch "^(config|\.env)">
+Require all denied
+</FilesMatch>

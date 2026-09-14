@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amber's Fresh Metaverse   Your Kawaii OpenSim Home</title>
+<meta name="description" content="Fresh Metaverse by Amber  pastel, cozy OpenSim grid. Create, explore, be cute! Login: os.tasia.work.gd:22000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Pacifico&family=Poppins:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22></text></svg>">
+</head>
+<body>
+<!-- floating kawaii blobs -->
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#hero" class="logo"><span class="logo-icon">🌸</span> Amber's <span class="logo-pink">Fresh Metaverse</span></a>
+    <div class="nav-links">
+      <a href="#about">About</a>
+      <a href="#map">World Map</a>
+      <a href="#downloads">Downloads</a>
+      <a href="/amber/password.php">Password</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#rules">Rules</a>
+    </div>
+    <a href="#join" class="btn btn-pill btn-primary nav-cta">💖 Join Now</a>
+    <button class="nav-toggle" aria-label="menu">☰☰</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero" class="hero">
+  <div class="container hero-grid">
+    <div class="hero-text">
+      <div class="badge"> Now on Fresh Metaverse • os.tasia.work.gd:22000 </div>
+      <h1 class="hero-title">
+        <span class="kawaii-glitch" data-text="Fresh Metaverse">Fresh Metaverse</span>
+        <span class="hero-sub">Amber's Pastel Wonderland</span>
+      </h1>
+      <p class="hero-desc">
+        Welcome home, cutie! <b>Amber's Fresh Metaverse</b> is a cozy, kawaii OpenSim grid  a legacy of <b>Fresh Projects</b> by User_Name, now reimagined in pastel pink & lavender just for you. Build, chat, dress up, and get lost in soft, dreamy worlds. ⋆｡˚ ☁️ ˚｡⋆   
+        <span class="sparkle">  </span>
+      </p>
+      <div class="hero-actions">
+        <a href="https://os.tasia.work.gd/amber/register.php" target="_blank" class="btn btn-big btn-primary">🌷 Create Account</a>
+        <a href="#downloads" class="btn btn-big btn-ghost"> Get Viewer</a>
+        <button class="btn btn-big btn-ghost" onclick="copyLoginUri()">📋 Copy Login URI</button>
+      </div>
+      <div class="login-uri-box" id="loginBox">
+        <span class="mono">os.tasia.work.gd:22000</span>
+        <span class="uri-label">Login URI  paste in your viewer!</span>
+      </div>
+      <p class="hero-note"> Need help? <a href="#about">Meet Amber</a> • <a href="https://opensimworld.com/user/AmberNL" target="_blank">OpenSimWorld</a> • <a href="https://www.flickr.com/photos/203856330@N07/" target="_blank">Flickr</a></p>
+    </div>
+    <div class="hero-cards">
+      <!-- stats card -->
+      <div class="card stat-card">
+        <div class="card-header">
+          <span class="dot"></span> Live Grid Stats
+          <span class="live-pill" id="gridStatus">checking…</span>
+        </div>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat"><span class="stat-num" id="sOnline"></span><span class="stat-label">✦ Online Now</span></div>
+          <div class="stat"><span class="stat-num" id="sUsers"></span><span class="stat-label">♡ Total Residents</span></div>
+          <div class="stat"><span class="stat-num" id="sRegions"></span><span class="stat-label"> Regions</span></div>
+          <div class="stat"><span class="stat-num" id="sActive30"></span><span class="stat-label"> Active 30d</span></div>
+        </div>
+        <div class="stat-foot">via <code>oswelcome-amber.php?api=json</code> • updates every 30s</div>
+        <div class="mini-stats">
+          <span>Last 24h: <b id="s24"></b></span>
+          <span>Active: <b id="sActivePerc">%</b></span>
+        </div>
+      </div>
+      <div class="card welcome-card">
+        <div class="welcome-ill"></div>
+        <h3>Fresh Projects → Fresh Metaverse</h3>
+        <p>From glitchy <em>Fresh Projects</em> vibes to soft pastel magic! Same creativity, now cozier, cuter, and so much more Amber.</p>
+        <div class="chips">
+          <span class="chip">🧚 Modern Grid 9</span>
+          <span class="chip">🕹 Retro Grid 8</span>
+          <span class="chip">🎨 Creator Friendly</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT AMBER -->
+<section id="about" class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">About Amber</span>
+      <h2>Hi, I'm Amber! Let's be friends? <span class="heart">♡</span></h2>
+      <p>Creator, explorer, and your friendly grid mom. Fresh Metaverse is a cozy OpenSim home with pastel vibes, QUIC transport, and creator-friendly regions.</p>
+    </div>
+    <div class="about-grid">
+      <div class="card about-card">
+        <div class="about-avatar">🌸</div>
+        <h3>AmberNL</h3>
+        <p class="muted">OpenSim • Second Life • VR • Creator</p>
+        <p>I adore soft aesthetics, dreamy sims, helping newcomers, and collecting cute avatars. If you love cozy worlds, you're already home.</p>
+        <div class="socials">
+          <a href="https://opensimworld.com/user/AmberNL" target="_blank" class="social">OpenSimWorld</a>
+          <a href="https://www.flickr.com/photos/203856330@N07/" target="_blank" class="social">Flickr</a>
+          <a href="mailto:amber@tasia.work.gd" class="social">Email</a>
+        </div>
+      </div>
+      <div class="about-text">
+        <div class="card cute-card">
+          <h3>What is Fresh Metaverse?</h3>
+          <ul class="cute-list">
+            <li>Login URI: <code>os.tasia.work.gd:22000</code></li>
+            <li>Economy: Dorito via <code>/ostools/</code></li>
+            <li>Search: <code>https://os.tasia.work.gd/search</code></li>
+            <li>Profiles: <code>https://os.tasia.work.gd/ostools/profile/[AGENT_NAME]</code></li>
+          </ul>
+          <a class="mini-link" href="/amber/register.php">Create account</a>
+          <a class="mini-link" href="/amber/map.html">Open full map</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WORLD MAP -->
+<section id="map" class="section alt">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">World Map</span>
+      <h2>Explore Fresh Metaverse</h2>
+      <p>A Google-like live map of regions from the Robust database. Search, click a tile, and teleport.</p>
+    </div>
+    <div class="card map-wrap">
+      <div class="map-bar"><span>Fresh Metaverse Map</span><a class="btn btn-small btn-primary" href="/amber/map.html">Open full screen</a></div>
+      <iframe class="map-iframe" src="/amber/map.html" loading="lazy" title="Fresh Metaverse World Map"></iframe>
+      <div class="map-fallback">If the embedded map is blocked, open <a href="/amber/map.html">/amber/map.html</a> or use viewer World Map and search by region name.</div>
+    </div>
+    <div class="map-tips">
+      <div class="tip"><b>Tip:</b> teleport links use <code>secondlife://os.tasia.work.gd:22000/Region/128/128/25</code>.</div>
+      <div class="tip"><b>Newbie?</b> Create an account first, then click a teleport.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ⬇️ DOWNLOADS -->
+<section id="downloads" class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow"> Downloads</span>
+      <h2>Get your wings & fly!</h2>
+      <p>Pick a viewer, add our Login URI, and you're in. All viewers are free!</p>
+    </div>
+    <div class="dl-grid">
+      <div class="card dl-card featured" style="border:2px solid #FFB5D8; background: linear-gradient(135deg, #FFF7FB, #FFE0EA)">
+        <div class="dl-icon"></div>
+        <h3>💖 Tasia Viewer  Recommended</h3>
+        <p><b>Our own!</b> QUIC-optimized for Fresh Metaverse  fastest on this grid.</p>
+        <a href="https://tasiaviewer.work/os/" target="_blank" class="btn btn-primary btn-pill">Download 💖 Tasia Viewer ↗</a>
+        <span class="dl-meta">Windows 64-bit • OpenSim Edition • Free</span>
+      </div>
+      <div class="card dl-card">
+        <div class="dl-icon"></div>
+        <h3>Firestorm Viewer</h3>
+        <p>Great alternative  works everywhere.</p>
+        <a href="https://www.firestormviewer.org/downloads/" target="_blank" class="btn btn-ghost btn-pill">Download Firestorm ↗</a>
+        <span class="dl-meta">Windows / Mac / Linux • Free</span>
+      </div>
+      <div class="card dl-card">
+        <div class="dl-icon"></div>
+        <h3>Alchemy Viewer</h3>
+        <p>Lightweight & cute.</p>
+        <a href="https://www.alchemyviewer.org/" target="_blank" class="btn btn-ghost btn-pill">Get Alchemy ↗</a>
+      </div>
+      <div class="card dl-card">
+        <div class="dl-icon"></div>
+        <h3>Singularity</h3>
+        <p>Classic vibes.</p>
+        <a href="http://www.singularityviewer.org/" target="_blank" class="btn btn-ghost btn-pill">Get Singularity ↗</a>
+      </div>
+      <div class="card dl-card setup-card">
+        <h3> How to connect</h3>
+        <ol>
+          <li>Install viewer</li>
+          <li>On login screen, add Grid: <code>os.tasia.work.gd:22000</code></li>
+          <li>Create account at <a href="https://os.tasia.work.gd/amber/register.php" target="_blank">Amber Registration</a></li>
+          <li>Login as <code>FirstName LastName</code> + password</li>
+        </ol>
+        <div class="copy-row">
+          <code id="copyText">os.tasia.work.gd:22000</code>
+          <button class="btn btn-small btn-primary" onclick="copyLoginUri()">Copy</button>
+        </div>
+      </div>
+    </div>
+    <div class="extra-dl">
+      <h3>🛠 Creator Tools (from Fresh Projects)</h3>
+      <div class="extra-grid">
+        <a href="https://fresh-projects.top/web/scriptastic/index.html" target="_blank" class="extra">📜 Script Helper</a>
+        <a href="https://fresh-projects.top/web/Script_Inscription/index.php" target="_blank" class="extra">✒ Script Inscription</a>
+        <a href="https://ambientcg.com/list?type=material%2Cdecal%2Catlas&sort=popular" target="_blank" class="extra">🧱 PBR Textures</a>
+        <a href="../Web/Downlaod-Tools.html" target="_blank" class="extra">📦 More Downloads</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GALLERY -->
+<section id="gallery" class="section alt">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow"> Gallery</span>
+      <h2>Peek inside our pastel worlds</h2>
+      <p>Screenshots from Amber's regions  cozy homes, events, and pretty sunsets. Click to enlarge!</p>
+    </div>
+    <div class="gallery-grid" id="galleryGrid">
+      <!-- images from old gallery/images + Web/images -->
+      <a href="../Web/gallery/images/img-1.jpg" class="g-item" data-lightbox><img src="../Web/gallery/images/img-1.jpg" alt="Fresh Metaverse 1" loading="lazy" onerror="this.src='https://picsum.photos/seed/amber1/600/400'"><span>Welcome Region </span></a>
+      <a href="../Web/gallery/images/img-2.jpg" class="g-item" data-lightbox><img src="../Web/gallery/images/img-2.jpg" alt="Fresh Metaverse 2" loading="lazy" onerror="this.src='https://picsum.photos/seed/amber2/600/400'"><span>Dreamy Sunset 🌅</span></a>
+      <a href="../Web/gallery/images/img-3.jpg" class="g-item" data-lightbox><img src="../Web/gallery/images/img-3.jpg" alt="Fresh Metaverse 3" loading="lazy" onerror="this.src='https://picsum.photos/seed/amber3/600/400'"><span>Cozy Cottage </span></a>
+      <a href="../Web/gallery/images/img-4.jpg" class="g-item" data-lightbox><img src="../Web/gallery/images/img-4.jpg" alt="Fresh Metaverse 4" loading="lazy" onerror="this.src='https://picsum.photos/seed/amber4/600/400'"><span>Shopping Street </span></a>
+      <a href="../Web/gallery/images/img-5.jpg" class="g-item" data-lightbox><img src="../Web/gallery/images/img-5.jpg" alt="Fresh Metaverse 5" loading="lazy" onerror="this.src='https://picsum.photos/seed/amber5/600/400'"><span>Forest Hideaway 🌲</span></a>
+      <a href="../Web/gallery/images/img-6.png" class="g-item" data-lightbox><img src="../Web/gallery/images/img-6.png" alt="Fresh Metaverse 6" loading="lazy" onerror="this.src='https://picsum.photos/seed/amber6/600/400'"><span>Kawaii Avatar </span></a>
+      <a href="../Web/gallery/images/img-7.jpg" class="g-item" data-lightbox><img src="../Web/gallery/images/img-7.jpg" alt="Fresh Metaverse 7" loading="lazy" onerror="this.src='https://picsum.photos/seed/amber7/600/400'"><span>Party Time 🎉</span></a>
+      <a href="../Web/gallery/images/img-8.png" class="g-item" data-lightbox><img src="../Web/gallery/images/img-8.png" alt="Fresh Metaverse 8" loading="lazy" onerror="this.src='https://picsum.photos/seed/amber8/600/400'"><span>Amber's Studio 🎨</span></a>
+    </div>
+    <div class="gallery-cta">
+      <a href="../Web/Fresh-Metavers-Gallery-v9.html" target="_blank" class="btn btn-ghost">View Full Gallery ↗</a>
+      <a href="https://www.flickr.com/photos/203856330@N07/" target="_blank" class="btn btn-primary">More on Flickr </a>
+    </div>
+  </div>
+  <div id="lightbox" class="lightbox" onclick="closeLB()"><img id="lbImg" src="" alt=""><span class="lb-close">×</span></div>
+</section>
+
+<!-- RULES -->
+<section id="rules" class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">🌷 Rules  Be Cute, Be Kind</span>
+      <h2>Our cozy promise</h2>
+      <p>Keep it soft, keep it safe. Simple rules to keep the magic alive!</p>
+    </div>
+    <div class="rules-grid">
+      <div class="card rule"><span class="rule-icon"></span><h3>Be kind</h3><p>No harassment, hate, or drama. Treat every avatar like a friend.</p></div>
+      <div class="card rule"><span class="rule-icon"></span><h3>Keep it PG-ish</h3><p>Adult content only in marked adult regions. Respect parcel ratings.</p></div>
+      <div class="card rule"><span class="rule-icon">🛡</span><h3>No griefing</h3><p>No crashers, copybotting, or stealing. Creators’ work is love.</p></div>
+      <div class="card rule"><span class="rule-icon"></span><h3>Build lovely</h3><p>Ask before terraforming near others. Return stray prims gently.</p></div>
+      <div class="card rule"><span class="rule-icon"></span><h3>Privacy first</h3><p>Don’t share logs or photos without consent. What happens in grid stays kind.</p></div>
+      <div class="card rule"><span class="rule-icon">🧹</span><h3>Stay tidy</h3><p>Clean up temp rez, reduce lag  low scripts, happy sim!</p></div>
+    </div>
+    <div class="card rules-foot">
+      <p> Questions? Contact <b>Amber</b> in-world or via <a href="https://opensimworld.com/user/AmberNL" target="_blank">OpenSimWorld</a>. Full ToS available at registration.</p>
+    </div>
+  </div>
+</section>
+
+<!-- JOIN -->
+<section id="join" class="section join-section">
+  <div class="container">
+    <div class="card join-card">
+      <div class="join-text">
+        <h2>Ready to bloom with us? </h2>
+        <p>One URI is all you need: <b>os.tasia.work.gd:22000</b><br>Registration takes 30 seconds. Free, forever.</p>
+        <div class="join-actions">
+          <a href="https://os.tasia.work.gd/amber/register.php" target="_blank" class="btn btn-big btn-primary"> Create Your Account</a>
+          <a href="https://os.tasia.work.gd/amber/password.php" target="_blank" class="btn btn-big btn-ghost">Change Password</a>
+          <a href="https://os.tasia.work.gd/web/oswelcome-amber.php" target="_blank" class="btn btn-big btn-ghost">Grid Status  </a>
+        </div>
+        <p class="small">Existing Fresh Projects users can reuse their avi? If not, make a new cutie and we’ll help you move inventory!</p>
+      </div>
+      <div class="join-deco"><br><small>Amber is waiting<br>at the welcome region!</small></div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container footer-grid">
+    <div>
+      <div class="logo"> Amber's Fresh Metaverse</div>
+      <p class="muted">A pastel fork of Fresh Projects • Crafted with  by Amber<br>
+      Login URI: <code>os.tasia.work.gd:22000</code> • Grid v9 (Diva) • Est. 2024</p>
+    </div>
+    <div>
+      <h4>Fresh Family</h4>
+      <a href="../Web/index.html">Old Dark Site (Archive)</a>
+      <a href="../Web/Fresh-Metavers.html">Fresh Metavers (iframe)</a>
+      <a href="../Web/oswelcome.php">Legacy oswelcome.php</a>
+      <a href="../Web/oswelcome-amber.php">New oswelcome-amber.php </a>
+    </div>
+    <div>
+      <h4>Connect</h4>
+      <a href="https://opensimworld.com/user/AmberNL" target="_blank">OpenSimWorld</a>
+      <a href="https://www.flickr.com/photos/203856330@N07/" target="_blank">Flickr</a>
+      <a href="https://archive.disconnected.icu/c/disneyland/videos" target="_blank">DisConnected</a>
+      <a href="mailto:amber@tasia.work.gd">Email Amber</a>
+    </div>
+  </div>
+  <div class="copy">© 2026 Amber's Fresh Metaverse • Made kawaii with Nunito & Poppins • Not affiliated with Linden Lab • Be cute, be you! ⋆｡°✩</div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+# I-Grid Fresh Metaverse - region definitions
+#
+# Each entry is one separate sim process with its own port.
+# size is in 256m region-units (e.g. 2 = 512m), x/y are grid coordinates.
+# physics: ubODE | BulletSim
+# meshing: Meshmerizer | ubODEMeshmerizer | ZeroMesher
+
+estate:
+  name: Fresh Estate
+  owner: estate manager
+  owner_uuid: ""           # filled at first-run by the manager (created user)
+  managers:
+    - Cute Devil
+
+gate:
+  external_host: os.tasia.work.gd
+  region_external_host: ok.tasia.work.gd
+  robust_port: 22000        # grid services / login
+  asset_port: 22001         # dedicated asset server (separate Robust/FSAsset process)
+  quic_port: 22002          # public viewer-facing Robust Quick-G QUIC transport
+  region_ports_start: 22003
+  region_quic_start: 22200  # fixed per-region NATIVE sim QUIC ports (22200+i, 30 sims max 22229, inside published 22000-22444 range, pool-exclusion 22445 untouched). 0 = legacy Quick-G brain allocation (retired).
+  region_quic_pool_start: 22200
+  region_quic_pool_end: 22400
+  region_quic_pool_exclude: 22445
+  quickg_control_port: 19001
+  quickg_brain_port: 19002
+  quickg_brain_bind: 127.0.0.1
+  quickg_brain_lease_seconds: 90
+  quic_heartbeat_seconds: 30
+  hg_auth_port: 22063       # local Python Hypergrid auth endpoint
+
+db:
+  provider: PGSQL
+  host: 127.0.0.1
+  database: robust
+  database_assets: assets
+  user: opensim
+  password: CHANGE_ME
+
+regions:
+  - id: 01
+    name: Fresh_MetaVers_Racing_Simulator
+    database: sim_racing
+    size: 6
+    x: 1900
+    y: 2100
+    physics: BulletSim
+    meshing: Meshmerizer
+    clamp_prim_size: false   # no mesh clamp
+
+  - id: 02
+    name: NintendoLand
+    database: sim_nintendoland
+    size: 16
+    x: 1760
+    y: 3000
+    physics: BulletSim
+    meshing: Meshmerizer
+    clamp_prim_size: false
+
+  - id: 03
+    name: Fresh_MetaVerse_Archive
+    database: sim_archive
+    size: 2
+    x: 2002
+    y: 2002
+    physics: ubODE
+    meshing: Meshmerizer
+
+  - id: 04
+    name: Ground_Zero_X2000Y2002
+    database: sim_ground_zero
+    size: 2
+    x: 2000
+    y: 2002
+    physics: ubODE
+    meshing: Meshmerizer
+
+  - id: 05
+    name: MainLand01_X2000Y2000
+    database: sim_mainland01
+    size: 2
+    x: 2000
+    y: 2000
+    physics: ubODE
+    meshing: Meshmerizer
+
+  - id: 06
+    name: MainLand02_X1998Y2002
+    database: sim_mainland02
+    size: 2
+    x: 1998
+    y: 2002
+    physics: ubODE
+    meshing: Meshmerizer
+
+  - id: 07
+    name: MainLand04_X2000Y2004
+    database: sim_mainland04
+    size: 2
+    x: 2000
+    y: 2004
+    physics: ubODE
+    meshing: Meshmerizer
+
+  - id: 08
+    name: MainLand07_X2002Y1998
+    database: sim_mainland07
+    size: 2
+    x: 2002
+    y: 1998
+    physics: ubODE
+    meshing: Meshmerizer
+
+  # Fresh01..Fresh22: 1x1 regions on a side grid, away from MainLand (X1998-2004,Y1998-2004)
+  # placed at X2200..Y2200+, 5-column layout. Coordinates are generated automatically.

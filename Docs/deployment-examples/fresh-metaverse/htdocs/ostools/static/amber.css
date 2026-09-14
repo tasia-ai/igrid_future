@@ -1,0 +1,76 @@
+/* Amber's Fresh Metaverse — ostools pastel overlay */
+/* Based on H:\grid\xampp\htdocs\amber\css\style.css — lightweight copy for ostools pages */
+:root{
+  --pink:#FFB5D8;
+  --pink-2:#FF8FAB;
+  --pink-soft:#FFF0F5;
+  --lav:#E8DFF5;
+  --lav-2:#D8CFF5;
+  --lav-3:#C9B6FF;
+  --mint:#D6F5E8;
+  --peach:#FFE5D4;
+  --ink:#4A3040;
+  --muted:#8A6A7A;
+  --bg:#FFF7FB;
+  --card:#FFFFFF;
+  --shadow:0 10px 30px rgba(255,143,171,0.15), 0 4px 12px rgba(201,182,255,0.12);
+  --shadow-soft:0 8px 24px rgba(255,181,216,0.2);
+  --radius:22px;
+  --radius-lg:28px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  font-family:'Nunito','Poppins',system-ui,sans-serif;
+  color:var(--ink);
+  background:var(--bg);
+  overflow-x:hidden;
+}
+a{color:#C14B7A;text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:ui-monospace,Consolas,monospace;background:#FFF0F5;padding:2px 6px;border-radius:8px;font-size:0.9em}
+.mono{font-family:ui-monospace,Consolas,monospace}
+.muted{color:var(--muted)}
+.container{max-width:1120px;margin:0 auto;padding:0 20px}
+.section{padding:48px 0;position:relative}
+.section.alt{background:linear-gradient(180deg,#FFF7FB 0%,#F8F0FF 100%)}
+.eyebrow{display:inline-block;background:var(--lav);color:#6A4A8A;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;font-size:12px;padding:7px 14px;border-radius:999px}
+.blob{position:fixed;border-radius:50%;filter:blur(40px);opacity:0.35;z-index:-1;pointer-events:none}
+.blob-1{width:600px;height:600px;background:radial-gradient(circle at 30% 30%,#FFC2D9,#FFD6E8);top:-120px;left:-180px}
+.blob-2{width:500px;height:500px;background:radial-gradient(circle at 30% 30%,#E8DFF5,#D8CFF5);top:400px;right:-120px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;border:1px solid #FFF0F5}
+.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,0.85);backdrop-filter:blur(12px);border-bottom:1px solid #FFE0EA}
+.nav-inner{max-width:1120px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:18px}
+.logo{font-family:'Pacifico',cursive;font-size:20px;color:var(--ink);display:flex;align-items:center;gap:8px;text-decoration:none}
+.logo-pink{color:var(--pink-2);font-family:'Poppins',sans-serif;font-weight:700;font-size:16px}
+.nav-links{display:flex;gap:18px;margin-left:auto}
+.nav-links a{font-weight:700;color:var(--ink);padding:8px 10px;border-radius:999px}
+.nav-links a:hover{background:var(--pink-soft);text-decoration:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:800;border:none;cursor:pointer;text-decoration:none;transition:transform .15s, box-shadow .15s}
+.btn:hover{transform:translateY(-1px);text-decoration:none}
+.btn-pill{border-radius:999px;padding:10px 18px}
+.btn-primary{background:linear-gradient(135deg,#FF8FAB,#FFB5D8);color:white;box-shadow:var(--shadow-soft)}
+.btn-ghost{background:white;border:2px solid #FFE0EA;color:var(--ink);border-radius:999px}
+.btn-ghost:hover{background:#FFF0F5}
+.btn-big{padding:14px 22px;font-size:16px;border-radius:999px}
+.btn-small{padding:7px 12px;font-size:13px;border-radius:999px}
+.badge{display:inline-block;background:white;border:1px solid #FFE0EA;color:#C14B7A;font-weight:800;padding:8px 14px;border-radius:999px;font-size:13px;box-shadow:var(--shadow-soft)}
+.hero{padding:36px 0 24px}
+.kawaii-glitch{
+  display:block;
+  font-family:'Poppins',sans-serif;font-weight:800;
+  font-size:42px;letter-spacing:-1.5px;
+  color:#4A3040;
+  text-shadow:3px 3px 0 #FFE0EA, 6px 6px 0 #E8DFF5;
+}
+.grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px}
+.login-uri-box{background:white;border:2px dashed #FFB5D8;border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:12px;justify-content:space-between;max-width:520px}
+.uri-label{font-size:12px;background:var(--lav);padding:6px 10px;border-radius:999px;font-weight:700}
+.footer{background:#4A3040;color:#FFE0EA;padding:24px 0 0; margin-top:40px}
+.footer a{display:inline-block;color:#FFD1E0;padding:4px 8px;font-size:14px}
+.copy{margin-top:16px;padding:14px 20px;text-align:center;background:#3A2030;color:#FFB5D8;font-size:12px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #FFE0EA}
+th{background:#FFF0F5;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#6A4A8A}
+.tag{display:inline-block;background:#FFF0F5;border:1px solid #FFE0EA;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}

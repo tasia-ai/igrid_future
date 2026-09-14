@@ -1,0 +1,8 @@
+# Fresh Metaverse — ostools pretty URLs (Amber pastel)
+# web_profile_url = os.tasia.work.gd/ostools/profile/[AGENT_NAME]
+RewriteEngine On
+# /ostools/profile/First%20Last  -> /ostools/profile.php?name=First%20Last
+RewriteRule ^profile/([^/]+)/?$ profile.php?name=$1 [L,QSA,NE]
+RewriteRule ^profile/?$ profile.php [L,QSA]
+# /ostools/ health check passthrough
+# currency/landtool are POST XML-RPC — no rewrite needed

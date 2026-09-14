@@ -1,0 +1,153 @@
+﻿<Application x:Class="FreshMetaverseManager.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <!-- Pastel Palette -->
+        <Color x:Key="Pink">#FFB5D8</Color>
+        <Color x:Key="Lavender">#E8DFF5</Color>
+        <Color x:Key="PinkLight">#FFF0F6</Color>
+        <Color x:Key="LavenderLight">#F8F0FF</Color>
+        <Color x:Key="Rose">#FF8FAB</Color>
+        <Color x:Key="Mint">#C1F0C1</Color>
+        <Color x:Key="Amber">#FFE4B5</Color>
+
+        <SolidColorBrush x:Key="BrushPink" Color="#FFB5D8"/>
+        <SolidColorBrush x:Key="BrushLavender" Color="#E8DFF5"/>
+        <SolidColorBrush x:Key="BrushRose" Color="#FF8FAB"/>
+        <SolidColorBrush x:Key="BrushPinkLight" Color="#FFF7FB"/>
+        <SolidColorBrush x:Key="BrushDark" Color="#4A3040"/>
+        <SolidColorBrush x:Key="BrushMuted" Color="#8A6B7A"/>
+
+        <LinearGradientBrush x:Key="BgGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Offset="0" Color="#FFF7FB"/>
+            <GradientStop Offset="0.5" Color="#F8F0FF"/>
+            <GradientStop Offset="1" Color="#FFE8F0"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="HeaderGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="#FFB5D8"/>
+            <GradientStop Offset="0.5" Color="#FF8FAB"/>
+            <GradientStop Offset="1" Color="#E8DFF5"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ButtonGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="#FFB5D8"/>
+            <GradientStop Offset="1" Color="#FF8FAB"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ButtonGradientLav" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="#E8DFF5"/>
+            <GradientStop Offset="1" Color="#C9B6E4"/>
+        </LinearGradientBrush>
+
+        <!-- Book page card -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="BorderBrush" Value="#FFE0EA"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="Margin" Value="6"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#FFB5D8" Opacity="0.18" ShadowDepth="4" BlurRadius="16"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CuteButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource ButtonGradient}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="Nunito, Segoe UI"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="20" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.9"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="GhostButton" TargetType="Button" BasedOn="{StaticResource CuteButton}">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Foreground" Value="#FF8FAB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#FFE0EA"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="20" BorderBrush="#FFE0EA" BorderThickness="1" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="FontFamily" Value="Nunito, Segoe UI"/>
+            <Setter Property="BorderBrush" Value="#FFE0EA"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Margin" Value="0,4"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="BorderBrush" Value="#FFE0EA"/>
+        </Style>
+        <Style TargetType="ProgressBar">
+            <Setter Property="Height" Value="10"/>
+            <Setter Property="Foreground" Value="#FF8FAB"/>
+            <Setter Property="Background" Value="#FFE0EA"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="FontFamily" Value="Nunito, Segoe UI"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="Background" Value="#FFF0F6"/>
+            <Setter Property="Foreground" Value="#8A6B7A"/>
+            <Setter Property="BorderBrush" Value="#FFE0EA"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="12,12,0,0" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="White"/>
+                                <Setter Property="Foreground" Value="#FF8FAB"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FFB5D8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#FFE0EA"/>
+            <Setter Property="Padding" Value="8"/>
+        </Style>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,2 @@
+<div style="padding:8px; text-align:center; font-family:'Nunito',sans-serif; color:#8A6A7A; font-size:13px;">Fresh Web Search — results below are from external engine (xana). <a href="https://xana.easierit.org" target="_blank">Open standalone ↗</a></div>
+<iframe src="https://xana.easierit.org" style="width:100%;height:88%;border:2px solid #FFE0EA;border-radius:16px;position:absolute;top:90px;left:0; box-shadow:0 8px 24px rgba(255,181,216,0.12);"></iframe>

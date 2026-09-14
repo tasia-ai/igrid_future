@@ -1,0 +1,557 @@
+﻿<Window x:Class="FreshMetaverseManager.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Fresh Metaverse Manager — Book of Cute Grid ✨" Height="860" Width="1180"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource BgGradient}"
+        FontFamily="Nunito, Segoe UI">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header - book spine style -->
+        <Border Grid.Row="0" Background="{StaticResource HeaderGradient}" CornerRadius="0,0,18,18" Padding="18,14">
+            <Border.Effect>
+                <DropShadowEffect Color="#FFB5D8" Opacity="0.25" BlurRadius="18" ShadowDepth="3"/>
+            </Border.Effect>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="White" CornerRadius="12" Width="46" Height="46" Margin="0,0,12,0">
+                        <TextBlock Text="📖" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Fresh Metaverse Manager" FontFamily="Nunito, Segoe UI" FontWeight="ExtraBold" FontSize="20" Foreground="White"/>
+                        <TextBlock Text="book-like tabbed grid console  •  pink #FFB5D8  •  lavender #E8DFF5  •  MaxPrims 999555333" Foreground="White" Opacity="0.92" FontSize="11"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="White" CornerRadius="999" Padding="12,7" Margin="6,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="DotRobust" Width="10" Height="10" Fill="#C1F0C1" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="TxtRobustStatus" Text="Robust: checking..." FontWeight="Bold" FontSize="11" Foreground="#4A3040"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="White" CornerRadius="999" Padding="10,7" Margin="6,0">
+                        <TextBlock x:Name="TxtRegionCount" Text="30 regions" FontWeight="Bold" FontSize="11" Foreground="#4A3040"/>
+                    </Border>
+                    <Border Background="#4A3040" CornerRadius="999" Padding="12,7" Margin="6,0">
+                        <TextBlock Text="invite configured" FontWeight="Bold" FontSize="11" Foreground="White"/>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Book Tabs -->
+        <Border Grid.Row="1" Margin="12,14,12,0" Style="{StaticResource Card}" Padding="0">
+            <TabControl x:Name="MainTabs">
+                <!-- Dashboard -->
+                <TabItem Header="📊 Dashboard">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Style="{StaticResource Card}" Background="#FFF7FB">
+                                    <StackPanel>
+                                        <TextBlock Text="Robust Grid Service" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <TextBlock x:Name="TxtRobustDetail" Text="http://127.0.0.1:22000" Foreground="#8A6B7A" FontSize="11" Margin="0,4,0,8"/>
+                                        <WrapPanel>
+                                            <Button x:Name="BtnStartRobust" Content="▶ Start" Style="{StaticResource CuteButton}" Click="BtnStartRobust_Click"/>
+                                            <Button x:Name="BtnStopRobust" Content="⏹ Stop" Style="{StaticResource GhostButton}" Click="BtnStopRobust_Click"/>
+                                            <Button x:Name="BtnRestartRobust" Content="↻ Restart (Tasia)" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnRestartRobust_Click"/>
+                                        </WrapPanel>
+                                        <TextBlock Text="Restart/shutdown uses console 'backup' to save persistence, waits 60s, then calls the Tasia restart API with a 60s viewer timer." FontSize="10" Foreground="#8A6B7A" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" Style="{StaticResource Card}" Background="#F8F0FF">
+                                    <StackPanel>
+                                        <TextBlock Text="Bulk Operations" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <TextBlock Text="All sims at same time — backup, restart, OAR" Foreground="#8A6B7A" FontSize="11" Margin="0,4,0,8"/>
+                                        <WrapPanel>
+                                            <Button x:Name="BtnStartAllSims" Content="▶ Start All Sims" Style="{StaticResource CuteButton}" Click="BtnStartAllSims_Click"/>
+                                            <Button x:Name="BtnStartSelectedSims" Content="▶ Start Selected" Style="{StaticResource GhostButton}" Click="BtnStartSelectedSims_Click"/>
+                                            <Button x:Name="BtnBulkBackup" Content="💾 Bulk OAR Backup" Style="{StaticResource CuteButton}" Click="BtnBulkBackup_Click"/>
+                                            <Button x:Name="BtnBulkRestart" Content="↻ Bulk Restart All" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnBulkRestart_Click"/>
+                                            <Button x:Name="BtnBulkShutdown" Content="⏻ Bulk Shutdown 60s" Style="{StaticResource GhostButton}" Click="BtnBulkShutdown_Click"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="2" Style="{StaticResource Card}" Background="#FFF0F6">
+                                    <StackPanel>
+                                        <TextBlock Text="Grid Facts" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <TextBlock x:Name="TxtDbInfo" Text="PGSQL 127.0.0.1 / robust • assets" FontSize="11" Foreground="#8A6B7A" Margin="0,4,0,2"/>
+                                        <TextBlock x:Name="TxtMoneyStatus" Text="Money: checking..." FontSize="11" FontWeight="Bold" Foreground="#8A6B7A" Margin="0,2,0,2"/>
+                                        <TextBlock x:Name="TxtApacheDashboardStatus" Text="Apache: checking..." FontSize="11" FontWeight="Bold" Foreground="#8A6B7A" Margin="0,2,0,2"/>
+                                        <TextBlock Text="MaxPrims 999555333 (template) • var regions unlimited" FontSize="11" Foreground="#8A6B7A" TextWrapping="Wrap"/>
+                                        <TextBlock Text="External os.tasia.work.gd • regions ok.tasia.work.gd" FontSize="10" Foreground="#C9B6E4" Margin="0,6,0,0"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <Button Content="Open Robust URL" Style="{StaticResource GhostButton}" Click="BtnOpenRobust_Click"/>
+                                            <Button Content="Refresh Status" Style="{StaticResource GhostButton}" Click="BtnRefreshDashboard_Click"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <Button x:Name="BtnStartMoney" Content="▶ Start Money" Style="{StaticResource CuteButton}" Click="BtnStartMoney_Click"/>
+                                            <Button x:Name="BtnStopMoney" Content="⏹ Stop Money" Style="{StaticResource GhostButton}" Click="BtnStopMoney_Click"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <Button x:Name="BtnStartApacheDashboard" Content="▶ Start XAMPP" Style="{StaticResource CuteButton}" Click="BtnStartApacheDashboard_Click"/>
+                                            <Button x:Name="BtnStopApacheDashboard" Content="⏹ Stop XAMPP" Style="{StaticResource GhostButton}" Click="BtnStopApacheDashboard_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <Border Style="{StaticResource Card}" Margin="6,8,6,6">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Bulk Progress — restart/shutdown: console 'backup' → 60s wait → restart API 60s timer" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <TextBlock x:Name="TxtBulkPhase" Text="idle" FontSize="11" Foreground="#8A6B7A" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Button Content="Clear log" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnClearBulkLog_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <ProgressBar x:Name="ProgressBulk" Minimum="0" Maximum="100" Value="0" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtBulkLog" Height="170" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="11" Margin="0,8,0,0" Text="Welcome to Fresh Metaverse — cute grid ready.&#10;Tips: bulk ops run in parallel with concurrency limit 4."/>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="Quick launch — individual sims managed in Regions tab. OAR Backup is separate from restart/shutdown persistence save." TextWrapping="Wrap" Foreground="#8A6B7A" FontSize="11" Margin="8,4,8,0"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Regions -->
+                <TabItem Header="🗺 Regions">
+                    <Grid Margin="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Border Style="{StaticResource Card}" Padding="12" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Regions — MaxPrims 999555333 • var unlimited" FontWeight="Bold" Foreground="#4A3040" VerticalAlignment="Center"/>
+                                    <Border Background="#FFF0F6" CornerRadius="8" Padding="6,3" Margin="8,0,0,0">
+                                        <TextBlock x:Name="TxtRegionFilterInfo" Text="30 loaded from deploy.json" FontSize="11" Foreground="#8A6B7A"/>
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="Reload" Style="{StaticResource GhostButton}" Click="BtnReloadRegions_Click"/>
+                                    <Button Content="Refresh Status" Style="{StaticResource GhostButton}" Click="BtnRefreshRegions_Click"/>
+                                    <Button x:Name="BtnRegionBulkBackup" Content="💾 Bulk OAR Backup Selected" Style="{StaticResource CuteButton}" Click="BtnRegionBulkBackup_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <DataGrid x:Name="DgRegions" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" SelectionMode="Extended"
+                                  Background="White" BorderBrush="#FFE0EA" BorderThickness="1" RowHeaderWidth="0" FontFamily="Nunito, Segoe UI" FontSize="11" Margin="0,0,0,8">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="✓" Binding="{Binding IsSelected}" Width="34"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="92"/>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                                <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="62"/>
+                                <DataGridTextColumn Header="QUIC" Binding="{Binding QuicPort}" Width="62"/>
+                                <DataGridTextColumn Header="X" Binding="{Binding X}" Width="46"/>
+                                <DataGridTextColumn Header="Y" Binding="{Binding Y}" Width="46"/>
+                                <DataGridTextColumn Header="Size" Binding="{Binding SizeLabel}" Width="70"/>
+                                <DataGridTextColumn Header="MaxPrims" Binding="{Binding MaxPrims}" Width="90"/>
+                                <DataGridTextColumn Header="Physics" Binding="{Binding Physics}" Width="90"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <Border Grid.Row="2" Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock x:Name="TxtRegionDetail" Text="Select a region. Start runs only the selected single sim and keeps its console managed by this standalone app." FontSize="11" Foreground="#8A6B7A" TextWrapping="Wrap"/>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button x:Name="BtnRegionStart" Content="▶ Start" Style="{StaticResource CuteButton}" Click="BtnRegionStart_Click"/>
+                                    <Button x:Name="BtnRegionStop" Content="⏹ Stop" Style="{StaticResource GhostButton}" Click="BtnRegionStop_Click"/>
+                                    <Button x:Name="BtnRegionRestart60" Content="↻ Restart 60s (Tasia)" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnRegionRestart60_Click"/>
+                                    <Button x:Name="BtnRegionRestart120" Content="⏻ Shutdown 60s (Tasia)" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnRegionRestart120_Click"/>
+                                    <Button x:Name="BtnRegionBackup" Content="💾 OAR Backup" Style="{StaticResource CuteButton}" Click="BtnRegionBackup_Click"/>
+                                    <Button x:Name="BtnRegionEdit" Content="✏ Edit Config" Style="{StaticResource GhostButton}" Click="BtnRegionEdit_Click"/>
+                                </WrapPanel>
+                                <Border Background="#FFF7FB" CornerRadius="12" Padding="10" Margin="0,8,0,0" BorderBrush="#FFE0EA" BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="Add / Remove Named Sim" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <TextBlock Text="Adds/removes named entries in regions.yaml, regenerates configs, then refreshes this list. Fresh01..Fresh22 are generated automatically and are not removed here." FontSize="10" Foreground="#8A6B7A" TextWrapping="Wrap" Margin="0,2,0,6"/>
+                                        <WrapPanel>
+                                            <TextBlock Text="Name" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <TextBox x:Name="TxtNewRegionName" Width="190" Margin="0,0,8,0"/>
+                                            <TextBlock Text="X" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <TextBox x:Name="TxtNewRegionX" Width="58" Text="2300" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Y" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <TextBox x:Name="TxtNewRegionY" Width="58" Text="2300" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Size" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <TextBox x:Name="TxtNewRegionSize" Width="48" Text="1" Margin="0,0,8,0"/>
+                                            <ComboBox x:Name="CboNewRegionPhysics" Width="100" SelectedIndex="0" Margin="0,0,8,0">
+                                                <ComboBoxItem Content="ubODE"/>
+                                                <ComboBoxItem Content="BulletSim"/>
+                                            </ComboBox>
+                                            <Button x:Name="BtnAddRegion" Content="＋ Add Sim" Style="{StaticResource CuteButton}" Click="BtnAddRegion_Click"/>
+                                            <Button x:Name="BtnRemoveRegion" Content="− Remove Selected Sim" Style="{StaticResource GhostButton}" Click="BtnRemoveRegion_Click"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                <ProgressBar x:Name="ProgressRegion" Minimum="0" Maximum="100" Value="0"/>
+                                <TextBox x:Name="TxtRegionLog" Height="88" IsReadOnly="True" FontFamily="Consolas" FontSize="10" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0" Text="Region logs appear here."/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <!-- Accounts -->
+                <TabItem Header="👤 Accounts">
+                    <ScrollViewer Padding="16" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Border Style="{StaticResource Card}" Background="#FFF7FB">
+                                <StackPanel>
+                                    <TextBlock Text="Create Account — Robust http://127.0.0.1:22000" FontWeight="Bold" Foreground="#4A3040"/>
+                                    <TextBlock Text="Invite code displayed below • API result only (as requested)" Foreground="#8A6B7A" FontSize="11" Margin="0,4,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,6,0">
+                                            <TextBlock Text="First Name" FontSize="11" Foreground="#8A6B7A"/>
+                                            <TextBox x:Name="TxtAccFirst" Text=""/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="6,0,0,0">
+                                            <TextBlock Text="Last Name" FontSize="11" Foreground="#8A6B7A"/>
+                                            <TextBox x:Name="TxtAccLast" Text=""/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,6,0">
+                                            <TextBlock Text="Password" FontSize="11" Foreground="#8A6B7A"/>
+                                            <TextBox x:Name="TxtAccPass" Text=""/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="6,0,0,0">
+                                            <TextBlock Text="Email" FontSize="11" Foreground="#8A6B7A"/>
+                                            <TextBox x:Name="TxtAccEmail" Text=""/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                                            <TextBlock Text="Invite Code" FontSize="11" Foreground="#8A6B7A"/>
+                                            <Border CornerRadius="12" Padding="14,10" Margin="0,4,0,0" Background="{StaticResource HeaderGradient}">
+                                                <Grid>
+                                                    <TextBlock Text="CHANGE_ME" FontWeight="ExtraBold" FontSize="22" Foreground="White" HorizontalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                            <TextBlock Text="Show configured invite code and only result - no extra decoration per requirements." FontSize="10" Foreground="#C9B6E4" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <Button x:Name="BtnCreateAccount" Content="✨ Create Account" Style="{StaticResource CuteButton}" Click="BtnCreateAccount_Click"/>
+                                        <Button Content="Clear" Style="{StaticResource GhostButton}" Click="BtnClearAccount_Click"/>
+                                    </WrapPanel>
+                                    <ProgressBar x:Name="ProgressAccount" Minimum="0" Maximum="100" Value="0"/>
+                                    <Border Background="#F8F0FF" CornerRadius="12" Padding="12" Margin="0,10,0,0" BorderBrush="#E8DFF5" BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock Text="Result (only result shown):" FontSize="11" Foreground="#8A6B7A"/>
+                                            <TextBox x:Name="TxtAccountResult" IsReadOnly="True" FontFamily="Consolas" FontSize="12" Margin="0,6,0,0" MinHeight="48" TextWrapping="Wrap" Text="—"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="How it works" FontWeight="Bold" Foreground="#4A3040"/>
+                                    <TextBlock TextWrapping="Wrap" Foreground="#8A6B7A" FontSize="11" Margin="0,6,0,0" Text="Calls Robust UserAccountService via http://127.0.0.1:22000 . Tries JSON API first, falls back to Robust console 'create user' via HTTP. Displays only success/failure + message."/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Backups -->
+                <TabItem Header="💾 OAR Backups">
+                    <ScrollViewer Padding="16" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Border Style="{StaticResource Card}" Background="#FFF7FB">
+                                <StackPanel>
+                                    <TextBlock Text="OAR Backup — console command" FontWeight="Bold" Foreground="#4A3040"/>
+                                    <TextBlock Text="Flow: send the sim console command 'oar backup'. This creates an OAR backup and does not restart or shutdown the region." Foreground="#8A6B7A" FontSize="11" Margin="0,4,0,8" TextWrapping="Wrap"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Backup command:" VerticalAlignment="Center" FontSize="11" Foreground="#4A3040" Margin="0,0,8,0"/>
+                                        <ComboBox x:Name="ComboBackupDelay" Grid.Column="1" Width="140" HorizontalAlignment="Left" SelectedIndex="1">
+                                            <ComboBoxItem Content="oar backup"/>
+                                        </ComboBox>
+                                        <Button x:Name="BtnBackupAll" Grid.Column="2" Content="💾 Bulk OAR Backup All" Style="{StaticResource CuteButton}" Click="BtnBackupAll_Click"/>
+                                    </Grid>
+                                    <TextBlock Text="Bulk runs in parallel (max 4 concurrent). Each selected region receives the console command 'oar backup'." FontSize="10" Foreground="#C9B6E4" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Select Regions" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Content="Select All" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnBackupSelectAll_Click"/>
+                                            <Button Content="None" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnBackupSelectNone_Click"/>
+                                            <Button x:Name="BtnBackupSelected" Content="OAR Backup Selected" Style="{StaticResource CuteButton}" FontSize="11" Click="BtnBackupSelected_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <ListBox x:Name="ListBackupRegions" Height="220" Margin="0,8,0,0" SelectionMode="Multiple" BorderBrush="#FFE0EA"/>
+                                    <ProgressBar x:Name="ProgressBackup" Minimum="0" Maximum="100" Value="0"/>
+                                    <TextBox x:Name="TxtBackupLog" Height="160" IsReadOnly="True" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" Text="Backup log…"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- OAR Restore -->
+                <TabItem Header="📦 OAR Restore">
+                    <ScrollViewer Padding="16" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Border Style="{StaticResource Card}" Background="#FFF0F6">
+                                <StackPanel>
+                                    <TextBlock Text="OAR Restore — bulk supported" FontWeight="Bold" Foreground="#4A3040"/>
+                                    <TextBlock Text="Upload an .oar and restore to one or many regions. Uses 'load oar' console command via Robust/sim HTTP." FontSize="11" Foreground="#8A6B7A" Margin="0,4,0,10" TextWrapping="Wrap"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="TxtOarPath" IsReadOnly="True" Margin="0,0,8,0"/>
+                                        <Button x:Name="BtnPickOar" Grid.Column="1" Content="📁 Pick .oar" Style="{StaticResource GhostButton}" Click="BtnPickOar_Click"/>
+                                    </Grid>
+                                    <CheckBox x:Name="ChkOarMerge" Content="Merge (keep existing) — otherwise --force / wipe" IsChecked="True" Margin="0,8,0,0" Foreground="#4A3040"/>
+                                    <CheckBox x:Name="ChkOarSkipAssets" Content="Skip assets (faster) — uses --skip-assets" IsChecked="False" Margin="0,4,0,0" Foreground="#4A3040"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Target Regions (multi-select for bulk restore)" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Content="All" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnOarSelectAll_Click"/>
+                                            <Button Content="None" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnOarSelectNone_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <ListBox x:Name="ListOarRegions" Height="220" Margin="0,8,0,0" SelectionMode="Multiple" BorderBrush="#FFE0EA"/>
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Button x:Name="BtnRestoreOar" Content="📦 Restore to Selected" Style="{StaticResource CuteButton}" Click="BtnRestoreOar_Click"/>
+                                        <Button x:Name="BtnBulkOar" Content="Bulk Restore All (same OAR)" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnBulkOar_Click"/>
+                                    </WrapPanel>
+                                    <ProgressBar x:Name="ProgressOar" Minimum="0" Maximum="100" Value="0"/>
+                                    <TextBox x:Name="TxtOarLog" Height="150" IsReadOnly="True" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" Text="OAR restore log…"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Money -->
+                <TabItem Header="💰 Money">
+                    <ScrollViewer Padding="16" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Border Style="{StaticResource Card}" Background="#FFF7FB">
+                                <StackPanel>
+                                    <TextBlock Text="Money Management — Dorito" FontWeight="Bold" Foreground="#4A3040"/>
+                                    <TextBlock Text="Manage balances by avatar UUID. Balance lookup/set/add writes to the money PostgreSQL DB. Transfer uses MoneyD XML-RPC ForceTransferMoney." Foreground="#8A6B7A" FontSize="11" Margin="0,4,0,10" TextWrapping="Wrap"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="130"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="130"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Avatar UUID" VerticalAlignment="Center" Foreground="#4A3040"/>
+                                        <TextBox x:Name="TxtMoneyAvatar" Grid.Row="0" Grid.Column="1" Margin="0,4,10,4"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Receiver UUID" VerticalAlignment="Center" Foreground="#4A3040"/>
+                                        <TextBox x:Name="TxtMoneyReceiver" Grid.Row="0" Grid.Column="3" Margin="0,4,0,4"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Balance" VerticalAlignment="Center" Foreground="#4A3040"/>
+                                        <TextBox x:Name="TxtMoneyBalance" Grid.Row="1" Grid.Column="1" Margin="0,4,10,4"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="Amount" VerticalAlignment="Center" Foreground="#4A3040"/>
+                                        <TextBox x:Name="TxtMoneyAmount" Grid.Row="1" Grid.Column="3" Margin="0,4,0,4"/>
+
+                                        <WrapPanel Grid.Row="2" Grid.ColumnSpan="4" Margin="0,8,0,0">
+                                            <Button x:Name="BtnMoneyGet" Content="Get Balance" Style="{StaticResource CuteButton}" Click="BtnMoneyGet_Click"/>
+                                            <Button x:Name="BtnMoneySet" Content="Set Balance" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnMoneySet_Click"/>
+                                            <Button x:Name="BtnMoneyAdd" Content="Add Amount" Style="{StaticResource CuteButton}" Click="BtnMoneyAdd_Click"/>
+                                            <Button x:Name="BtnMoneyTransfer" Content="Force Transfer" Style="{StaticResource GhostButton}" Click="BtnMoneyTransfer_Click"/>
+                                            <Button x:Name="BtnMoneyRefresh" Content="Refresh Money Status" Style="{StaticResource GhostButton}" Click="BtnMoneyRefresh_Click"/>
+                                        </WrapPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Money Result" FontWeight="Bold" Foreground="#4A3040"/>
+                                    <TextBox x:Name="TxtMoneyResult" Height="180" IsReadOnly="True" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" Text="Money actions appear here."/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Apache -->
+                <TabItem Header="🌐 Apache">
+                    <ScrollViewer Padding="16" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Border Style="{StaticResource Card}" Background="#FFF7FB">
+                                <StackPanel>
+                                    <TextBlock Text="Apache — XAMPP starter included" FontWeight="Bold" Foreground="#4A3040"/>
+                                    <TextBlock x:Name="TxtApachePath" Text="H:\grid\xampp\apache\bin\httpd.exe  •  H:\grid\xampp\apache_start.bat" FontSize="11" Foreground="#8A6B7A" Margin="0,4,0,0"/>
+                                    <WrapPanel Margin="0,10,0,0">
+                                        <Button x:Name="BtnApacheStart" Content="▶ Start Apache" Style="{StaticResource CuteButton}" Click="BtnApacheStart_Click"/>
+                                        <Button x:Name="BtnApacheStop" Content="⏹ Stop Apache" Style="{StaticResource GhostButton}" Click="BtnApacheStop_Click"/>
+                                        <Button x:Name="BtnApacheRestart" Content="↻ Restart" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnApacheRestart_Click"/>
+                                        <Button Content="Open htdocs" Style="{StaticResource GhostButton}" Click="BtnApacheHtdocs_Click"/>
+                                    </WrapPanel>
+                                    <TextBlock x:Name="TxtApacheStatus" Text="Status: unknown — click Start to launch via apache_start.bat / httpd.exe" FontSize="11" Foreground="#8A6B7A" Margin="0,8,0,0"/>
+                                    <ProgressBar x:Name="ProgressApache" Minimum="0" Maximum="100" Value="0" IsIndeterminate="False"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Apache Log (error.log tail)" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <Button Grid.Column="1" Content="Refresh log" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnApacheLog_Click"/>
+                                    </Grid>
+                                    <TextBox x:Name="TxtApacheLog" Height="300" IsReadOnly="True" FontFamily="Consolas" FontSize="10" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" Text="Apache logs will appear here."/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Logs -->
+                <TabItem Header="📜 Logs">
+                    <Grid Margin="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Style="{StaticResource Card}" Padding="12" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Source:" VerticalAlignment="Center" FontWeight="Bold" Foreground="#4A3040" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="CboLogSource" Grid.Column="1" SelectedIndex="0" SelectionChanged="CboLogSource_Changed">
+                                    <ComboBoxItem Content="Robust (RobustConsoleHistory.txt)"/>
+                                    <ComboBoxItem Content="Region — select via Regions tab"/>
+                                </ComboBox>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <CheckBox x:Name="ChkLogAuto" Content="Auto-refresh (2s)" IsChecked="False" VerticalAlignment="Center" Margin="12,0,0,0" Checked="ChkLogAuto_Checked" Unchecked="ChkLogAuto_Unchecked"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                    <Button Content="Refresh" Style="{StaticResource CuteButton}" FontSize="11" Click="BtnLogRefresh_Click"/>
+                                    <Button Content="Clear view" Style="{StaticResource GhostButton}" FontSize="11" Click="BtnLogClear_Click"/>
+                                    <Button Content="Open folder" Style="{StaticResource GhostButton}" FontSize="11" Click="BtnLogOpenFolder_Click"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <TextBox x:Name="TxtLogView" Grid.Row="1" IsReadOnly="True" FontFamily="Consolas" FontSize="10" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Text="Logs appear here. Select Robust or a sim. Robust path: generated/robust/data/RobustConsoleHistory.txt ; sims: generated/sims/{Region}/data/OpenSimConsoleHistory.txt"/>
+                    </Grid>
+                </TabItem>
+
+                <!-- Config -->
+                <TabItem Header="⚙ Config">
+                    <Grid Margin="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="260"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource Card}" Margin="0,0,8,0">
+                            <StackPanel>
+                                <TextBlock Text="Editable INI files" FontWeight="Bold" Foreground="#4A3040"/>
+                                <TextBlock Text="Robust + sim OpenSim.ini + region inis" FontSize="11" Foreground="#8A6B7A" Margin="0,4,0,8"/>
+                                <ListBox x:Name="ListIniFiles" Height="420" BorderBrush="#FFE0EA" SelectionChanged="ListIniFiles_SelectionChanged"/>
+                                <TextBlock Text="Robust URL" FontWeight="Bold" Foreground="#4A3040" Margin="0,12,0,4"/>
+                                <TextBox x:Name="TxtRobustUrl" Text="http://127.0.0.1:22000" IsReadOnly="True" FontFamily="Consolas" FontSize="11"/>
+                                <TextBlock x:Name="TxtMaxPrimsNote" Text="MaxPrims 999555333 already set via template (Region.ini.tpl). Var regions unlimited — size X/Y unlimited." TextWrapping="Wrap" FontSize="10" Foreground="#8A6B7A" Margin="0,8,0,0"/>
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Button Content="Regenerate (call generate_configs.py)" Style="{StaticResource GhostButton}" FontSize="10" Click="BtnRegen_Click"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource Card}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="TxtIniTitle" Text="Select an INI" FontWeight="Bold" Foreground="#4A3040" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button Content="Reload" Style="{StaticResource GhostButton}" FontSize="11" Click="BtnIniReload_Click"/>
+                                        <Button x:Name="BtnIniSave" Content="💾 Save INI" Style="{StaticResource CuteButton}" Click="BtnIniSave_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBox x:Name="TxtIniContent" Grid.Row="1" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="11" Margin="0,8,0,8" IsReadOnly="False"/>
+                                <TextBlock Grid.Row="2" Text="Saving writes file &amp; offers restart. Edit maxprims/var regions here if needed — default is MaxPrims=999555333 unlimited." FontSize="10" Foreground="#C9B6E4" TextWrapping="Wrap"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Border>
+
+        <Border Grid.Row="2" Background="White" BorderBrush="#FFE0EA" BorderThickness="0,1,0,0" Padding="10,8">
+            <Grid>
+                <TextBlock Text="Fresh Metaverse • Do NOT start grid from build — just buildable app • WPF .NET 8 • Nunito pastel cute" FontSize="10" Foreground="#8A6B7A" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock x:Name="TxtStatusBar" Text="Ready ♡" FontSize="11" Foreground="#FF8FAB" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <ProgressBar x:Name="ProgressGlobal" Width="140" Height="8" Minimum="0" Maximum="100" Value="0" Visibility="Collapsed"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

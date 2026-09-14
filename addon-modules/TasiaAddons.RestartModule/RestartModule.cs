@@ -964,20 +964,23 @@ namespace TasiaAddons.RestartModule
 
             switch (action)
             {
-                case "schedule":
-                    if (delaySeconds < 10)
-                        delaySeconds = 10;
-
-                    // Backup before quit — clean restart, not hot restart
+                case "backup":
                     try
                     {
                         MainConsole.Instance.RunCommand("backup");
-                        m_log.Info("[RESTART MODULE]: Backup complete before restart");
+                        m_log.Info("[RESTART MODULE]: Persistence backup API complete");
+                        WriteJsonResponse(response, 200, BuildStatusMap(true, "backup_complete"));
                     }
                     catch (Exception ex)
                     {
-                        m_log.WarnFormat("[RESTART MODULE]: Backup failed: {0}", ex.Message);
+                        m_log.WarnFormat("[RESTART MODULE]: Persistence backup API failed: {0}", ex.Message);
+                        WriteJsonResponse(response, 500, BuildStatusMap(false, "backup_failed"));
                     }
+                    return;
+
+                case "schedule":
+                    if (delaySeconds < 10)
+                        delaySeconds = 10;
 
                     {
                         int[] restartAlerts = BuildStandardAlerts(delaySeconds);

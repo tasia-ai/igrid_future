@@ -1,0 +1,126 @@
+/* Amber's Fresh Metaverse — pastel override for search portal
+   Mirrors H:/grid/xampp/htdocs/amber/css/style.css palette
+   Keeps I-Grid functionality, rethemes to kawaii pink/lavender */
+:root{
+  --pink:#FFB5D8;
+  --pink-2:#FF8FAB;
+  --pink-soft:#FFF0F5;
+  --lav:#E8DFF5;
+  --lav-2:#D8CFF5;
+  --lav-3:#C9B6FF;
+  --ink:#4A3040;
+  --muted:#8A6A7A;
+  --bg:#FFF7FB;
+  --card:#FFFFFF;
+  --shadow:0 10px 30px rgba(255,143,171,0.15), 0 4px 12px rgba(201,182,255,0.12);
+}
+body{
+  background: var(--bg) !important;
+  background-image:
+    radial-gradient(circle at 20% 15%, #FFD1DC 0%, transparent 45%),
+    radial-gradient(circle at 85% 30%, #E8DFF5 0%, transparent 40%),
+    radial-gradient(circle at 50% 85%, #FFE5D4 0%, transparent 40%),
+    linear-gradient(180deg, #FFF7FB 0%, #F8F0FF 100%) !important;
+  background-attachment: fixed !important;
+  color: var(--ink) !important;
+  font-family: 'Nunito','Poppins',system-ui,sans-serif !important;
+}
+a{ color:#C14B7A; }
+/* desktop icons — pastel cute */
+.desktop-icon p{
+  color: var(--ink) !important;
+  text-shadow: none !important;
+  font-weight:700;
+  background: rgba(255,255,255,0.85);
+  border-radius: 999px;
+  padding:2px 6px;
+  border:1px solid #FFE0EA;
+}
+.desktop-icon img{
+  filter: drop-shadow(0 4px 10px rgba(255,181,216,0.4));
+  background: white;
+  border-radius:12px;
+  padding:6px;
+  border:1px solid #FFE0EA;
+}
+/* start menu */
+.start-menu{
+  background: rgba(255,255,255,0.97) !important;
+  border:2px solid #FFB5D8 !important;
+  border-radius:18px !important;
+  box-shadow: var(--shadow) !important;
+  overflow:hidden;
+}
+.start-menu-header{
+  background: linear-gradient(135deg, #FFB5D8, #C9B6FF) !important;
+  border-bottom:2px solid #FFE0EA !important;
+}
+.start-menu-header span{ color:white !important; text-shadow:0 1px 2px rgba(0,0,0,0.15); }
+.start-menu-left{ background:white !important; }
+.start-menu-right{ background:#FFF7FB !important; border-left:1px solid #FFE0EA !important; }
+.start-menu-category h3{
+  color: var(--ink) !important;
+  text-shadow:none !important;
+  font-family:'Poppins',sans-serif;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  font-size:11px;
+  background: var(--lav);
+  display:inline-block;
+  padding:3px 8px;
+  border-radius:999px;
+}
+/* tiles */
+.tile{
+  background: white !important;
+  color: var(--ink) !important;
+  border:1.5px solid #FFE0EA !important;
+  border-radius:999px !important;
+  font-weight:700 !important;
+  box-shadow: 0 2px 8px rgba(255,181,216,0.12);
+}
+.tile:hover{
+  background: linear-gradient(135deg,#FF8FAB,#FFB5D8) !important;
+  color:white !important;
+  border-color: transparent !important;
+  transform: translateY(-1px);
+}
+/* taskbar */
+.taskbar{
+  background: rgba(255,255,255,0.92) !important;
+  backdrop-filter: blur(12px);
+  border-top:1px solid #FFE0EA !important;
+  box-shadow: 0 -4px 20px rgba(255,143,171,0.12) !important;
+}
+.taskbar .text-white{ color: var(--ink) !important; }
+#startButton{
+  background: linear-gradient(135deg,#FF8FAB,#FFB5D8) !important;
+  border-radius:999px !important;
+  box-shadow: 0 4px 12px rgba(255,143,171,0.25);
+  border:none !important;
+}
+#startButton:hover{ box-shadow:0 6px 18px rgba(255,143,171,0.35); }
+#clock{ color: var(--muted) !important; font-weight:700; }
+/* tab content */
+.tab-content{ background: transparent !important; }
+.content-container{
+  background: rgba(255,255,255,0.96) !important;
+  border:1px solid #FFE0EA !important;
+  border-radius:22px !important;
+  box-shadow: var(--shadow) !important;
+  color: var(--ink);
+}
+.loading{
+  color: var(--pink-2) !important;
+  text-shadow:none !important;
+}
+/* generic headings inside content */
+.content-container h2, .content-container h3{ color: var(--ink); font-family:'Poppins',sans-serif; }
+.content-container .tile{ border-radius:12px !important; }
+/* scrollbar cute */
+::-webkit-scrollbar{ width:10px; height:10px; }
+::-webkit-scrollbar-thumb{ background:#FFB5D8; border-radius:999px; border:2px solid #FFF0F5; }
+::-webkit-scrollbar-track{ background:#FFF7FB; }
+/* make cyan relics pink */
+.text-cyan-400{ color:#C14B7A !important; }
+.bg-cyan-600{ background:#FF8FAB !important; }
