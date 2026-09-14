@@ -15,6 +15,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Xml.Linq;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace FreshMetaverseManager;
@@ -53,6 +54,13 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, Process> _managedProcesses = new();
     private CancellationTokenSource? _logCts;
     private Process? _apacheProc;
+    private bool HideWindows => (ChkHideWindows?.IsChecked ?? true) == true;
+
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr hWnd);
+    private const int SW_HIDE = 0;
+    private const int SW_SHOW = 5;
+    private const int SW_RESTORE = 9;
 
     public MainWindow()
     {
@@ -313,38 +321,78 @@ public partial class MainWindow : Window
                 return true;
             }
 
-            string dll;
-            string cwd;
+            string dll = "";
+            string cwd = "";
+            string args = "";
+            string fileName = "";
+            string logPath = "";
+            string simDataDir = "";
+
             if (kind == "robust")
             {
-                cwd = Path.Combine(_gridRoot, "generated", "robust");
-                dll = Path.Combine(_gridRoot, "bin", "Robust.dll");
-                if (!File.Exists(dll)) dll = Path.Combine(cwd, "Robust.dll");
+                var robustBin = Path.Combine(_gridRoot, "generated", "robust", "Robust.dll");
+                var binRobust = Path.Combine(_gridRoot, "bin", "Robust.dll");
+                if (File.Exists(robustBin))
+                {
+                    cwd = Path.Combine(_gridRoot, "generated", "robust");
+                    dll = robustBin;
+                    fileName = "dotnet";
+                    args = "\"Robust.dll\"";
+                    logPath = Path.Combine(cwd, "data", "RobustManaged.log");
+                    Directory.CreateDirectory(Path.Combine(cwd, "data"));
+                }
+                else
+                {
+                    cwd = Path.Combine(_gridRoot, "bin");
+                    dll = binRobust;
+                    fileName = "dotnet";
+                    var robustIni = Path.Combine(_gridRoot, "generated", "robust", "Robust.ini");
+                    args = File.Exists(robustIni) ? $"\"{dll}\" -inifile=\"{robustIni}\"" : $"\"{dll}\"";
+                    logPath = Path.Combine(_gridRoot, "generated", "robust", "data", "RobustManaged.log");
+                    Directory.CreateDirectory(Path.Combine(_gridRoot, "generated", "robust", "data"));
+                }
             }
             else if (kind == "money")
             {
                 cwd = _moneyRoot;
                 dll = Path.Combine(_moneyRoot, "tasia_moneyd.py");
+                fileName = "python";
+                args = $"\"{dll}\" --config \"{Path.Combine(_moneyRoot, "MoneyServer.ini")}\"";
+                logPath = Path.Combine(cwd, "moneyd-managed.log");
+                Directory.CreateDirectory(cwd);
             }
             else
             {
-                cwd = Path.Combine(_gridRoot, "generated", "sims", name);
-                dll = Path.Combine(_gridRoot, "bin", "OpenSim.dll");
+                // SIM: must run from bin with -inifile, otherwise OpenSim can't find its plugin DLLs
+                var binDir = Path.Combine(_gridRoot, "bin");
+                dll = Path.Combine(binDir, "OpenSim.dll");
+                var simIni = Path.Combine(_gridRoot, "generated", "sims", name, "OpenSim.ini");
+                simDataDir = Path.Combine(_gridRoot, "generated", "sims", name, "data");
+                Directory.CreateDirectory(simDataDir);
+                if (!File.Exists(dll))
+                {
+                    log?.Report($"[process] missing binary: {dll}");
+                    return false;
+                }
+                if (!File.Exists(simIni))
+                {
+                    log?.Report($"[process] missing sim ini: {simIni}");
+                    return false;
+                }
+                cwd = binDir;
+                fileName = "dotnet";
+                args = $"\"{dll}\" -inifile=\"{simIni}\"";
+                logPath = Path.Combine(simDataDir, "OpenSimManaged.log");
             }
 
-            if (!File.Exists(dll))
+            if (kind != "sim" && !File.Exists(dll))
             {
                 log?.Report($"[process] missing binary: {dll}");
                 return false;
             }
 
-            if (kind == "money") Directory.CreateDirectory(cwd);
-            else Directory.CreateDirectory(Path.Combine(cwd, "data"));
-            var logPath = kind == "money"
-                ? Path.Combine(cwd, "moneyd-managed.log")
-                : Path.Combine(cwd, "data", kind == "robust" ? "RobustManaged.log" : "OpenSimManaged.log");
-            var fileName = kind == "money" ? "python" : "dotnet";
-            var args = kind == "money" ? $"\"{dll}\" --config \"{Path.Combine(_moneyRoot, "MoneyServer.ini")}\"" : $"\"{dll}\"";
+            // Ensure lib64 is on PATH for native deps (Bullet, ODE)
+            var binLib64 = Path.Combine(_gridRoot, "bin", "lib64");
             var psi = new ProcessStartInfo(fileName, args)
             {
                 WorkingDirectory = cwd,
@@ -352,16 +400,45 @@ public partial class MainWindow : Window
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = HideWindows
             };
+            if (Directory.Exists(binLib64))
+            {
+                var existingPath = psi.Environment.ContainsKey("PATH") ? psi.Environment["PATH"] : Environment.GetEnvironmentVariable("PATH") ?? "";
+                psi.Environment["PATH"] = binLib64 + Path.PathSeparator + existingPath;
+            }
             var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
             proc.OutputDataReceived += (_, e) => { if (e.Data != null) File.AppendAllText(logPath, e.Data + Environment.NewLine); };
             proc.ErrorDataReceived += (_, e) => { if (e.Data != null) File.AppendAllText(logPath, e.Data + Environment.NewLine); };
             if (!proc.Start()) return false;
-            proc.BeginOutputReadLine();
-            proc.BeginErrorReadLine();
+            try { proc.BeginOutputReadLine(); } catch { }
+            try { proc.BeginErrorReadLine(); } catch { }
             _managedProcesses[key] = proc;
-            log?.Report($"[process] started {key} pid {proc.Id}; console stdin is managed by this app.");
+            // Give hidden window a chance to appear then hide explicitly if requested
+            if (HideWindows)
+            {
+                await Task.Delay(400);
+                try { if (!proc.HasExited && IsWindow(proc.MainWindowHandle)) ShowWindow(proc.MainWindowHandle, SW_HIDE); } catch { }
+            }
+            log?.Report($"[process] started {key} pid {proc.Id} cwd {cwd} {(HideWindows ? "[hidden window, stdin managed]" : "[visible window, stdin managed]")}");
+            // Quick health check: did it die immediately?
+            await Task.Delay(700);
+            if (proc.HasExited)
+            {
+                var tail = "";
+                try { if (File.Exists(logPath)) tail = string.Join("\n", File.ReadLines(logPath).TakeLast(6)); } catch { }
+                log?.Report($"[process] {key} exited immediately (code {proc.ExitCode}). Last log:\n{tail}");
+                _managedProcesses.Remove(key);
+                return false;
+            }
+            if (kind == "sim")
+            {
+                // Stale sim.pid blocks restarts if previous run died uncleanly
+                var stalePid = Path.Combine(simDataDir, "sim.pid");
+                // Leave it; OpenSim handles it, just log
+                if (File.Exists(stalePid))
+                    log?.Report($"[process] {key} pid file exists: {stalePid}");
+            }
             return true;
         }
         catch (Exception ex)
@@ -791,7 +868,7 @@ public partial class MainWindow : Window
             RedirectStandardError = true,
             CreateNoWindow = true
         };
-        psi.Environment["PGPASSWORD"] = Environment.GetEnvironmentVariable("FRESH_DB_PASS") ?? "CHANGE_ME";
+        psi.Environment["PGPASSWORD"] = "opensim";
         psi.ArgumentList.Add("-h"); psi.ArgumentList.Add("127.0.0.1");
         psi.ArgumentList.Add("-p"); psi.ArgumentList.Add("5432");
         psi.ArgumentList.Add("-U"); psi.ArgumentList.Add("opensim");
@@ -1114,7 +1191,7 @@ public partial class MainWindow : Window
     private async Task<string> CreateAccountViaRobustAsync(string first, string last, string pass, string email)
     {
         string display = $"{first} {last}";
-        var invite = Environment.GetEnvironmentVariable("FRESH_INVITE_CODE") ?? "CHANGE_ME";
+        var invite = "9632587410";
         var endpoints = new[] { $"{_robustUrl}/create_user", $"{_robustUrl}/accounts/create", $"{_robustUrl}/wifi/createaccount" };
         var json1 = JsonSerializer.Serialize(new Dictionary<string,string> { ["first"]=first, ["last"]=last, ["password"]=pass, ["email"]=email, ["invite"]=invite });
         var json2 = JsonSerializer.Serialize(new Dictionary<string,string> { ["username"]=display, ["password"]=pass, ["email"]=email });
@@ -1448,6 +1525,110 @@ public partial class MainWindow : Window
             MessageBox.Show($"Saved {_currentIniPath}\nRestart affected service to apply.", "Fresh Metaverse");
         }
         catch (Exception ex) { MessageBox.Show("Save failed: " + ex.Message); }
+    }
+
+    private async void BtnForceKillAll_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("Force kill ALL sim processes immediately? This bypasses console 'shutdown'.", "Force Kill All Sims", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        LogBulk("Force Kill All Sims requested — killing managed first, then sweeping external sim dots.");
+        // kill managed
+        foreach (var kv in _managedProcesses.Where(kv => kv.Key.StartsWith("sim:")).ToList())
+        {
+            try { kv.Value.Kill(true); LogBulk($"[kill] {kv.Key} pid {kv.Value.Id} killed (managed)."); } catch (Exception ex) { LogBulk($"[kill] {kv.Key} failed: {ex.Message}"); }
+            _managedProcesses.Remove(kv.Key);
+        }
+        await ForceKillExternalAsync("sim", null);
+        await RefreshRegionStatusesAsync();
+    }
+
+    private async void BtnForceKillRobust_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("Force kill Robust immediately?", "Force Kill Robust", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        LogBulk("Force Kill Robust requested.");
+        if (_managedProcesses.TryGetValue("robust:robust", out var p) && !p.HasExited)
+        {
+            try { p.Kill(true); LogBulk($"[kill] robust:robust pid {p.Id} killed (managed)."); } catch (Exception ex) { LogBulk($"[kill] robust failed: {ex.Message}"); }
+            _managedProcesses.Remove("robust:robust");
+        }
+        await ForceKillExternalAsync("robust", null);
+        await RefreshRobustStatusAsync();
+    }
+
+    private void BtnRegionShow_Click(object sender, RoutedEventArgs e)
+    {
+        var r = SelectedRegion(); if (r == null) { MessageBox.Show("Select a region."); return; }
+        var key = "sim:" + r.Name;
+        if (_managedProcesses.TryGetValue(key, out var proc) && !proc.HasExited)
+        {
+            try { if (IsWindow(proc.MainWindowHandle)) ShowWindow(proc.MainWindowHandle, SW_RESTORE); ShowWindow(proc.MainWindowHandle, SW_SHOW); LogRegion($"Show {r.Name} pid {proc.Id}."); } catch (Exception ex) { LogRegion($"Show {r.Name} failed: {ex.Message}"); }
+        }
+        else LogRegion($"{r.Name} is not managed by this app (or already stopped). Start it from this manager first. External stale sims: use Force Kill then Start again.");
+    }
+
+    private void BtnRegionHide_Click(object sender, RoutedEventArgs e)
+    {
+        var r = SelectedRegion(); if (r == null) { MessageBox.Show("Select a region."); return; }
+        var key = "sim:" + r.Name;
+        if (_managedProcesses.TryGetValue(key, out var proc) && !proc.HasExited)
+        {
+            try { if (IsWindow(proc.MainWindowHandle)) ShowWindow(proc.MainWindowHandle, SW_HIDE); LogRegion($"Hide {r.Name} pid {proc.Id}."); } catch (Exception ex) { LogRegion($"Hide {r.Name} failed: {ex.Message}"); }
+        }
+        else LogRegion($"{r.Name} is not managed by this app.");
+    }
+
+    private async void BtnRegionForceKill_Click(object sender, RoutedEventArgs e)
+    {
+        var r = SelectedRegion(); if (r == null) { MessageBox.Show("Select a region."); return; }
+        if (MessageBox.Show($"Force kill {r.Name} immediately? Bypasses 'shutdown' and kills process tree.", "Force Kill", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        var key = "sim:" + r.Name;
+        LogRegion($"Force kill {r.Name} requested.");
+        if (_managedProcesses.TryGetValue(key, out var proc) && !proc.HasExited)
+        {
+            try { proc.Kill(true); LogRegion($"[kill] {key} pid {proc.Id} killed (managed)."); } catch (Exception ex) { LogRegion($"[kill] {key} failed: {ex.Message}"); }
+            _managedProcesses.Remove(key);
+        }
+        // also sweep external matching name
+        await ForceKillExternalAsync("sim", r.Name);
+        await RefreshRegionStatusesAsync();
+    }
+
+    private async Task ForceKillExternalAsync(string kind, string? nameOrNull)
+    {
+        try
+        {
+            string script;
+            if (kind == "robust")
+            {
+                var robustDir = Path.Combine(_gridRoot, "generated", "robust");
+                var robustBin = Path.Combine(_gridRoot, "bin", "Robust.dll");
+                script = "$hits = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'dotnet.exe' -and ($_.CommandLine -like '*Robust.dll*') }; $hits | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; \"killed Robust pid \" + $_.ProcessId }";
+            }
+            else
+            {
+                // sim: if name given, match that sim ini in commandline; else kill all OpenSim sims
+                if (!string.IsNullOrEmpty(nameOrNull))
+                    script = "$n='" + nameOrNull.Replace("'","''") + "'; $hits = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*OpenSim.dll*' -and $_.CommandLine -like \"*\" + $n + \"*\" }; $hits | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; \"killed sim \" + $n + \" pid \" + $_.ProcessId }";
+                else
+                    script = "$hits = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*OpenSim.dll*' }; $hits | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; \"killed sim pid \" + $_.ProcessId }";
+            }
+            var psi = new ProcessStartInfo("powershell", "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command " + JsonSerializer.Serialize(script))
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) return;
+            var stdout = await proc.StandardOutput.ReadToEndAsync();
+            var stderr = await proc.StandardError.ReadToEndAsync();
+            await proc.WaitForExitAsync();
+            if (!string.IsNullOrWhiteSpace(stdout)) foreach (var line in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)) LogBulk(line.Trim());
+            if (!string.IsNullOrWhiteSpace(stderr)) LogBulk("[kill sweep] " + stderr.Trim());
+            // also report to region log if it was a single-region kill
+            if (!string.IsNullOrEmpty(nameOrNull) && !string.IsNullOrWhiteSpace(stdout)) foreach (var line in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)) LogRegion(line.Trim());
+        }
+        catch (Exception ex) { LogBulk("[kill sweep] failed: " + ex.Message); }
     }
 
     private void BtnRegen_Click(object sender, RoutedEventArgs e)

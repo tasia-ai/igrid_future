@@ -41,7 +41,7 @@
                         <TextBlock x:Name="TxtRegionCount" Text="30 regions" FontWeight="Bold" FontSize="11" Foreground="#4A3040"/>
                     </Border>
                     <Border Background="#4A3040" CornerRadius="999" Padding="12,7" Margin="6,0">
-                        <TextBlock Text="invite configured" FontWeight="Bold" FontSize="11" Foreground="White"/>
+                        <TextBlock Text="invite 9632587410" FontWeight="Bold" FontSize="11" Foreground="White"/>
                     </Border>
                 </StackPanel>
             </Grid>
@@ -108,6 +108,15 @@
                                     </StackPanel>
                                 </Border>
                             </Grid>
+
+                            <Border Style="{StaticResource Card}" Margin="6,8,6,6">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <CheckBox x:Name="ChkHideWindows" Content="Hide windows (run in background)" IsChecked="True" VerticalAlignment="Center" Foreground="#4A3040" FontWeight="Bold"/>
+                                    <TextBlock Text="  Uncheck to show consoles • Start creates visible window if unchecked. Force Kill works even on hidden windows." Foreground="#8A6B7A" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap"/>
+                                    <Button x:Name="BtnForceKillAll" Content="⏹ Force Kill All Sims" Style="{StaticResource GhostButton}" Margin="12,0,0,0" Click="BtnForceKillAll_Click"/>
+                                    <Button x:Name="BtnForceKillRobust" Content="⏹ Force Kill Robust" Style="{StaticResource GhostButton}" Margin="6,0,0,0" Click="BtnForceKillRobust_Click"/>
+                                </StackPanel>
+                            </Border>
 
                             <Border Style="{StaticResource Card}" Margin="6,8,6,6">
                                 <StackPanel>
@@ -181,7 +190,10 @@
                                 <TextBlock x:Name="TxtRegionDetail" Text="Select a region. Start runs only the selected single sim and keeps its console managed by this standalone app." FontSize="11" Foreground="#8A6B7A" TextWrapping="Wrap"/>
                                 <WrapPanel Margin="0,8,0,0">
                                     <Button x:Name="BtnRegionStart" Content="▶ Start" Style="{StaticResource CuteButton}" Click="BtnRegionStart_Click"/>
+                                    <Button x:Name="BtnRegionShow" Content="👁 Show" Style="{StaticResource GhostButton}" Click="BtnRegionShow_Click"/>
+                                    <Button x:Name="BtnRegionHide" Content="🙈 Hide" Style="{StaticResource GhostButton}" Click="BtnRegionHide_Click"/>
                                     <Button x:Name="BtnRegionStop" Content="⏹ Stop" Style="{StaticResource GhostButton}" Click="BtnRegionStop_Click"/>
+                                    <Button x:Name="BtnRegionForceKill" Content="⏹ Force Kill (now)" Style="{StaticResource GhostButton}" Click="BtnRegionForceKill_Click"/>
                                     <Button x:Name="BtnRegionRestart60" Content="↻ Restart 60s (Tasia)" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnRegionRestart60_Click"/>
                                     <Button x:Name="BtnRegionRestart120" Content="⏻ Shutdown 60s (Tasia)" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnRegionRestart120_Click"/>
                                     <Button x:Name="BtnRegionBackup" Content="💾 OAR Backup" Style="{StaticResource CuteButton}" Click="BtnRegionBackup_Click"/>
@@ -254,10 +266,10 @@
                                             <TextBlock Text="Invite Code" FontSize="11" Foreground="#8A6B7A"/>
                                             <Border CornerRadius="12" Padding="14,10" Margin="0,4,0,0" Background="{StaticResource HeaderGradient}">
                                                 <Grid>
-                                                    <TextBlock Text="CHANGE_ME" FontWeight="ExtraBold" FontSize="22" Foreground="White" HorizontalAlignment="Center"/>
+                                                    <TextBlock Text="9632587410" FontWeight="ExtraBold" FontSize="22" Foreground="White" HorizontalAlignment="Center"/>
                                                 </Grid>
                                             </Border>
-                                            <TextBlock Text="Show configured invite code and only result - no extra decoration per requirements." FontSize="10" Foreground="#C9B6E4" Margin="0,4,0,0"/>
+                                            <TextBlock Text="Show invite code 9632587410 and only result — no extra decoration per requirements." FontSize="10" Foreground="#C9B6E4" Margin="0,4,0,0"/>
                                         </StackPanel>
                                     </Grid>
                                     <WrapPanel Margin="0,12,0,0">
