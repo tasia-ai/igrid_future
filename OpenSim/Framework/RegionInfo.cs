@@ -150,7 +150,7 @@ namespace OpenSim.Framework
                 if (!File.Exists(filename)) // New region config request
                 {
                     IniConfigSource newFile = new IniConfigSource();
-                    ReadNiniConfig(newFile, configName);
+                    ReadNiniConfig(newFile, configName, configSource);
 
                     newFile.Save(filename);
 
@@ -165,7 +165,7 @@ namespace OpenSim.Framework
                 if (source.Configs[configName] == null)
                     saveFile = true;
 
-                ReadNiniConfig(source, configName);
+                ReadNiniConfig(source, configName, configSource);
 
                 if (configName != String.Empty && saveFile)
                     source.Save(filename);
@@ -180,7 +180,7 @@ namespace OpenSim.Framework
                 //
                 IConfigSource xmlsource = new XmlConfigSource(filename);
 
-                ReadNiniConfig(xmlsource, configName);
+                ReadNiniConfig(xmlsource, configName, configSource);
 
                 RegionFile = filename;
 
@@ -199,7 +199,7 @@ namespace OpenSim.Framework
             string name = elem.GetAttribute("Name");
             string xmlstr = "<Nini>" + xmlNode.OuterXml + "</Nini>";
             XmlConfigSource source = new XmlConfigSource(XmlReader.Create(new StringReader(xmlstr)));
-            ReadNiniConfig(source, name);
+            ReadNiniConfig(source, name, configSource);
 
             m_serverURI = string.Empty;
         }
@@ -456,7 +456,7 @@ namespace OpenSim.Framework
             m_extraSettings[keylower] = value;
         }
 
-        private void ReadNiniConfig(IConfigSource source, string name)
+        private void ReadNiniConfig(IConfigSource source, string name, IConfigSource globalSource = null)
         {
             bool creatingNew = false;
 
@@ -707,9 +707,16 @@ namespace OpenSim.Framework
             ScopeID = new UUID(config.GetString("ScopeID", UUID.Zero.ToString()));
             allKeys.Remove("ScopeID");
 
-            // QUIC transport — from [ClientStack.Quic] section (already present in sim OpenSim.ini)
+            // QUIC transport — from [ClientStack.Quic] section. The region
+            // ini (regions/*.ini) never carries this section; it lives in the
+            // global OpenSim.ini which is passed as globalSource by the
+            // RegionInfo(filename,configSource) ctor chain. Fall back to
+            // globalSource before giving up, so sims auto-report their QUIC
+            // host/port to Robust GridService without needing generate_configs.py.
             //
             IConfig quicCfg = source.Configs["ClientStack.Quic"];
+            if (quicCfg == null && globalSource != null)
+                quicCfg = globalSource.Configs["ClientStack.Quic"];
             if (quicCfg != null)
             {
                 QuicHost = NormalizeQuicConfigString(quicCfg.GetString("AdvertiseHost", string.Empty));

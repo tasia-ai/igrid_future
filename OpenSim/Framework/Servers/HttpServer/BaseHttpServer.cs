@@ -2395,29 +2395,113 @@ namespace OpenSim.Framework.Servers.HttpServer
         // Fallback HTTP responses in case the HTTP response files don't exist
         private string LoadStaticPage(string filename, string defaultContent)
         {
-            string file = Path.Combine(".", filename);
-            try
+            // Centralized 404: try CWD first, then BaseDirectory, then bin/404 fallback
+            // so Robust (CWD=generated/robust) can find bin/404/robust.html without touching ini
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory ?? ".";
+            string[] candidates = new string[] {
+                Path.Combine(".", filename),
+                Path.Combine(baseDir, filename),
+                Path.Combine(Path.Combine(baseDir, "..", "..", "bin"), filename),
+                Path.Combine(@"H:\grid\igrid-package\bin", filename)
+            };
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string file in candidates)
             {
-                if (File.Exists(file))
+                string norm = file;
+                try { norm = Path.GetFullPath(file); } catch { }
+                if (!seen.Add(norm)) continue;
+                try
                 {
-                    using (StreamReader sr = File.OpenText(file))
+                    string tryFile = File.Exists(norm) ? norm : file;
+                    if (File.Exists(tryFile))
                     {
-                        string content = sr.ReadToEnd();
-                        if (!string.IsNullOrWhiteSpace(content))
-                            return content;
+                        using (StreamReader sr = File.OpenText(tryFile))
+                        {
+                            string content = sr.ReadToEnd();
+                            if (!string.IsNullOrWhiteSpace(content))
+                                return content;
+                        }
                     }
                 }
+                catch { }
             }
-            catch { }
             return defaultContent;
         }
 
         public void SetHTTP404()
         {
-            HTTP404 = LoadStaticPage("http_404.html", getDefaultHTTP404());
+            // Per-region/robust cute 404: if 404/<region>.html exists (e.g. 404/MainLand01_X2000Y2000.html
+            // or 404/robust.html), prefer it. This makes [Network] http_404 = "404/region.html" work
+            // even though BaseHttpServer is created before RegionInfo is known — the file is found via CWD
+            // (sim CWD = generated/sims/<region>, robust CWD = generated/robust).
+            // Centralized fallback: if CWD has no 404 folder, also check bin/404 (shared folder) so
+            // Robust (CWD=generated/robust) and sims (CWD=bin or generated/sims/...) both resolve.
+            string custom404 = null;
+            try{
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory ?? ".";
+                string[] tryDirs = new string[] {
+                    "404",
+                    System.IO.Path.Combine(baseDir, "404"),
+                    System.IO.Path.Combine(System.IO.Path.Combine(baseDir, "..", "..", "bin"), "404"),
+                    @"H:\grid\igrid-package\bin\404"
+                };
+                var seenDir = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (string d in tryDirs)
+                {
+                    string norm = d;
+                    try { norm = System.IO.Path.GetFullPath(d); } catch { }
+                    if (!seenDir.Add(norm)) continue;
+                    if(System.IO.Directory.Exists(d) || System.IO.Directory.Exists(norm))
+                    {
+                        string dir = System.IO.Directory.Exists(norm) ? norm : d;
+                        var files = System.IO.Directory.GetFiles(dir, "*.html");
+                        if(files.Length == 1) { custom404 = files[0]; break; }
+                        else if(files.Length > 1){
+                            string cwdName = System.IO.Path.GetFileName(System.IO.Directory.GetCurrentDirectory().TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+                            string match = System.IO.Path.Combine(dir, cwdName + ".html");
+                            string matchNorm = match;
+                            try { matchNorm = System.IO.Path.GetFullPath(match); } catch { }
+                            if(System.IO.File.Exists(match) || System.IO.File.Exists(matchNorm)) { custom404 = System.IO.File.Exists(matchNorm) ? matchNorm : match; break; }
+                            // also try robust/singleton name match
+                            string baseName = System.IO.Path.GetFileName(System.IO.Path.GetFileNameWithoutExtension(baseDir));
+                            // Fallback to first file in this dir
+                            custom404 = files[0]; break;
+                        }
+                    }
+                }
+            }catch{}
+            if(!string.IsNullOrEmpty(custom404)){
+                string loaded = LoadStaticPage(custom404, null);
+                if(!string.IsNullOrEmpty(loaded)){ HTTP404 = loaded; }
+                else HTTP404 = LoadStaticPage("http_404.html", getDefaultHTTP404());
+            } else {
+                HTTP404 = LoadStaticPage("http_404.html", getDefaultHTTP404());
+            }
             HTTPWelcome = LoadStaticPage("welcome.html", getDefaultHTTP404());
             HTTPDownloads = LoadStaticPage("downloads.html", getDefaultHTTP404());
             HTTPHelp = LoadStaticPage("help.html", getDefaultHTTP404());
+        }
+
+        public void SetHTTP404(string filename)
+        {
+            if (string.IsNullOrWhiteSpace(filename))
+            {
+                SetHTTP404();
+                return;
+            }
+            // Same central fallback — filename like "404/robust.html" will resolve via bin/404 too
+            string custom = LoadStaticPage(filename, null);
+            if (!string.IsNullOrEmpty(custom)) { HTTP404 = custom; return; }
+            // Try basename in bin/404 if filename was 404/<name>.html and CWD miss
+            try {
+                string fn = System.IO.Path.GetFileName(filename);
+                string bin404 = System.IO.Path.Combine(@"H:\grid\igrid-package\bin\404", fn);
+                if (System.IO.File.Exists(bin404)) {
+                    string c2 = LoadStaticPage(bin404, null);
+                    if (!string.IsNullOrEmpty(c2)) { HTTP404 = c2; return; }
+                }
+            } catch {}
+            HTTP404 = LoadStaticPage("http_404.html", getDefaultHTTP404());
         }
 
         public string GetHTTP404()

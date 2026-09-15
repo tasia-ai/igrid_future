@@ -59,6 +59,11 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         public bool LogHandshake { get; private set; } = true;
         public string CertificatePath { get; private set; } = "";
         public string PrivateKeyPath { get; private set; } = "";
+        /// <summary>
+        /// Password for PKCS#12 (.p12/.pfx) certificate files. Empty for
+        /// passwordless files. Needed for OpenSSL-based MsQuic on Windows 10.
+        /// </summary>
+        public string CertificatePassword { get; private set; } = "";
 
         /// <summary>
         /// Direct Quick-G brain URL used only when Port=0. When blank, the region
@@ -92,6 +97,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             config.LogHandshake = quicConfig.GetBoolean("LogHandshake", config.LogHandshake);
             config.CertificatePath = quicConfig.GetString("CertificatePath", config.CertificatePath);
             config.PrivateKeyPath = quicConfig.GetString("PrivateKeyPath", config.PrivateKeyPath);
+            config.CertificatePassword = quicConfig.GetString("CertificatePassword", config.CertificatePassword);
             config.BrainURL = quicConfig.GetString("BrainURL", config.BrainURL);
             config.BrainPort = quicConfig.GetInt("BrainPort", config.BrainPort);
             config.BrainHeartbeatSeconds = Math.Max(5, quicConfig.GetInt("BrainHeartbeatSeconds", config.BrainHeartbeatSeconds));
@@ -110,49 +116,142 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         /// Load or generate a TLS certificate for QUIC.
         /// If CertificatePath is set, loads from file.
         /// Otherwise generates a self-signed cert for localhost.
+        /// The returned certificate always carries an exportable ephemeral
+        /// private key, which OpenSSL-based MsQuic requires on Windows 10
+        /// (SChannel-backed keys are not usable there).
         /// </summary>
         public X509Certificate2 LoadCertificate()
         {
-            if (!string.IsNullOrEmpty(CertificatePath) && File.Exists(CertificatePath))
-            {
-                if (!string.IsNullOrEmpty(PrivateKeyPath) && File.Exists(PrivateKeyPath))
-                    return X509Certificate2.CreateFromPemFile(CertificatePath, PrivateKeyPath);
+            const X509KeyStorageFlags exportableEphemeral =
+                X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet;
 
-                return new X509Certificate2(CertificatePath);
+            string effCert = EffectiveCertPath();
+            string effKey = EffectiveKeyPath();
+            string effP12 = EffectiveP12Path();
+            if (!string.IsNullOrEmpty(effCert) && File.Exists(effCert))
+            {
+                if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey))
+                {
+                    using (X509Certificate2 pem = X509Certificate2.CreateFromPemFile(effCert, effKey))
+                        return new X509Certificate2(pem.Export(X509ContentType.Pkcs12), (string)null, exportableEphemeral);
+                }
+
+                // P12 fallback ( central bin/SSL/quic/quic-cert.p12 ) if no PEM key
+                if (!string.IsNullOrEmpty(effP12) && File.Exists(effP12))
+                    return new X509Certificate2(effP12, CertificatePassword, exportableEphemeral);
+                return new X509Certificate2(effCert, CertificatePassword, exportableEphemeral);
             }
 
             // Generate a self-signed certificate for development
             return GenerateSelfSignedCertificate();
         }
 
+        private SslStreamCertificateContext m_cachedContext;
+        private DateTime m_certLastWriteUtc = DateTime.MinValue;
+        private DateTime m_keyLastWriteUtc = DateTime.MinValue;
+        private readonly object m_certLock = new();
+
+        // Centralized cert fallback — allows all 30 sims + Robust to share one file in bin/SSL/quic
+        // Renewal then writes once and every handshake picks it up via mtime check. No restart.
+        private static readonly string s_centralCert = @"H:\grid\igrid-package\bin\SSL\quic\quic-cert.pem";
+        private static readonly string s_centralKey = @"H:\grid\igrid-package\bin\SSL\quic\quic-key.pem";
+        private static readonly string s_centralP12 = @"H:\grid\igrid-package\bin\SSL\quic\quic-cert.p12";
+
+        private string EffectiveCertPath()
+        {
+            // Prefer central bin/SSL/quic — single renewal writes once for all 31 processes
+            if (File.Exists(s_centralCert)) return s_centralCert;
+            try { string alt3 = Path.Combine(@"H:\grid\igrid-package\bin", "SSL", "quic", "quic-cert.pem"); if (File.Exists(alt3)) return alt3; } catch { }
+            if (!string.IsNullOrEmpty(CertificatePath) && File.Exists(CertificatePath)) return CertificatePath;
+            try { string alt = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SSL", "quic", "quic-cert.pem"); if (File.Exists(alt)) return alt; } catch { }
+            try { string alt2 = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "bin", "SSL", "quic", "quic-cert.pem")); if (File.Exists(alt2)) return Path.GetFullPath(alt2); } catch { }
+            return CertificatePath;
+        }
+        private string EffectiveKeyPath()
+        {
+            if (File.Exists(s_centralKey)) return s_centralKey;
+            try { string alt3 = Path.Combine(@"H:\grid\igrid-package\bin", "SSL", "quic", "quic-key.pem"); if (File.Exists(alt3)) return alt3; } catch { }
+            if (!string.IsNullOrEmpty(PrivateKeyPath) && File.Exists(PrivateKeyPath)) return PrivateKeyPath;
+            try { string alt = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SSL", "quic", "quic-key.pem"); if (File.Exists(alt)) return alt; } catch { }
+            try { string alt2 = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "bin", "SSL", "quic", "quic-key.pem")); if (File.Exists(alt2)) return Path.GetFullPath(alt2); } catch { }
+            return PrivateKeyPath;
+        }
+        private string EffectiveP12Path()
+        {
+            if (!string.IsNullOrEmpty(CertificatePath) && File.Exists(CertificatePath) && CertificatePath.EndsWith(".p12", StringComparison.OrdinalIgnoreCase)) return CertificatePath;
+            if (File.Exists(s_centralP12)) return s_centralP12;
+            return CertificatePath;
+        }
+
         /// <summary>
         /// Load the TLS certificate context for QUIC, including intermediate
         /// certificates when CertificatePath points at a PEM fullchain file.
+        /// Cached by file mtime — new QUIC handshakes automatically pick up a
+        /// rotated Let's Encrypt cert (monthly) without restarting the sim.
+        /// Thread-safe: OnConnectionOptions is called concurrently per handshake.
         /// </summary>
         public SslStreamCertificateContext LoadCertificateContext()
         {
-            X509Certificate2 certificate = LoadCertificate();
-            X509Certificate2Collection intermediates = new X509Certificate2Collection();
+            string effCert = EffectiveCertPath();
+            string effKey = EffectiveKeyPath();
+            DateTime curCertWrite = DateTime.MinValue;
+            DateTime curKeyWrite = DateTime.MinValue;
+            try { if (!string.IsNullOrEmpty(effCert) && File.Exists(effCert)) curCertWrite = File.GetLastWriteTimeUtc(effCert); } catch { }
+            try { if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey)) curKeyWrite = File.GetLastWriteTimeUtc(effKey); } catch { }
 
-            if (!string.IsNullOrEmpty(CertificatePath) && File.Exists(CertificatePath))
+            lock (m_certLock)
             {
-                try
+                if (m_cachedContext != null && curCertWrite == m_certLastWriteUtc && curKeyWrite == m_keyLastWriteUtc)
+                    return m_cachedContext;
+            }
+
+            // Build fresh outside lock (file I/O + crypto) — if it fails we keep serving old cert.
+            X509Certificate2 certificate;
+            X509Certificate2Collection intermediates = new X509Certificate2Collection();
+            try
+            {
+                certificate = LoadCertificate();
+                string effForChain = EffectiveCertPath();
+                if (!string.IsNullOrEmpty(effForChain) && File.Exists(effForChain))
                 {
-                    X509Certificate2Collection pemCertificates = new X509Certificate2Collection();
-                    pemCertificates.ImportFromPemFile(CertificatePath);
-                    foreach (X509Certificate2 cert in pemCertificates)
+                    try
                     {
-                        if (!string.Equals(cert.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase))
-                            intermediates.Add(cert);
+                        X509Certificate2Collection pemCertificates = new X509Certificate2Collection();
+                        pemCertificates.ImportFromPemFile(effForChain);
+                        foreach (X509Certificate2 cert in pemCertificates)
+                            if (!string.Equals(cert.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase))
+                                intermediates.Add(cert);
                     }
+                    catch { }
                 }
-                catch
+            }
+            catch (Exception ex)
+            {
+                lock (m_certLock)
                 {
-                    // Fall back to the leaf certificate only.
+                    if (m_cachedContext != null)
+                        return m_cachedContext; // keep serving old cert on transient read error
+                    throw; // no cached cert — bubble up
                 }
             }
 
-            return SslStreamCertificateContext.Create(certificate, intermediates, false);
+            var ctx = SslStreamCertificateContext.Create(certificate, intermediates, false);
+            lock (m_certLock)
+            {
+                // Another thread may have already refreshed while we were building — keep newest.
+                if (m_cachedContext == null || curCertWrite != m_certLastWriteUtc || curKeyWrite != m_keyLastWriteUtc)
+                {
+                    m_cachedContext = ctx;
+                    m_certLastWriteUtc = curCertWrite;
+                    m_keyLastWriteUtc = curKeyWrite;
+                }
+                else
+                {
+                    // We raced — return the winner's context and let ours be GC'd.
+                    return m_cachedContext;
+                }
+            }
+            return ctx;
         }
 
         private static X509Certificate2 GenerateSelfSignedCertificate()
@@ -179,7 +278,8 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     DateTimeOffset.UtcNow.AddDays(-1),
                     DateTimeOffset.UtcNow.AddYears(10));
 
-                return new X509Certificate2(certificate.Export(X509ContentType.Pkcs12));
+                return new X509Certificate2(certificate.Export(X509ContentType.Pkcs12), (string)null,
+                    X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
             }
         }
     }

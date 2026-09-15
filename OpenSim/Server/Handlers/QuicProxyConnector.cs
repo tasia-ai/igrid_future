@@ -80,10 +80,50 @@ namespace OpenSim.Server.Handlers
         private string m_alpn = "opensim-ll/1";
         private string m_certPath = "";
         private string m_keyPath = "";
+        private string m_certPassword = "";
         private int m_idleTimeoutMs = 60000;
         private int m_broadcastTimeoutMs = 3000; // max wait for broadcast response
         private int m_quicPoolStart = 0; // first valid simulator QUIC port (0 = no pool validation)
         private int m_quicPoolEnd = 0; // last valid simulator QUIC port
+
+        // Certificate auto-reload (monthly Let's Encrypt rotation)
+        private FileSystemWatcher m_certWatcher;
+        private FileSystemWatcher m_certKeyWatcher;
+        private Timer m_certPollTimer;
+        private DateTime m_certLastWriteUtc = DateTime.MinValue;
+        private DateTime m_keyLastWriteUtc = DateTime.MinValue;
+        private readonly object m_certWatcherLock = new();
+
+        // Centralized cert fallback — one file in bin/SSL/quic serves Robust + all 30 sims
+        private static readonly string s_centralCert = @"H:\grid\igrid-package\bin\SSL\quic\quic-cert.pem";
+        private static readonly string s_centralKey = @"H:\grid\igrid-package\bin\SSL\quic\quic-key.pem";
+        private static readonly string s_centralP12 = @"H:\grid\igrid-package\bin\SSL\quic\quic-cert.p12";
+        private FileSystemWatcher m_centralCertWatcher;
+        private FileSystemWatcher m_centralKeyWatcher;
+        private string EffectiveCertPathRO()
+        {
+            if (File.Exists(s_centralCert)) return s_centralCert;
+            try { string a3 = Path.Combine(@"H:\grid\igrid-package\bin", "SSL", "quic", "quic-cert.pem"); if (File.Exists(a3)) return a3; } catch { }
+            if (!string.IsNullOrEmpty(m_certPath) && File.Exists(m_certPath)) return m_certPath;
+            try { string a = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SSL", "quic", "quic-cert.pem"); if (File.Exists(a)) return a; } catch { }
+            try { string a2 = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "bin", "SSL", "quic", "quic-cert.pem")); if (File.Exists(a2)) return Path.GetFullPath(a2); } catch { }
+            return m_certPath;
+        }
+        private string EffectiveKeyPathRO()
+        {
+            if (File.Exists(s_centralKey)) return s_centralKey;
+            try { string a3 = Path.Combine(@"H:\grid\igrid-package\bin", "SSL", "quic", "quic-key.pem"); if (File.Exists(a3)) return a3; } catch { }
+            if (!string.IsNullOrEmpty(m_keyPath) && File.Exists(m_keyPath)) return m_keyPath;
+            try { string a = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SSL", "quic", "quic-key.pem"); if (File.Exists(a)) return a; } catch { }
+            try { string a2 = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "bin", "SSL", "quic", "quic-key.pem")); if (File.Exists(a2)) return Path.GetFullPath(a2); } catch { }
+            return m_keyPath;
+        }
+        private string EffectiveP12PathRO()
+        {
+            if (!string.IsNullOrEmpty(m_certPath) && File.Exists(m_certPath) && m_certPath.EndsWith(".p12", StringComparison.OrdinalIgnoreCase)) return m_certPath;
+            if (File.Exists(s_centralP12)) return s_centralP12;
+            return m_certPath;
+        }
 
         private QuicListener m_listener;
         private CancellationTokenSource m_cts;
@@ -132,6 +172,7 @@ namespace OpenSim.Server.Handlers
                 m_alpn = quicConfig.GetString("ALPN", m_alpn);
                 m_certPath = quicConfig.GetString("CertificatePath", m_certPath);
                 m_keyPath = quicConfig.GetString("PrivateKeyPath", m_keyPath);
+                m_certPassword = quicConfig.GetString("CertificatePassword", m_certPassword);
                 m_idleTimeoutMs = quicConfig.GetInt("IdleTimeoutMs", m_idleTimeoutMs);
                 m_broadcastTimeoutMs = quicConfig.GetInt("BroadcastTimeoutMs", m_broadcastTimeoutMs);
                 m_quicPoolStart = quicConfig.GetInt("QuicPoolStart", m_quicPoolStart);
@@ -161,6 +202,7 @@ namespace OpenSim.Server.Handlers
                 {
                     m_log.Info($"[QuicProxy] Starting QUIC proxy on port {m_listenPort}...");
                     StartListener();
+                    StartCertificateWatcher();
                 }
             }
             catch (Exception ex)
@@ -621,6 +663,14 @@ namespace OpenSim.Server.Handlers
 
                 if (quicEndpoint == null)
                 {
+                    // No native QUIC backend for this circuit: fall back to the
+                    // pre-registered LLUDP endpoint (Quick-G semantics). The sim
+                    // accepts bridged loopback traffic and completes quicready.
+                    if (QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint simUdpEndpoint))
+                    {
+                        await BridgeViewerQuicToSimUdpAsync(viewerConn, viewerStream, circuitCode, firstPayload, simUdpEndpoint, ct);
+                        return;
+                    }
                     m_log.Warn($"[QuicProxy] No QUIC route for circuit {circuitCode} after wait, dropping connection");
                     return;
                 }
@@ -645,13 +695,49 @@ namespace OpenSim.Server.Handlers
                     IdleTimeout = TimeSpan.FromMilliseconds(m_idleTimeoutMs)
                 };
 
-                QuicConnection simConn = await QuicConnection.ConnectAsync(simConnOptions, ct);
-                QuicStream simStream = await simConn.OpenOutboundStreamAsync(QuicStreamType.Bidirectional, ct);
+                QuicConnection simConn = null;
+                QuicStream simStream = null;
+                try
+                {
+                    simConn = await QuicConnection.ConnectAsync(simConnOptions, ct);
+                    simStream = await simConn.OpenOutboundStreamAsync(QuicStreamType.Bidirectional, ct);
+                }
+                catch (Exception ex)
+                {
+                    m_log.Warn($"[QuicProxy] QUIC connect to {quicEndpoint} for circuit {circuitCode} failed: {ex.GetType().Name}: {ex.Message}, falling back to LLUDP bridge");
+                    try { if (simConn != null) await simConn.DisposeAsync(); } catch { }
+                    // Explicit fallback: viewer QUIC -> sim LLUDP (existing fallback path) instead of dropping
+                    if (QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint simUdpFallback))
+                    {
+                        m_log.Info($"[QuicProxy] Circuit {circuitCode} falling back to LLUDP bridge {simUdpFallback} after QUIC failure");
+                        await BridgeViewerQuicToSimUdpAsync(viewerConn, viewerStream, circuitCode, firstPayload, simUdpFallback, ct);
+                        return;
+                    }
+                    m_log.Warn($"[QuicProxy] No LLUDP fallback route for circuit {circuitCode} after QUIC failure, dropping");
+                    return;
+                }
 
                 // Forward the first UseCircuitCode packet to the sim (reframe it back)
                 byte[] framedFirst = FramePacket(firstPayload);
-                await simStream.WriteAsync(framedFirst.AsMemory(0, framedFirst.Length), ct);
-                await simStream.FlushAsync(ct);
+                try
+                {
+                    await simStream.WriteAsync(framedFirst.AsMemory(0, framedFirst.Length), ct);
+                    await simStream.FlushAsync(ct);
+                }
+                catch (Exception ex)
+                {
+                    m_log.Warn($"[QuicProxy] QUIC write to {quicEndpoint} for circuit {circuitCode} failed: {ex.GetType().Name}: {ex.Message}, falling back to LLUDP bridge");
+                    try { simStream?.Dispose(); } catch { }
+                    try { if (simConn != null) await simConn.DisposeAsync(); } catch { }
+                    if (QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint simUdpFallback2))
+                    {
+                        m_log.Info($"[QuicProxy] Circuit {circuitCode} falling back to LLUDP bridge {simUdpFallback2} after QUIC write failure");
+                        await BridgeViewerQuicToSimUdpAsync(viewerConn, viewerStream, circuitCode, firstPayload, simUdpFallback2, ct);
+                        return;
+                    }
+                    m_log.Warn($"[QuicProxy] No LLUDP fallback route for circuit {circuitCode} after QUIC write failure, dropping");
+                    return;
+                }
 
                 session = new ProxySession
                 {
@@ -968,6 +1054,220 @@ namespace OpenSim.Server.Handlers
         private SslStreamCertificateContext m_cachedCertContext;
         private readonly object m_certLock = new();
 
+        #region Certificate auto-reload (Let's Encrypt monthly rotation)
+
+        private void StartCertificateWatcher()
+        {
+            try
+            {
+                string watchCert = EffectiveCertPathRO();
+                string watchKey = EffectiveKeyPathRO();
+                if (string.IsNullOrEmpty(watchCert) || !File.Exists(watchCert))
+                    return;
+
+                lock (m_certWatcherLock)
+                {
+                    try { m_certLastWriteUtc = File.GetLastWriteTimeUtc(watchCert); } catch { }
+                    if (!string.IsNullOrEmpty(watchKey) && File.Exists(watchKey))
+                        try { m_keyLastWriteUtc = File.GetLastWriteTimeUtc(watchKey); } catch { }
+
+                    string dir = Path.GetDirectoryName(watchCert);
+                    string file = Path.GetFileName(watchCert);
+                    if (!string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(file) && Directory.Exists(dir))
+                    {
+                        m_certWatcher?.Dispose();
+                        m_certWatcher = new FileSystemWatcher(dir, file)
+                        {
+                            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime,
+                            EnableRaisingEvents = true
+                        };
+                        m_certWatcher.Changed += OnCertFileChanged;
+                        m_certWatcher.Created += OnCertFileChanged;
+                        m_certWatcher.Renamed += OnCertFileChanged;
+                    }
+
+                    if (!string.IsNullOrEmpty(watchKey) && File.Exists(watchKey)
+                        && !string.Equals(watchCert, watchKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string kdir = Path.GetDirectoryName(watchKey);
+                        string kfile = Path.GetFileName(watchKey);
+                        if (!string.IsNullOrEmpty(kdir) && !string.IsNullOrEmpty(kfile) && Directory.Exists(kdir))
+                        {
+                            m_certKeyWatcher?.Dispose();
+                            m_certKeyWatcher = new FileSystemWatcher(kdir, kfile)
+                            {
+                                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime,
+                                EnableRaisingEvents = true
+                            };
+                            m_certKeyWatcher.Changed += OnCertFileChanged;
+                            m_certKeyWatcher.Created += OnCertFileChanged;
+                            m_certKeyWatcher.Renamed += OnCertFileChanged;
+                        }
+                    }
+
+                    // Always watch central bin/SSL/quic (single-write renewal path)
+                    try
+                    {
+                        if (File.Exists(s_centralCert) && !string.Equals(s_centralCert, watchCert, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string cdir = Path.GetDirectoryName(s_centralCert);
+                            string cfile = Path.GetFileName(s_centralCert);
+                            if (!string.IsNullOrEmpty(cdir) && !string.IsNullOrEmpty(cfile) && Directory.Exists(cdir))
+                            {
+                                m_centralCertWatcher?.Dispose();
+                                m_centralCertWatcher = new FileSystemWatcher(cdir, cfile) { NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime, EnableRaisingEvents = true };
+                                m_centralCertWatcher.Changed += OnCertFileChanged; m_centralCertWatcher.Created += OnCertFileChanged; m_centralCertWatcher.Renamed += OnCertFileChanged;
+                            }
+                        }
+                        if (File.Exists(s_centralKey) && !string.Equals(s_centralKey, watchKey, StringComparison.OrdinalIgnoreCase) && !string.Equals(s_centralKey, s_centralCert, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string kdir = Path.GetDirectoryName(s_centralKey);
+                            string kfile = Path.GetFileName(s_centralKey);
+                            if (!string.IsNullOrEmpty(kdir) && !string.IsNullOrEmpty(kfile) && Directory.Exists(kdir))
+                            {
+                                m_centralKeyWatcher?.Dispose();
+                                m_centralKeyWatcher = new FileSystemWatcher(kdir, kfile) { NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime, EnableRaisingEvents = true };
+                                m_centralKeyWatcher.Changed += OnCertFileChanged; m_centralKeyWatcher.Created += OnCertFileChanged; m_centralKeyWatcher.Renamed += OnCertFileChanged;
+                            }
+                        }
+                    } catch { }
+
+                    m_certPollTimer?.Dispose();
+                    m_certPollTimer = new Timer(_ => CheckCertFilePoll(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+                }
+
+                m_log.Info($"[QuicProxy] Certificate watcher active for {watchCert} (and central {s_centralCert} auto-reload on rotation)");
+            }
+            catch (Exception ex)
+            {
+                m_log.Warn($"[QuicProxy] Certificate watcher failed: {ex.Message}");
+            }
+        }
+
+        private void OnCertFileChanged(object sender, FileSystemEventArgs e)
+        {
+            // Debounce: cert writers (acme.sh / certbot) do atomic rename + chmod, fire multiple events.
+            Task.Delay(800).ContinueWith(_ => TryReloadCertificate($"file watcher {e.ChangeType} {e.Name}"));
+        }
+
+        private void CheckCertFilePoll()
+        {
+            try
+            {
+                string eff = EffectiveCertPathRO();
+                string effKey = EffectiveKeyPathRO();
+                DateTime cur = DateTime.MinValue, curKey = DateTime.MinValue;
+                try { if (!string.IsNullOrEmpty(eff) && File.Exists(eff)) cur = File.GetLastWriteTimeUtc(eff); } catch { return; }
+                if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey)) try { curKey = File.GetLastWriteTimeUtc(effKey); } catch { }
+                if (cur != m_certLastWriteUtc || curKey != m_keyLastWriteUtc)
+                    TryReloadCertificate("poll mtime change");
+            }
+            catch { }
+        }
+
+        private void TryReloadCertificate(string reason)
+        {
+            lock (m_certLock)
+            {
+                try
+                {
+                    string eff = EffectiveCertPathRO();
+                    string effKey = EffectiveKeyPathRO();
+                    DateTime cur = DateTime.MinValue, curKey = DateTime.MinValue;
+                    try { if (!string.IsNullOrEmpty(eff) && File.Exists(eff)) cur = File.GetLastWriteTimeUtc(eff); } catch { }
+                    try { if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey)) curKey = File.GetLastWriteTimeUtc(effKey); } catch { }
+                    if (cur == m_certLastWriteUtc && curKey == m_keyLastWriteUtc && m_cachedCertContext != null)
+                        return;
+                }
+                catch { }
+            }
+
+            try
+            {
+                // Build fresh context without touching cache first — if it fails we keep serving old cert.
+                var fresh = BuildFreshCertificateContext();
+                lock (m_certLock)
+                {
+                    m_cachedCertContext = fresh.ctx;
+                    m_certLastWriteUtc = fresh.certWrite;
+                    m_keyLastWriteUtc = fresh.keyWrite;
+                }
+                m_log.Info($"[QuicProxy] Certificate reloaded ({reason}) leaf={fresh.ctx.TargetCertificate?.Subject ?? "?"} intermediates={fresh.intermediateCount} — new QUIC handshakes will use rotated cert");
+            }
+            catch (Exception ex)
+            {
+                m_log.Error($"[QuicProxy] Certificate reload failed ({reason}): {ex.Message}");
+            }
+        }
+
+        private (SslStreamCertificateContext ctx, DateTime certWrite, DateTime keyWrite, int intermediateCount) BuildFreshCertificateContext()
+        {
+            const X509KeyStorageFlags exportableEphemeral = X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet;
+            X509Certificate2 certificate;
+            X509Certificate2Collection intermediates = new();
+            string eff = EffectiveCertPathRO();
+            string effKey = EffectiveKeyPathRO();
+            string effP12 = EffectiveP12PathRO();
+
+            if (!string.IsNullOrEmpty(eff) && File.Exists(eff))
+            {
+                if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey))
+                {
+                    using (X509Certificate2 pem = X509Certificate2.CreateFromPemFile(eff, effKey))
+                        certificate = new X509Certificate2(pem.Export(X509ContentType.Pkcs12), (string)null, exportableEphemeral);
+                }
+                else if (!string.IsNullOrEmpty(effP12) && File.Exists(effP12))
+                    certificate = new X509Certificate2(effP12, m_certPassword, exportableEphemeral);
+                else
+                    certificate = new X509Certificate2(eff, m_certPassword, exportableEphemeral);
+
+                try
+                {
+                    X509Certificate2Collection pemCertificates = new();
+                    pemCertificates.ImportFromPemFile(eff);
+                    foreach (X509Certificate2 c in pemCertificates)
+                        if (!string.Equals(c.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase))
+                            intermediates.Add(c);
+                }
+                catch { }
+            }
+            else
+            {
+                certificate = GenerateSelfSignedCertificate();
+            }
+
+            var ctx = SslStreamCertificateContext.Create(certificate, intermediates.Count > 0 ? intermediates : null, false);
+            DateTime cw = DateTime.MinValue, kw = DateTime.MinValue;
+            try { if (!string.IsNullOrEmpty(eff) && File.Exists(eff)) cw = File.GetLastWriteTimeUtc(eff); } catch { }
+            try { if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey)) kw = File.GetLastWriteTimeUtc(effKey); } catch { }
+            // If we fell back to central, use central mtimes for cache comparison
+            if (File.Exists(s_centralCert) && (eff == s_centralCert || string.IsNullOrEmpty(m_certPath) || !File.Exists(m_certPath)))
+            {
+                try { cw = File.GetLastWriteTimeUtc(s_centralCert); } catch { }
+                try { kw = File.GetLastWriteTimeUtc(s_centralKey); } catch { }
+            }
+            return (ctx, cw, kw, intermediates.Count);
+        }
+
+        private void StopCertificateWatcher()
+        {
+            lock (m_certWatcherLock)
+            {
+                try { m_certPollTimer?.Dispose(); } catch { }
+                m_certPollTimer = null;
+                try { if (m_certWatcher != null) { m_certWatcher.EnableRaisingEvents = false; m_certWatcher.Dispose(); } } catch { }
+                m_certWatcher = null;
+                try { if (m_certKeyWatcher != null) { m_certKeyWatcher.EnableRaisingEvents = false; m_certKeyWatcher.Dispose(); } } catch { }
+                m_certKeyWatcher = null;
+                try { if (m_centralCertWatcher != null) { m_centralCertWatcher.EnableRaisingEvents = false; m_centralCertWatcher.Dispose(); } } catch { }
+                m_centralCertWatcher = null;
+                try { if (m_centralKeyWatcher != null) { m_centralKeyWatcher.EnableRaisingEvents = false; m_centralKeyWatcher.Dispose(); } } catch { }
+                m_centralKeyWatcher = null;
+            }
+        }
+
+        #endregion
+
         /// <summary>
         /// Load the TLS certificate context for QUIC, including intermediate
         /// CA certificates from the fullchain PEM file.
@@ -990,25 +1290,38 @@ namespace OpenSim.Server.Handlers
                 X509Certificate2 certificate;
                 X509Certificate2Collection intermediates = new();
 
-                if (!string.IsNullOrEmpty(m_certPath) && System.IO.File.Exists(m_certPath))
+                // The leaf always ends up with an exportable ephemeral key,
+                // which OpenSSL-based MsQuic requires on Windows 10
+                // (SChannel-backed keys are not usable there).
+                const X509KeyStorageFlags exportableEphemeral =
+                    X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet;
+
+                string effLC = EffectiveCertPathRO();
+                string effLK = EffectiveKeyPathRO();
+                string effLP12 = EffectiveP12PathRO();
+                if (!string.IsNullOrEmpty(effLC) && System.IO.File.Exists(effLC))
                 {
-                    if (!string.IsNullOrEmpty(m_keyPath) && System.IO.File.Exists(m_keyPath))
-                        certificate = X509Certificate2.CreateFromPemFile(m_certPath, m_keyPath);
+                    if (!string.IsNullOrEmpty(effLK) && System.IO.File.Exists(effLK))
+                    {
+                        using (X509Certificate2 pem = X509Certificate2.CreateFromPemFile(effLC, effLK))
+                            certificate = new X509Certificate2(pem.Export(X509ContentType.Pkcs12), (string)null, exportableEphemeral);
+                    }
+                    else if (!string.IsNullOrEmpty(effLP12) && System.IO.File.Exists(effLP12))
+                        certificate = new X509Certificate2(effLP12, m_certPassword, exportableEphemeral);
                     else
-                        certificate = new X509Certificate2(m_certPath);
+                        certificate = new X509Certificate2(effLC, m_certPassword, exportableEphemeral);
 
                     // Load the full chain from the fullchain PEM to extract intermediate CA certs.
-                    // This is the same approach as QuicServerConfig.LoadCertificateContext().
                     try
                     {
                         X509Certificate2Collection pemCertificates = new();
-                        pemCertificates.ImportFromPemFile(m_certPath);
+                        pemCertificates.ImportFromPemFile(effLC);
                         foreach (X509Certificate2 c in pemCertificates)
                         {
                             if (!string.Equals(c.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase))
                                 intermediates.Add(c);
                         }
-                        m_log.Info($"[QuicProxy] Loaded {intermediates.Count} intermediate CA cert(s) from {m_certPath}");
+                        m_log.Info($"[QuicProxy] Loaded {intermediates.Count} intermediate CA cert(s) from {effLC}");
                     }
                     catch (Exception ex)
                     {
@@ -1053,8 +1366,92 @@ namespace OpenSim.Server.Handlers
                     DateTimeOffset.UtcNow.AddDays(-1),
                     DateTimeOffset.UtcNow.AddYears(10));
 
-                return new X509Certificate2(cert.Export(X509ContentType.Pkcs12));
+                return new X509Certificate2(cert.Export(X509ContentType.Pkcs12), (string)null,
+                    X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
             }
+        }
+
+        /// <summary>
+        /// Bridge a viewer QUIC stream to a sim LLUDP endpoint (Quick-G semantics).
+        /// Used when no native QUIC backend is registered for the circuit.
+        /// The route is fixed for the stream lifetime; teleports and logins
+        /// open new streams which resolve the then-current route.
+        /// </summary>
+        private async Task BridgeViewerQuicToSimUdpAsync(
+            QuicConnection viewerConn, QuicStream viewerStream, uint circuitCode,
+            byte[] firstPayload, IPEndPoint simEndpoint, CancellationToken ct)
+        {
+            m_log.Info($"[QuicProxy] Bridging circuit {circuitCode} viewer QUIC -> sim LLUDP {simEndpoint} (no QUIC backend registered)");
+            using var udp = new UdpClient();
+            try
+            {
+                udp.Connect(simEndpoint);
+                await udp.SendAsync(firstPayload, firstPayload.Length);
+            }
+            catch (Exception ex)
+            {
+                m_log.Warn($"[QuicProxy] Circuit {circuitCode} UDP bridge setup to {simEndpoint} failed: {ex.Message}");
+                return;
+            }
+
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var viewerToSim = Task.Run(async () =>
+            {
+                try
+                {
+                    byte[] header = new byte[4];
+                    while (!linked.Token.IsCancellationRequested)
+                    {
+                        int headerRead = await ReadExactlyAsync(viewerStream, header, 0, 4, linked.Token);
+                        if (headerRead < 4)
+                            break;
+                        int payloadLen = (header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3];
+                        if (payloadLen <= 0 || payloadLen > 64 * 1024)
+                            break;
+                        byte[] payload = new byte[payloadLen];
+                        int payloadRead = await ReadExactlyAsync(viewerStream, payload, 0, payloadLen, linked.Token);
+                        if (payloadRead < payloadLen)
+                            break;
+                        await udp.SendAsync(payload, payload.Length);
+                    }
+                }
+                catch { }
+            }, linked.Token);
+            var simToViewer = Task.Run(async () =>
+            {
+                try
+                {
+                    udp.Client.ReceiveTimeout = 1000;
+                    byte[] buf = new byte[65536];
+                    while (!linked.Token.IsCancellationRequested)
+                    {
+                        int n;
+                        try
+                        {
+                            EndPoint remote = new IPEndPoint(IPAddress.Any, 0);
+                            n = udp.Client.ReceiveFrom(buf, 0, buf.Length, SocketFlags.None, ref remote);
+                        }
+                        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.TimedOut)
+                        {
+                            continue;
+                        }
+                        if (n <= 0)
+                            break;
+                        byte[] framed = new byte[4 + n];
+                        framed[0] = (byte)((n >> 24) & 0xFF);
+                        framed[1] = (byte)((n >> 16) & 0xFF);
+                        framed[2] = (byte)((n >> 8) & 0xFF);
+                        framed[3] = (byte)(n & 0xFF);
+                        Buffer.BlockCopy(buf, 0, framed, 4, n);
+                        await viewerStream.WriteAsync(framed.AsMemory(0, framed.Length), linked.Token);
+                        await viewerStream.FlushAsync(linked.Token);
+                    }
+                }
+                catch { }
+            }, linked.Token);
+            await Task.WhenAny(viewerToSim, simToViewer);
+            linked.Cancel();
+            try { await Task.WhenAll(viewerToSim, simToViewer); } catch { }
         }
 
         #region Stream helpers

@@ -471,6 +471,20 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                     "[ENTITY TRANSFER MODULE]: Aborted teleport request from {0} in {1} due to simultaneous logout",
                     client.Name, m_sceneName);
             }
+
+            // Teleport-out / disconnect cleanup: ensure the proxy no longer
+            // routes this circuit to the departing sim. Without this, a
+            // pre-registered foreign route (or a stale local route after a
+            // successful teleport) shadows the viewer's new direct route.
+            // Use exact-match unregister so a concurrent teleport re-register
+            // from the destination is not accidentally removed (TTL is handled
+            // by the proxy's own expiry; this is the explicit close path).
+            try
+            {
+                if (client != null && client.CircuitCode != 0)
+                    UnregisterQuicCircuitWithProxy(client.CircuitCode, "connection-closed");
+            }
+            catch { }
         }
 
         private void OnClientCancelTeleport(IClientAPI client)
@@ -1162,6 +1176,17 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 if (!m_scene.IncomingPreCloseClient(sp))
                     return;
 
+                // Unregister QUIC circuit from the departing sim before CloseAgent
+                // so the proxy no longer shadows the viewer's new direct route.
+                // Exact-match unregister (simHost/simPort) protects a concurrent
+                // re-register from the destination region.
+                try
+                {
+                    uint cc = sp.ControllingClient != null ? sp.ControllingClient.CircuitCode : agentCircuit.circuitcode;
+                    UnregisterQuicCircuitWithProxy(cc, "teleport-v1-close");
+                }
+                catch { }
+
                 // We need to delay here because Imprudence viewers, unlike v1 or v3, have a short (<200ms, <500ms) delay before
                 // they regard the new region as the current region after receiving the AgentMovementComplete
                 // response.  If close is sent before then, it will cause the viewer to quit instead.
@@ -1354,6 +1379,17 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 {
                     m_log.DebugFormat(
                         "[ENTITY TRANSFER MODULE]: Closing agent {0} in {1} after teleport {2}", sp.Name, m_sceneName, sp.IsInTransit?"timeout":"");
+
+                    // Unregister QUIC circuit from the departing sim before CloseAgent
+                    // to remove the stale local route after a teleport. Exact-match
+                    // unregister avoids deleting a fresh destination registration.
+                    try
+                    {
+                        uint cc = sp.ControllingClient != null ? sp.ControllingClient.CircuitCode : agentCircuit.circuitcode;
+                        UnregisterQuicCircuitWithProxy(cc, "teleport-v2-close");
+                    }
+                    catch { }
+
                     m_scene.CloseAgent(spUUID, false);
                 }
                 return;
@@ -1417,6 +1453,18 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 IPEndPoint simEndpoint = destination.ExternalEndPoint;
                 if (simEndpoint == null || simEndpoint.Port <= 0)
                     return;
+
+                // Outgoing HG teleport shadowing fix: never pre-register a
+                // FOREIGN destination's route locally. It would shadow the
+                // viewer's fresh direct QUIC route to the foreign grid and
+                // make the local proxy try QUIC->QUIC to an unreachable
+                // foreign sim instead of bridging to LLUDP or dropping.
+                if (IsForeignDestination(destination))
+                {
+                    m_log.InfoFormat("{0} Skipping QUIC proxy pre-registration for foreign destination {1} ({2}) during {3} (foreign grid, root flip would shadow viewer's direct route)",
+                        LogHeader, destination.RegionName, destination.ServerURI, context);
+                    return;
+                }
 
                 // Teleport contexts move the root agent: bridges must accept
                 // the route flip. Neighbour/far-child contexts only set up a
@@ -1502,6 +1550,131 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
             // A quicPort is only ever sent when it is explicitly configured
             // for the destination region.
             return 0;
+        }
+
+        private bool IsForeignDestination(GridRegion destination)
+        {
+            if (destination == null)
+                return false;
+
+            try
+            {
+                // Primary predicate: compare destination ServerURI against the
+                // local grid's GatekeeperURI/HomeURI via GridInfo.IsLocalGrid.
+                // HGEntityTransferModule uses the same IsLocalGrid / RegionFlags
+                // Hyperlink checks to decide foreign vs local; we mirror that
+                // here so the decision is consistent across the transfer stack.
+                if (m_thisGridInfo != null && !string.IsNullOrWhiteSpace(destination.ServerURI))
+                {
+                    int isLocal = m_thisGridInfo.IsLocalGrid(destination.ServerURI);
+                    if (isLocal == 0)
+                        return true; // foreign grid
+                    if (isLocal == 1)
+                        return false; // local grid
+                    // -1 bad url, -2 dns failed => fall through to flags check
+                }
+
+                // Fallback/Secondary: GridService RegionFlags.Hyperlink or
+                // missing region (-1) indicates a hyperlink/foreign region.
+                // This matches HGEntityTransferModule.GetFinalDestination /
+                // NeedsClosing which treat flags==-1 or Hyperlink as HG.
+                if (m_scene != null && m_scene.GridService != null && m_sceneRegionInfo != null)
+                {
+                    int flags = m_scene.GridService.GetRegionFlags(m_sceneRegionInfo.ScopeID, destination.RegionID);
+                    if (flags == -1)
+                        return true;
+                    if ((flags & (int)OpenSim.Framework.RegionFlags.Hyperlink) != 0)
+                        return true;
+                }
+
+                // Tertiary: explicit ExternalHostName comparison against
+                // GatekeeperURI host when ServerURI is empty/unparsable.
+                if (m_thisGridInfo != null && !string.IsNullOrWhiteSpace(destination.ExternalHostName))
+                {
+                    string gatekeeperHost = string.Empty;
+                    try { gatekeeperHost = new Uri(m_thisGridInfo.GateKeeperURL).Host; } catch { }
+                    if (!string.IsNullOrWhiteSpace(gatekeeperHost) &&
+                        !string.Equals(destination.ExternalHostName, gatekeeperHost, StringComparison.OrdinalIgnoreCase) &&
+                        m_thisGridInfo.IsLocalGrid("http://" + destination.ExternalHostName + "/") == 0)
+                        return true;
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
+
+        private void UnregisterQuicCircuitWithProxy(uint circuitCode, string context)
+        {
+            if (circuitCode == 0 || string.IsNullOrWhiteSpace(m_quicProxyRegistrationUrl))
+                return;
+
+            try
+            {
+                string url = m_quicProxyRegistrationUrl.TrimEnd('/') + "/unregister";
+                var payload = new OMVOSDMap
+                {
+                    ["circuitCode"] = OMVOSD.FromInteger((int)circuitCode)
+                };
+
+                // Include source sim endpoints so the proxy can do exact-match
+                // unregister (TryUnregisterIfMatches) and avoid removing a
+                // freshly re-registered destination route after teleport.
+                try
+                {
+                    if (m_sceneRegionInfo != null)
+                    {
+                        IPEndPoint simEp = null;
+                        try { simEp = m_sceneRegionInfo.ExternalEndPoint; } catch { }
+                        if (simEp != null && simEp.Port > 0)
+                        {
+                            string host = m_sceneRegionInfo.ExternalHostName;
+                            if (string.IsNullOrWhiteSpace(host))
+                                host = simEp.Address.ToString();
+                            payload["simHost"] = OMVOSD.FromString(host);
+                            payload["simPort"] = OMVOSD.FromInteger(simEp.Port);
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(m_sceneRegionInfo.QuicHost) && m_sceneRegionInfo.QuicPort > 0)
+                        {
+                            payload["quicHost"] = OMVOSD.FromString(m_sceneRegionInfo.QuicHost);
+                            payload["quicPort"] = OMVOSD.FromInteger((int)m_sceneRegionInfo.QuicPort);
+                        }
+                        else if (m_sceneRegionInfo.QuicPort > 0)
+                        {
+                            string qh = m_sceneRegionInfo.ExternalHostName;
+                            if (!string.IsNullOrWhiteSpace(qh))
+                            {
+                                payload["quicHost"] = OMVOSD.FromString(qh);
+                                payload["quicPort"] = OMVOSD.FromInteger((int)m_sceneRegionInfo.QuicPort);
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // Proxy ignores blind unregisters (no endpoint) to avoid teleport
+                // races; ensure at least one endpoint is present if possible.
+                // If we still have no endpoint, send anyway – the proxy will
+                // log and ignore, but we also clear the local registry below.
+                string json = OMVOSDParser.SerializeJsonString(payload);
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                HttpResponseMessage resp = s_quicProxyHttpClient.PostAsync(url, content).GetAwaiter().GetResult();
+                if (resp.IsSuccessStatusCode)
+                    m_log.DebugFormat("{0} Unregistered QUIC circuit {1} from {2} during {3}", LogHeader, circuitCode, m_sceneName, context ?? "teleport-out");
+                else
+                    m_log.WarnFormat("{0} QUIC proxy unregister returned {1} for circuit {2} during {3}", LogHeader, resp.StatusCode, circuitCode, context ?? "teleport-out");
+            }
+            catch (Exception ex)
+            {
+                m_log.WarnFormat("{0} Failed to unregister QUIC circuit {1} during {2}: {3}", LogHeader, circuitCode, context ?? "teleport-out", ex.Message);
+            }
+
+            // Also clear any local in-process registry (harmless when sim and
+            // ROBUST are separate processes; needed for Robust-in-sim tests).
+            try { OpenSim.Framework.QuicCircuitRegistry.Unregister(circuitCode); } catch { }
         }
 
         protected virtual bool CreateAgent(ScenePresence sp, GridRegion reg, GridRegion finalDestination, AgentCircuitData agentCircuit, uint teleportFlags, EntityTransferContext ctx, out string reason, out bool logout)

@@ -285,15 +285,15 @@
     AdvertiseHost = "{{REGION_HOST}}"
     AdvertisePort = {{QUIC_PORT}}
     Port = {{QUIC_PORT}}
-    CertificatePath = "./SSL/quic/quic-cert.p12"
+    CertificatePath = "{{CENTRAL_QUIC_P12}}"
     CertificatePassword = "{{QUIC_CERT_PASS}}"
 
 [QuicProxy]
     Enabled = true
     Port = {{QUIC_PORT}}
     ALPN = opensim-ll/1
-    CertificatePath = SSL/quic/quic-cert.pem
-    PrivateKeyPath = SSL/quic/quic-key.pem
+    CertificatePath = {{CENTRAL_QUIC_PEM}}
+    PrivateKeyPath = {{CENTRAL_QUIC_KEY}}
     ; Password for PKCS#12 files (same cert as [ClientStack.Quic]).
     ; Needed so the native QUIC listener can load exportable keys for
     ; OpenSSL-based MsQuic on Windows 10.
@@ -333,6 +333,6 @@
     ; Quick-G is mandatory. If it fails, Robust QUIC startup pauses.
     AllowNativeQuicFallback = false
 
-    CertificatePath = SSL/quic/quic-cert.pem
-    PrivateKeyPath = SSL/quic/quic-key.pem
+    CertificatePath = {{CENTRAL_QUIC_PEM}}
+    PrivateKeyPath = {{CENTRAL_QUIC_KEY}}
     ALPN = opensim-ll/1

@@ -189,6 +189,10 @@ def main():
     os.makedirs(os.path.join(out, "robust", "SSL", "quic"), exist_ok=True)
     os.makedirs(os.path.join(out, "asset", "data"), exist_ok=True)
     os.makedirs(os.path.join(out, "hg"), exist_ok=True)
+    # Centralized QUIC cert — single renewal writes once for Robust + all 30 sims.
+    # Sims and Robust hot-reload via mtime/FileSystemWatcher; no restart.
+    central_quic_dir = os.path.join(ROOT, "bin", "SSL", "quic")
+    os.makedirs(central_quic_dir, exist_ok=True)
 
     db_provider = cfg.get("db", {}).get("provider", "SQLite")
     if db_provider == "SQLite":
@@ -217,10 +221,30 @@ def main():
             user=m.get("user", "opensim"), pw=m.get("password", "opensim"))
 
     console_pass = secrets.token_urlsafe(18)
-    quic_cert_pass = secrets.token_hex(16)
-    # QUIC_REAL_CERT=1 keeps a real (e.g. Let's Encrypt) certificate in
-    # generated/robust/SSL/quic/ instead of overwriting it with self-signed.
     quic_real_cert = os.environ.get("QUIC_REAL_CERT", "").lower() in ("1", "true", "yes")
+    # When keeping a real cert, reuse the existing p12 password so the central
+    # quic-cert.p12 doesn't invalidate on every regeneration (renewal writes
+    # once to bin/SSL/quic/ then all handshakes hot-reload via mtime).
+    if quic_real_cert:
+        try:
+            _existing_robust = os.path.join(out, "robust", "Robust.ini")
+            if os.path.isfile(_existing_robust):
+                with open(_existing_robust, encoding="utf-8", errors="ignore") as _f:
+                    _txt = _f.read()
+                    import re as _re
+                    _m = _re.search(r'CertificatePassword\s*=\s*"?([0-9a-f]{16,})"?', _txt)
+                    if _m:
+                        quic_cert_pass = _m.group(1)
+                        print(f"QUIC cert password: reusing existing {quic_cert_pass[:6]}… from Robust.ini")
+                    else:
+                        quic_cert_pass = secrets.token_hex(16)
+                    del _txt, _m
+            else:
+                quic_cert_pass = secrets.token_hex(16)
+        except Exception:
+            quic_cert_pass = secrets.token_hex(16)
+    else:
+        quic_cert_pass = secrets.token_hex(16)
 
     def database_connection(database):
         if db_provider == "SQLite":
@@ -263,6 +287,9 @@ def main():
         "ASSET_DB_CONN": asset_db_conn,
         "CONSOLE_PASS": console_pass,
         "QUIC_CERT_PASS": quic_cert_pass,
+        "CENTRAL_QUIC_PEM": ini_path(os.path.join(central_quic_dir, "quic-cert.pem")),
+        "CENTRAL_QUIC_KEY": ini_path(os.path.join(central_quic_dir, "quic-key.pem")),
+        "CENTRAL_QUIC_P12": ini_path(os.path.join(central_quic_dir, "quic-cert.p12")),
     }
     robust = render("Robust.ini.tpl", rich_vars)
     with open(os.path.join(out, "robust", "Robust.ini"), "w") as f:
@@ -316,6 +343,20 @@ a{{display:inline-block;margin-top:14px;background:linear-gradient(135deg,#FF8FA
                             quic_cert_pass)
         except Exception as e:
             print("WARNING: QUIC cert generation failed (%s). Generate manually." % e)
+    # Sync central bin/SSL/quic for hot-reload single-file renewal (Robust + 30 sims read central first)
+    try:
+        for _f in ("quic-cert.pem", "quic-key.pem", "quic-cert.p12"):
+            _src = os.path.join(out, "robust", "SSL", "quic", _f)
+            _dst = os.path.join(central_quic_dir, _f)
+            if os.path.isfile(_src) and (not os.path.isfile(_dst) or os.path.getmtime(_src) > os.path.getmtime(_dst) + 1):
+                shutil.copy2(_src, _dst)
+                print(f"QUIC central sync: {_f} -> bin/SSL/quic/ ({os.path.getsize(_dst)} bytes)")
+            elif os.path.isfile(_dst) and not os.path.isfile(_src):
+                os.makedirs(os.path.dirname(_src), exist_ok=True)
+                shutil.copy2(_dst, _src)
+                print(f"QUIC central sync: bin/SSL/quic/{_f} -> robust/SSL/quic/")
+    except Exception as e:
+        print(f"WARNING: central QUIC sync failed: {e}")
 
     # ---- HG auth endpoint placeholder ----
     with open(os.path.join(out, "hg", "README.txt"), "w") as f:
@@ -339,26 +380,29 @@ a{{display:inline-block;margin-top:14px;background:linear-gradient(135deg,#FF8FA
         reg_dir = os.path.join(sim_dir, "regions")
         os.makedirs(reg_dir, exist_ok=True)
         os.makedirs(os.path.join(sim_dir, "data"), exist_ok=True)
+        # Centralized QUIC cert: all 30 sims + Robust share one file in bin/SSL/quic.
+        # Hot-reload via mtime (sim) + FileSystemWatcher+poll (Robust) — renewal writes once.
         cert_source = os.path.join(out, "robust", "SSL", "quic", "quic-cert.p12")
+        # Back-compat: keep a copy in each sim dir if central missing on disk (fallback still works),
+        # but new deployments point configs at central and don't require per-sim files.
         if quic_real_cert:
-            # Native per-sim viewer connections need a viewer-trusted cert.
-            # Deploy the real PEM fullchain + key to every sim (sims use PEM,
-            # never the p12). Viewers reject the old self-signed CN=fresh.metaverse
-            # with TLS bad_certificate, which kills teleports/neighbour links.
             for cert_file in ("quic-cert.pem", "quic-key.pem"):
                 pem_source = os.path.join(out, "robust", "SSL", "quic", cert_file)
-                if os.path.isfile(pem_source):
+                central_pem = os.path.join(central_quic_dir, cert_file)
+                if os.path.isfile(pem_source) and (not os.path.isfile(central_pem) or os.path.getmtime(pem_source) > os.path.getmtime(central_pem) + 1):
+                    shutil.copy2(pem_source, central_pem)
+                # legacy per-sim copy only if central not yet present (rare bootstrapping)
+                if not os.path.isfile(central_pem) and os.path.isfile(pem_source):
                     cert_dir = os.path.join(sim_dir, "SSL", "quic")
                     os.makedirs(cert_dir, exist_ok=True)
                     shutil.copy2(pem_source, os.path.join(cert_dir, cert_file))
         elif os.path.isfile(cert_source):
-            cert_dir = os.path.join(sim_dir, "SSL", "quic")
-            os.makedirs(cert_dir, exist_ok=True)
-            shutil.copy2(cert_source, os.path.join(cert_dir, "quic-cert.p12"))
-            for cert_file in ("quic-cert.pem", "quic-key.pem"):
+            # self-signed — ensure central has it
+            for cert_file in ("quic-cert.pem", "quic-key.pem", "quic-cert.p12"):
                 pem_source = os.path.join(out, "robust", "SSL", "quic", cert_file)
-                if os.path.isfile(pem_source):
-                    shutil.copy2(pem_source, os.path.join(cert_dir, cert_file))
+                central_f = os.path.join(central_quic_dir, cert_file)
+                if os.path.isfile(pem_source) and (not os.path.isfile(central_f) or os.path.getmtime(pem_source) > os.path.getmtime(central_f) + 1):
+                    shutil.copy2(pem_source, central_f)
 
         sizem = r["size"] * 256
         uuidv = make_uuid(name)
@@ -368,6 +412,9 @@ a{{display:inline-block;margin-top:14px;background:linear-gradient(135deg,#FF8FA
         region_db_conn = database_connection(region_database) if region_database else sim_db_conn
         v = dict(rich_vars)
         v["SIM_DB_CONN"] = region_db_conn
+        central_cert = ini_path(os.path.join(central_quic_dir, "quic-cert.p12"))
+        central_pem = ini_path(os.path.join(central_quic_dir, "quic-cert.pem"))
+        central_key = ini_path(os.path.join(central_quic_dir, "quic-key.pem"))
         v.update({
             "NAME": name,
             "SIM_DIR": ini_path(sim_dir),
@@ -375,9 +422,9 @@ a{{display:inline-block;margin-top:14px;background:linear-gradient(135deg,#FF8FA
             "DATA_DIR": ini_path(os.path.join(sim_dir, "data")),
             "INVENTORY_DIR": ini_path(os.path.join(sim_dir, "inventory")),
             "ASSETCACHE_DIR": ini_path(os.path.join(sim_dir, "assetcache")),
-            "QUIC_CERT_PATH": ini_path(os.path.join(sim_dir, "SSL", "quic", "quic-cert.p12")),
-            "QUIC_CERT_PEM_PATH": ini_path(os.path.join(sim_dir, "SSL", "quic", "quic-cert.pem")),
-            "QUIC_KEY_PEM_PATH": ini_path(os.path.join(sim_dir, "SSL", "quic", "quic-key.pem")),
+            "QUIC_CERT_PATH": central_cert,
+            "QUIC_CERT_PEM_PATH": central_pem,
+            "QUIC_KEY_PEM_PATH": central_key,
             "REGION_UUID": uuidv,
             "PORT": r["port"],
             "QUIC_PORT": r["quic_port"],
