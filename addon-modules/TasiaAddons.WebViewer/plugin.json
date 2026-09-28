@@ -1,9 +1,0 @@
-{
-  "Name": "TasiaAddons.WebViewer",
-  "Version": "1.0.0",
-  "Description": "WebSocket server for browser-based 3D viewer - login, chat, objects, avatars",
-  "Author": "TasiaNGC",
-  "Target": "Sim",
-  "EntryPoint": "TasiaAddons.WebViewer.WebViewerModule",
-  "Enabled": true
-}
