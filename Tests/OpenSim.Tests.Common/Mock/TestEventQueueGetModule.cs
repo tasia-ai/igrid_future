@@ -113,7 +113,7 @@ namespace OpenSim.Tests.Common
             return true;
         }
         public void EnableSimulator (ulong handle, IPEndPoint endPoint, UUID avatarID, int regionSizeX, int regionSizeY,
-                                     string quicHost = null, uint quicPort = 0)
+                                     string quicHost = null, uint quicPort = 0, bool advertiseQuic = true)
         {
             AddEvent(avatarID, "EnableSimulator", handle);
         }

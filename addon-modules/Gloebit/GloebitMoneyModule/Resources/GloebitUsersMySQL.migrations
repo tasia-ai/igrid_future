@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS `GloebitUsers` (
 
 COMMIT;
 
+
 :VERSION 2		# -------------------------
 
 BEGIN;
@@ -35,5 +36,14 @@ CREATE TABLE IF NOT EXISTS `GloebitUsers` (
     PRIMARY KEY pk_gu_ak_pid    (`AppKey`, `PrincipalID`),
     INDEX       ix_gu_pid       (`PrincipalID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+COMMIT;
+
+
+:VERSION 4     # --------------------------
+
+BEGIN;
+
+ALTER TABLE `GloebitUsers` ADD COLUMN `PendingAuthState` VARCHAR(36) NOT NULL DEFAULT '';
 
 COMMIT;

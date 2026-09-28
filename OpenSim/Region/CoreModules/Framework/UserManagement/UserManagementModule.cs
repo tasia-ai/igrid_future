@@ -42,6 +42,7 @@ using OpenMetaverse;
 using log4net;
 using MySqlConnector;
 using Nini.Config;
+using Npgsql;
 using Mono.Addins;
 
 
@@ -257,12 +258,33 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
             firstName = string.Empty;
             lastName = string.Empty;
             displayName = string.Empty;
+            bool isPgsql = false;
+            string savedConn = string.Empty;
             try
             {
                 IConfig dbConfig = m_ConfigSource?.Configs["DatabaseService"];
                 string connectionString = dbConfig?.GetString("ConnectionString", string.Empty) ?? string.Empty;
                 if (string.IsNullOrEmpty(connectionString))
                     return false;
+                savedConn = connectionString;
+                isPgsql = connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase) ||
+                          connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase);
+
+                if (isPgsql)
+                {
+                    string pgConn = System.Text.RegularExpressions.Regex.Replace(connectionString, @"Database\s*=\s*[^;]+", "Database=robust", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    using NpgsqlConnection pgCon = new(pgConn);
+                    pgCon.Open();
+                    using NpgsqlCommand pgCmd = new("SELECT \"FirstName\", \"LastName\", \"DisplayName\" FROM \"TasiaVirtualAvatars\" WHERE \"VirtualID\" = @Id AND \"Enabled\" = 1", pgCon);
+                    pgCmd.Parameters.AddWithValue("@Id", NpgsqlTypes.NpgsqlDbType.Uuid, avatarID.Guid);
+                    using NpgsqlDataReader pgReader = pgCmd.ExecuteReader(System.Data.CommandBehavior.SingleRow);
+                    if (!pgReader.Read())
+                        return false;
+                    firstName = pgReader.GetString(pgReader.GetOrdinal("FirstName"));
+                    lastName = pgReader.GetString(pgReader.GetOrdinal("LastName"));
+                    displayName = pgReader.GetString(pgReader.GetOrdinal("DisplayName"));
+                    return !string.IsNullOrEmpty(firstName);
+                }
 
                 MySqlConnectionStringBuilder builder = new(connectionString) { Database = "robust" };
                 using MySqlConnection dbcon = new(builder.ConnectionString);
@@ -281,6 +303,16 @@ namespace OpenSim.Region.CoreModules.Framework.UserManagement
             catch (MySqlException e)
             {
                 m_log.ErrorFormat("[USER MANAGEMENT MODULE]: Virtual avatar name lookup failed: {0}", e.Message);
+                return false;
+            }
+            catch (NpgsqlException e) when (isPgsql)
+            {
+                m_log.ErrorFormat("[USER MANAGEMENT MODULE]: Virtual avatar name lookup failed (PGSQL {0}): {1}", savedConn.Length > 40 ? savedConn.Substring(0, 40) : savedConn, e.Message);
+                return false;
+            }
+            catch (Exception e)
+            {
+                m_log.ErrorFormat("[USER MANAGEMENT MODULE]: Virtual avatar name lookup failed (unexpected): {0}", e.Message);
                 return false;
             }
         }

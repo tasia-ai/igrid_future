@@ -38,6 +38,7 @@ using OpenMetaverse.StructuredData;
 using log4net;
 using MySqlConnector;
 using Nini.Config;
+using Npgsql;
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
@@ -1614,9 +1615,17 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
             ScenePresence p = FindPresence(avatarID);
             if (p is not null && p.IsNPC)
             {
-                remoteClient.SendAvatarProperties(avatarID, ((INPC)(p.ControllingClient)).profileAbout, ((INPC)(p.ControllingClient)).Born,
-                      Utils.StringToBytes("Non Player Character (NPC)"), "NPCs have no life", 0x10,
-                      UUID.Zero, ((INPC)(p.ControllingClient)).profileImage, "", UUID.Zero);
+                INPC npc = (INPC)p.ControllingClient;
+                string membership = "Non Player Character (NPC)";
+                if (p.ControllingClient is INPCProfileMembership profileMembership &&
+                    !string.IsNullOrWhiteSpace(profileMembership.ProfileMembership))
+                {
+                    membership = profileMembership.ProfileMembership;
+                }
+
+                remoteClient.SendAvatarProperties(avatarID, npc.profileAbout, npc.Born,
+                      Utils.StringToBytes(membership), "NPCs have no life", 0x10,
+                      UUID.Zero, npc.profileImage, "", UUID.Zero);
                 remoteClient.SendAvatarInterestsReply(avatarID, 0, "",
                           0, "Getting into trouble", "Droidspeak");
                 return;
@@ -2124,12 +2133,33 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
             avatarName = string.Empty;
             userTitle = string.Empty;
             bornOn = string.Empty;
+            bool isPgsql = false;
+            string savedConn = string.Empty;
             try
             {
                 IConfig dbConfig = Config?.Configs["DatabaseService"];
                 string connectionString = dbConfig?.GetString("ConnectionString", string.Empty) ?? string.Empty;
                 if (string.IsNullOrEmpty(connectionString))
                     return false;
+                savedConn = connectionString;
+                isPgsql = connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase) ||
+                          connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase);
+
+                if (isPgsql)
+                {
+                    string pgConn = System.Text.RegularExpressions.Regex.Replace(connectionString, @"Database\s*=\s*[^;]+", "Database=robust", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    using NpgsqlConnection pgCon = new(pgConn);
+                    pgCon.Open();
+                    using NpgsqlCommand pgCmd = new("SELECT \"AvatarName\", \"UserTitle\", \"BornOn\" FROM \"TasiaVirtualAvatars\" WHERE \"VirtualID\" = @Id AND \"Enabled\" = 1", pgCon);
+                    pgCmd.Parameters.AddWithValue("@Id", NpgsqlTypes.NpgsqlDbType.Uuid, avatarID.Guid);
+                    using NpgsqlDataReader pgReader = pgCmd.ExecuteReader(System.Data.CommandBehavior.SingleRow);
+                    if (!pgReader.Read())
+                        return false;
+                    avatarName = pgReader.GetString(pgReader.GetOrdinal("AvatarName"));
+                    userTitle = pgReader.GetString(pgReader.GetOrdinal("UserTitle"));
+                    bornOn = pgReader.GetString(pgReader.GetOrdinal("BornOn"));
+                    return true;
+                }
 
                 MySqlConnectionStringBuilder builder = new(connectionString) { Database = "robust" };
                 using MySqlConnection dbcon = new(builder.ConnectionString);
@@ -2148,6 +2178,16 @@ namespace OpenSim.Region.CoreModules.Avatar.UserProfiles
             catch (MySqlException e)
             {
                 m_log.ErrorFormat("[PROFILES]: Virtual avatar lookup failed: {0}", e.Message);
+                return false;
+            }
+            catch (NpgsqlException e) when (isPgsql)
+            {
+                m_log.ErrorFormat("[PROFILES]: Virtual avatar lookup failed (PGSQL {0}): {1}", savedConn.Length > 40 ? savedConn.Substring(0, 40) : savedConn, e.Message);
+                return false;
+            }
+            catch (Exception e)
+            {
+                m_log.ErrorFormat("[PROFILES]: Virtual avatar lookup failed (unexpected): {0}", e.Message);
                 return false;
             }
         }

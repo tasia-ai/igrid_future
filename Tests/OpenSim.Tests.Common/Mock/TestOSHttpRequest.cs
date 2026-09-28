@@ -90,13 +90,7 @@ namespace OpenSim.Tests.Common
 
         public NameValueCollection Headers { get; set; }
 
-        public string HttpMethod
-        {
-            get
-            {
-                throw new NotImplementedException ();
-            }
-        }
+        public string HttpMethod { get; set; }
 
         public Stream InputStream { get; set;}
 
@@ -156,13 +150,7 @@ namespace OpenSim.Tests.Common
             }
         }
 
-        public IPEndPoint RemoteIPEndPoint
-        {
-            get
-            {
-                throw new NotImplementedException();
-            }
-        }
+        public IPEndPoint RemoteIPEndPoint { get; set; }
 
         public IPEndPoint LocalIPEndPoint
         {
@@ -173,7 +161,7 @@ namespace OpenSim.Tests.Common
         }
 
         public Uri Url { get; set; }
-        public string UriPath { get;}
+        public string UriPath { get; set; }
         public double ArrivalTS { get; }
 
         public string UserAgent

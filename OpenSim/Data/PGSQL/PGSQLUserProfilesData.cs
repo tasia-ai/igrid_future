@@ -583,8 +583,45 @@ namespace OpenSim.Data.PGSQL
 
         #region Avatar Properties
 
+        private bool GetVirtualAvatarProperties(ref UserProfileProperties props)
+        {
+            try
+            {
+                using NpgsqlConnection dbcon = new(ConnectionString);
+                dbcon.Open();
+                const string q = "SELECT \"AboutText\", \"ProfileImage\", \"FirstLifeImage\", \"FirstLifeText\", \"WebUrl\" FROM \"TasiaVirtualAvatars\" WHERE \"VirtualID\" = :Id AND \"Enabled\" = 1";
+                using NpgsqlCommand cmd = new(q, dbcon);
+                cmd.Parameters.AddWithValue(":Id", NpgsqlTypes.NpgsqlDbType.Uuid, props.UserId.Guid);
+                using NpgsqlDataReader reader = cmd.ExecuteReader(System.Data.CommandBehavior.SingleRow);
+                if (!reader.Read())
+                    return false;
+                props.WebUrl = reader.GetString(reader.GetOrdinal("WebUrl"));
+                UUID.TryParse(reader.GetString(reader.GetOrdinal("ProfileImage")), out props.ImageId);
+                props.AboutText = reader.GetString(reader.GetOrdinal("AboutText"));
+                UUID.TryParse(reader.GetString(reader.GetOrdinal("FirstLifeImage")), out props.FirstLifeImageId);
+                props.FirstLifeText = reader.GetString(reader.GetOrdinal("FirstLifeText"));
+                props.PartnerId = UUID.Zero;
+                props.WantToMask = 0;
+                props.WantToText = string.Empty;
+                props.SkillsMask = 0;
+                props.SkillsText = string.Empty;
+                props.Language = string.Empty;
+                props.PublishProfile = true;
+                props.PublishMature = false;
+                return true;
+            }
+            catch (Exception e)
+            {
+                m_log.ErrorFormat("[PROFILES_DATA]: Virtual profile lookup exception {0}", e.Message);
+                return false;
+            }
+        }
+
         public bool GetAvatarProperties(ref UserProfileProperties props, ref string result)
         {
+            if (GetVirtualAvatarProperties(ref props))
+                return true;
+
             string query = string.Empty;
 
             query += "SELECT * FROM userprofile WHERE ";

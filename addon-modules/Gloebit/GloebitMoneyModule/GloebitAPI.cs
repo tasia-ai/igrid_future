@@ -129,6 +129,7 @@ namespace Gloebit.GloebitMoneyModule
         /// <param name="userName">string name of user on this app.</param>
         /// <param name="baseURI">URL where Gloebit can send the auth response back to this app.</param>
         public Uri BuildAuthorizationURI(GloebitUser user, string userName, Uri baseURI) {
+            string state = user.BeginAuthorization();
 
             //********* BUILD AUTHORIZE QUERY ARG STRING ***************//
             ////Dictionary<string, string> auth_params = new Dictionary<string, string>();
@@ -144,17 +145,16 @@ namespace Gloebit.GloebitMoneyModule
             auth_params["response_type"] = "code";
             auth_params["user"] = userName;
             auth_params["uid"] = user.PrincipalID;
-            // TODO - make use of 'state' param for XSRF protection
-            // auth_params["state"] = ???;
+            auth_params["state"] = state;
 
             string query_string = BuildURLEncodedParamString(auth_params);
 
-            m_log.DebugFormat("[GLOEBITMONEYMODULE] GloebitAPI.Authorize query_string: {0}", query_string);
+            // Query strings contain the one-shot state value. Never log them.
+            m_log.Debug("[GLOEBITMONEYMODULE] GloebitAPI.Authorize built OAuth authorization request");
 
             //********** BUILD FULL AUTHORIZE REQUEST URI **************//
 
             Uri request_uri = new Uri(m_url, String.Format("oauth2/authorize?{0}", query_string));
-            m_log.InfoFormat("[GLOEBITMONEYMODULE] GloebitAPI.Authorize request_uri: {0}", request_uri);
             
             //*********** SEND AUTHORIZE REQUEST URI TO USER ***********//
             
@@ -1093,8 +1093,7 @@ namespace Gloebit.GloebitMoneyModule
         /// </summary>
         /// <param name="ParamMap">Parameters to be encoded.</param>
         private string BuildURLEncodedParamString(OSDMap paramMap) {
-            // TODO: remove client_secret from this before logging
-            m_log.DebugFormat("[GLOEBITMONEYMODULE] GloebitAPI.BuildURLEncodedParamString building from paramMap:{0}:", paramMap);
+            m_log.DebugFormat("[GLOEBITMONEYMODULE] GloebitAPI.BuildURLEncodedParamString building request with {0} parameters", paramMap.Count);
             StringBuilder paramBuilder = new StringBuilder();
             foreach (KeyValuePair<string, OSD> p in (OSDMap)paramMap) {
                 if(paramBuilder.Length != 0) {

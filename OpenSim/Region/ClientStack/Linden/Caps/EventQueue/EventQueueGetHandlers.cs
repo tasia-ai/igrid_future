@@ -73,7 +73,7 @@ namespace OpenSim.Region.ClientStack.Linden
         }
 
         public virtual void EnableSimulator(ulong handle, IPEndPoint endPoint, UUID avatarID, int regionSizeX, int regionSizeY,
-                                             string quicHost = null, uint quicPort = 0)
+                                             string quicHost = null, uint quicPort = 0, bool advertiseQuic = true)
         {
             if (DebugLevel > 0)
                 m_log.Debug($"{LogHeader} EnableSimulator. handle={handle}, endPoint={endPoint}, avatarID={avatarID}");
@@ -83,7 +83,8 @@ namespace OpenSim.Region.ClientStack.Linden
                 LLSDxmlEncode2.AddElem("Handle", handle, sb);
                 LLSDxmlEncode2.AddElem("IP", endPoint.Address.GetAddressBytes(), sb);
                 LLSDxmlEncode2.AddElem("Port", endPoint.Port, sb);
-                AddQuicSimulatorInfo(sb, endPoint, quicHost, quicPort);
+                if (advertiseQuic)
+                    AddQuicSimulatorInfo(sb, endPoint, quicHost, quicPort);
                 LLSDxmlEncode2.AddElem("RegionSizeX", (uint)regionSizeX, sb);
                 LLSDxmlEncode2.AddElem("RegionSizeY", (uint)regionSizeY, sb);
             LLSDxmlEncode2.AddEndMapAndArray(sb);
@@ -191,30 +192,19 @@ namespace OpenSim.Region.ClientStack.Linden
             string host;
             uint port;
 
-            // If AdvertisePort is explicitly configured, it is the centralized
-            // viewer-facing proxy port. Keep all region/crossing/teleport events
-            // pointed at the proxy; the proxy has its own circuit→sim routing.
-            if (m_quicAdvertisePortExplicit && m_quicAdvertisePort > 0)
-            {
+            // Direct mode (per-sim native QUIC listeners): the caller-supplied
+            // destination QUIC endpoint wins (child/neighbour EnableSimulator,
+            // TeleportFinish and CrossedRegion all pass the target region's own
+            // QuicHost/QuicPort). Local [ClientStack.Quic] AdvertiseHost/
+            // AdvertisePort is only a fallback when no destination details were
+            // supplied.
+            host = quicHost;
+            if (string.IsNullOrWhiteSpace(host))
                 host = m_quicAdvertiseHost;
-                if (string.IsNullOrWhiteSpace(host))
-                    host = quicHost;
-                if (string.IsNullOrWhiteSpace(host))
-                    host = fallbackEndPoint.Address.ToString();
-                port = (uint)m_quicAdvertisePort;
-            }
-            else
-            {
-                // No central proxy advertise override: use destination per-sim
-                // QUIC details when supplied, then fall back to local config.
-                host = quicHost;
-                if (string.IsNullOrWhiteSpace(host))
-                    host = m_quicAdvertiseHost;
-                if (string.IsNullOrWhiteSpace(host))
-                    host = fallbackEndPoint.Address.ToString();
+            if (string.IsNullOrWhiteSpace(host))
+                host = fallbackEndPoint.Address.ToString();
 
-                port = quicPort > 0 ? quicPort : (uint)m_quicAdvertisePort;
-            }
+            port = quicPort > 0 ? quicPort : (uint)m_quicAdvertisePort;
 
             if (port == 0)
                 return;

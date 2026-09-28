@@ -22,11 +22,17 @@ COMMIT;
 
 BEGIN TRANSACTION;
 
-   INSERT INTO auth (uuid, "passwordHash", "passwordSalt", "webLoginKey", "accountType") 
-	SELECT uuid AS UUID, passwordHash AS passwordHash, passwordSalt AS passwordSalt, webLoginKey AS webLoginKey, 'UserAccount' as accountType 
-	FROM users
-      where exists ( Select * from information_schema.tables where table_name = 'users' )
-	;
+DO $$
+BEGIN
+    IF to_regclass('public.users') IS NOT NULL THEN
+        EXECUTE $sql$
+            INSERT INTO auth (uuid, "passwordHash", "passwordSalt", "webLoginKey", "accountType")
+            SELECT uuid, "passwordHash", "passwordSalt", "webLoginKey", 'UserAccount'
+            FROM users
+        $sql$;
+    END IF;
+END
+$$;
 
 COMMIT;
 

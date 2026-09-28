@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) Contributors, http://opensimulator.org/
  * See CONTRIBUTORS.TXT for a full list of copyright holders.
  *
@@ -42,6 +42,7 @@ using OpenMetaverse;
 using log4net;
 using Nini.Config;
 using Mono.Addins;
+using System.Linq;
 
 using GridRegion = OpenSim.Services.Interfaces.GridRegion;
 
@@ -54,6 +55,20 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private int m_levelHGTeleport = 0;
+
+        /// <summary>
+        /// Origin grids whose visitors are trusted without asking that grid to confirm
+        /// the session. Configured as [EntityTransfer] TrustedVerificationGrids.
+        ///
+        /// Normally a hypergrid arrival is verified by calling the ORIGIN grid's
+        /// UserAgent service (see VerifyClient). That is the right default, but some
+        /// grids run no UserAgent service or answer with an empty body, in which case
+        /// every visitor from them is dropped moments after landing. Listing a grid
+        /// here trusts that grid explicitly instead of weakening the check for
+        /// everybody. Use "*" to trust every origin grid - that disables the check
+        /// entirely, so prefer naming the specific partner grids.
+        /// </summary>
+        private string[] m_TrustedVerificationGrids = new string[0];
 
         private GatekeeperServiceConnector m_GatekeeperConnector;
         private IUserAgentService m_UAS;
@@ -135,6 +150,23 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                     if (transferConfig != null)
                     {
                         m_levelHGTeleport = transferConfig.GetInt("LevelHGTeleport", 0);
+
+                        // Grids allowed to skip the remote UserAgent session check.
+                        // Comma separated host or host:port entries, e.g.
+                        //   TrustedVerificationGrids = playground.darkheartsos.com:8002, i.let-us.cyou:8002
+                        string trusted = transferConfig.GetString("TrustedVerificationGrids", string.Empty);
+                        m_TrustedVerificationGrids = trusted
+                            .Split(new char[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim().ToLowerInvariant())
+                            .Where(s => s.Length > 0)
+                            .ToArray();
+
+                        if (m_TrustedVerificationGrids.Length > 0)
+                        {
+                            m_log.InfoFormat(
+                                "[HG ENTITY TRANSFER MODULE]: Trusted verification grids: {0}   (visitors from these skip the remote session check)",
+                                string.Join(", ", m_TrustedVerificationGrids));
+                        }
 
                         m_RestrictAppearanceAbroad = transferConfig.GetBoolean("RestrictAppearanceAbroad", false);
                         if (m_RestrictAppearanceAbroad)
@@ -884,6 +916,18 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
             if (aCircuit.ServiceURLs.ContainsKey("HomeURI"))
             {
                 string url = aCircuit.ServiceURLs["HomeURI"].ToString();
+
+                // A grid named in [EntityTransfer] TrustedVerificationGrids is trusted
+                // outright, so do not call its UserAgent service. Some grids never
+                // answer that call, which used to drop their visitors instantly.
+                if (IsTrustedVerificationGrid(url))
+                {
+                    m_log.DebugFormat(
+                        "[HG ENTITY TRANSFER MODULE]: Client verification skipped for {0} {1} - origin grid {2} is trusted",
+                        aCircuit.firstname, aCircuit.lastname, url);
+                    return true;
+                }
+
                 IUserAgentService security = new UserAgentServiceConnector(url);
                 return security.VerifyClient(aCircuit.SessionID, token);
             }
@@ -895,6 +939,55 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// True when the origin grid URL matches an entry in TrustedVerificationGrids.
+        /// Matching ignores scheme and trailing slash, accepts a bare host to mean any
+        /// port on that host, and honours "*" as trust-everything.
+        /// </summary>
+        private bool IsTrustedVerificationGrid(string homeUri)
+        {
+            if (m_TrustedVerificationGrids == null || m_TrustedVerificationGrids.Length == 0)
+                return false;
+
+            string target = NormalizeGridHost(homeUri);
+            if (target.Length == 0)
+                return false;
+
+            foreach (string entry in m_TrustedVerificationGrids)
+            {
+                if (entry == "*")
+                    return true;
+
+                if (entry == target)
+                    return true;
+
+                // A bare host entry trusts every port on that host.
+                if (entry.IndexOf(':') < 0 && target.StartsWith(entry + ":"))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string NormalizeGridHost(string uri)
+        {
+            if (string.IsNullOrWhiteSpace(uri))
+                return string.Empty;
+
+            string s = uri.Trim().ToLowerInvariant().TrimEnd('/');
+
+            int scheme = s.IndexOf("://", StringComparison.Ordinal);
+            if (scheme >= 0)
+                s = s.Substring(scheme + 3);
+
+            // Drop any path / query the origin grid may have appended.
+            int slash = s.IndexOf('/');
+            if (slash >= 0)
+                s = s.Substring(0, slash);
+
+            return s;
         }
 
         public override void OnConnectionClosed(IClientAPI obj)

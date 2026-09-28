@@ -57,6 +57,7 @@
     <ProjectReference Include="..\..\Services\Interfaces\OpenSim.Services.Interfaces.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Remove="AI\**" />
     <Compile Remove="Avatar\XmlRpcGroups\Tests\GroupsModuleTests.cs" />
     <Compile Remove="Scripting\JsonStore\Tests\JsonStoreScriptModuleTests.cs" />
     <Compile Remove="World\NPC\Tests\NPCModuleTests.cs" />

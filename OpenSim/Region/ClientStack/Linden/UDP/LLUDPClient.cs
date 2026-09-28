@@ -90,8 +90,10 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         /// <summary>AgentID for this client</summary>
         public readonly UUID AgentID;
-        /// <summary>The remote address of the connected client</summary>
-        public readonly IPEndPoint RemoteEndPoint;
+        /// <summary>The remote address of the connected client.
+        /// Mutable: the tunnel relay (newt) may re-socket a circuit, so the
+        /// sim re-homes the client to the new endpoint (crossing fix).</summary>
+        public IPEndPoint RemoteEndPoint;
         /// <summary>Circuit code that this client is connected on</summary>
         public readonly uint CircuitCode;
         /// <summary>Sequence numbers of packets we've received (for duplicate checking)</summary>
@@ -122,6 +124,20 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         /// for QUIC connections.
         /// </summary>
         public OpenSim.Framework.IViewerTransport Transport { get; set; }
+
+        /// <summary>
+        /// True when this client reaches the viewer through the local Quick-G bridge:
+        /// the simulator sees a loopback UDP peer while the viewer leg is QUIC.
+        ///
+        /// The viewer treats QUIC as an already reliable transport and therefore never
+        /// sends application level PacketAck messages for such a circuit. If we registered
+        /// those packets in NeedAcks they would never be acknowledged, the "more than 50
+        /// unacked packets" guard in DequeueOutgoing() would latch, and the simulator would
+        /// stop sending all new data - leaving the circuit stuck resending the same old
+        /// packets forever. Outgoing reliable packets for this client are therefore sent
+        /// without resend tracking, exactly like the native QUIC transport path.
+        /// </summary>
+        public bool IsQuickGBridged;
 
         /// <summary>Smoothed round-trip time. A smoothed average of the round-trip time for sending a
         /// reliable packet to the client and receiving an ACK</summary>

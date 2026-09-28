@@ -31,7 +31,7 @@ def load_yaml(path):
     except ImportError:
         print("PyYAML is required. Install with: pip install pyyaml")
         raise SystemExit(1)
-    with open(path) as f:
+    with open(path, encoding="utf-8-sig") as f:
         return yaml.safe_load(f)
 
 
@@ -59,16 +59,59 @@ def build_fresh_regions():
     return out
 
 
+def ensure_pgsql_databases(cfg, regions):
+    """Create per-region PGSQL databases if missing (so new sims don't crash on 3D000)."""
+    try:
+        import psycopg2
+        from psycopg2 import sql as _sql
+        _db = cfg.get("db", {})
+        if _db.get("provider") != "PGSQL":
+            return
+        host = _db.get("host", "127.0.0.1")
+        user = _db.get("user", "opensim")
+        pw = _db.get("password", "opensim")
+        conn = psycopg2.connect(host=host, database="postgres", user=user, password=pw, connect_timeout=5)
+        conn.autocommit = True
+        cur = conn.cursor()
+        for r in regions:
+            db = r.get("database")
+            if not db:
+                continue
+            cur.execute("SELECT 1 FROM pg_database WHERE datname=%s", (db,))
+            if cur.fetchone() is None:
+                cur.execute(_sql.SQL("CREATE DATABASE {}").format(_sql.Identifier(db)))
+                print(f"  PGSQL: created database {db}")
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"  PGSQL: ensure databases skipped ({e})")
+
+
 def assign_ports(cfg, regions):
     start = cfg["gate"]["region_ports_start"]
     quic_start = int(cfg["gate"].get("region_quic_start", 0))
+    # Keep existing sims stable when a new custom region is added mid-list
+    # (e.g. Dark_Secrets inserted before Fresh01 would otherwise shift every
+    # Fresh sim by +1 and collide with live listeners on 22011/22041).
+    # Custom regions get high ports outside the main 22003-22062 block.
+    custom_next = 22311
+    custom_quic_next = 22231
+    custom_http_next = 22341
     for i, r in enumerate(regions):
-        r["port"] = start + i
-        r["quic_port"] = 0 if quic_start == 0 else quic_start + i
-        # Sim HTTP listener (CAPS) stays on the viewer-facing range that is
-        # already forwarded (LLUDP+30). QUIC Port=0 lets Quick-G brain allocate
-        # a separate per-region QUIC listener port from its configured pool.
-        r["http_port"] = start + 30 + i
+        is_custom = str(r.get("id", "")).startswith("custom_")
+        if is_custom:
+            r["port"] = custom_next
+            r["quic_port"] = custom_quic_next
+            r["http_port"] = custom_http_next
+            custom_next += 1
+            custom_quic_next += 1
+            custom_http_next += 1
+        else:
+            # count non-custom before this index so fresh keep their old ports
+            non_custom_before = sum(1 for j in range(i) if not str(regions[j].get("id", "")).startswith("custom_"))
+            r["port"] = start + non_custom_before
+            r["quic_port"] = 0 if quic_start == 0 else quic_start + non_custom_before
+            r["http_port"] = start + 30 + non_custom_before
     return regions
 
 
@@ -160,6 +203,47 @@ def default_region_database(name):
     return "sim_" + safe
 
 
+def _resolve_estates(cfg):
+    """Return (estates_list, default_estate). estates_list is [{name,owner,managers}].
+
+    regions.yaml supports either:
+      estate: {name, owner, ...}              # single (legacy)
+      estates: [{name, owner, managers}, ...] # multi — Add Sim picker reads this
+    If estates: is missing it is synthesized from estate:.
+    """
+    estates = cfg.get("estates")
+    if estates and isinstance(estates, list) and len(estates) > 0:
+        # normalize
+        norm = []
+        for e in estates:
+            norm.append({
+                "name": str(e.get("name", "")).strip() or "Fresh Estate",
+                "owner": str(e.get("owner", "")).strip() or cfg.get("estate", {}).get("owner", "Cute Devil"),
+                "managers": e.get("managers") or [],
+            })
+        default = norm[0]
+        # keep cfg["estate"] in sync for legacy templates
+        cfg["estate"] = {"name": default["name"], "owner": default["owner"], "managers": default.get("managers", [])}
+        return norm, default
+    # single estate legacy
+    d = cfg.get("estate") or {"name": "Fresh Estate", "owner": "Cute Devil", "managers": []}
+    single = {"name": str(d.get("name", "Fresh Estate")), "owner": str(d.get("owner", "Cute Devil")), "managers": d.get("managers") or []}
+    # also expose as estates for UI
+    cfg["estates"] = [single]
+    cfg["estate"] = single
+    return [single], single
+
+
+def _estate_for_region(r, estates, default_estate):
+    want = str(r.get("estate", "")).strip()
+    if not want:
+        return default_estate
+    for e in estates:
+        if e["name"].lower() == want.lower():
+            return e
+    return default_estate
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "generated"))
@@ -167,6 +251,7 @@ def main():
     args = ap.parse_args()
 
     cfg = load_yaml(args.yaml)
+    estates, default_estate = _resolve_estates(cfg)
     gate = cfg["gate"]
     host = gate["external_host"]
     region_host = gate.get("region_external_host", host)
@@ -179,6 +264,11 @@ def main():
     named = cfg["regions"]
     fresh = build_fresh_regions()
     regions = assign_ports(cfg, named + fresh)
+    # ensure DBs exist (PGSQL) before we write configs — new sims were crashing on 3D000
+    try:
+        ensure_pgsql_databases(cfg, regions)
+    except Exception as _e:
+        print(f"  PGSQL ensure: {_e}")
 
     out = args.out
     sims_dir = os.path.join(out, "sims")
@@ -371,6 +461,7 @@ a{{display:inline-block;margin-top:14px;background:linear-gradient(135deg,#FF8FA
         "gate": gate,
         "db": cfg.get("db", {}),
         "estate": cfg["estate"],
+        "estates": estates,
         "console_pass": console_pass,
         "sims": [],
     }
@@ -415,6 +506,7 @@ a{{display:inline-block;margin-top:14px;background:linear-gradient(135deg,#FF8FA
         central_cert = ini_path(os.path.join(central_quic_dir, "quic-cert.p12"))
         central_pem = ini_path(os.path.join(central_quic_dir, "quic-cert.pem"))
         central_key = ini_path(os.path.join(central_quic_dir, "quic-key.pem"))
+        estate = _estate_for_region(r, estates, default_estate)
         v.update({
             "NAME": name,
             "SIM_DIR": ini_path(sim_dir),
@@ -436,6 +528,8 @@ a{{display:inline-block;margin-top:14px;background:linear-gradient(135deg,#FF8FA
             "PHYSICS_ENGINE": phys_engine(r),
             "MESHING": meshing(r),
             "CLAMP_LINE": clamp_line(r),
+            "ESTATE_NAME": estate["name"],
+            "ESTATE_OWNER": estate["owner"],
         })
         with open(os.path.join(sim_dir, "OpenSim.ini"), "w") as f:
             f.write(render("SimOpenSim.ini.tpl", v))
@@ -480,6 +574,8 @@ small{{color:#8A6A7A}}
             "clamp_prim_size": not (r.get("clamp_prim_size") is False),
             "region_uuid": uuidv,
             "folder": os.path.relpath(sim_dir, out),
+            "estate": estate["name"],
+            "database": region_database or "",
         })
 
     with open(os.path.join(out, "deploy.json"), "w") as f:

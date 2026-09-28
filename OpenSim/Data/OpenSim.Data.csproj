@@ -89,6 +89,8 @@
     <Compile Remove="PGSQL\PGSQLSimulationData.cs" />
     <Compile Remove="PGSQL\PGSQLUserAccountData.cs" />
     <Compile Remove="PGSQL\PGSQLUserProfilesData.cs" />
+    <Compile Remove="PGSQL\PGSQLExperienceData.cs" />
+    <Compile Remove="PGSQL\PGSQLUserAliasData.cs" />
     <Compile Remove="PGSQL\PGSQLXAssetData.cs" />
     <Compile Remove="PGSQL\PGSQLXInventoryData.cs" />
     <Compile Remove="SQLite\SQLiteAgentPreferencesData.cs" />

@@ -47,8 +47,12 @@
     http_listener_port = {{SIM_HTTP_PORT}}
     ExternalHostName = "{{REGION_HOST}}"
     ;; Cute per-region 404 page — file is at 404/{{NAME}}.html relative to sim CWD
-    http_404 = "404/{{NAME}}.html"
-    MaxAgentConnections = 100
+     http_404 = "404/{{NAME}}.html"
+     MaxAgentConnections = 100
+
+     ;; Explicit source addresses allowed to call internal control-plane endpoints.
+     ;; Keep this list narrow; loopback is always trusted. Do not add public clients or arbitrary grids.
+     ControlPlaneTrustedHosts = 127.0.0.1
 
 [ClientStack.LindenUDP]
     ; DisableFacelights = "false"

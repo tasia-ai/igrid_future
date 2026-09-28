@@ -224,7 +224,11 @@ namespace OpenSim.Data.PGSQL
             }
             if (PGFieldType == "boolean" || PGFieldType == "bit")
             {
-                return (value.ToString() == "true");
+                if (value is bool booleanValue)
+                    return booleanValue;
+                if (value is byte byteValue)
+                    return byteValue != 0;
+                return Convert.ToBoolean(value);
             }
             if (PGFieldType == "timestamp with time zone")
             {

@@ -74,7 +74,10 @@ namespace OpenSim.Server.Handlers.Asset.Test
             }
 
             buffer.Position = 0;
-            asph.Handle(null, buffer, null, null);
+            asph.Handle(null, buffer, new TestOSHttpRequest
+            {
+                RemoteIPEndPoint = new IPEndPoint(IPAddress.Loopback, 9000)
+            }, new TestOSHttpResponse());
 
             AssetBase retrievedAsset = assetService.Get(assetId.ToString());
 

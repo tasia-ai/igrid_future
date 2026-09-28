@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyTitle>OpenSim.Region.OptionalModules.AI</AssemblyTitle>
+    <RootNamespace>OpenSim.Region.OptionalModules.AI</RootNamespace>
+    <Company>Adil El Farissi</Company>
+    <Product>OpenSim AI Module</Product>
+    <NoWarn>CA2252;CS0618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="log4net" Version="3.2.0" />
+    <PackageReference Include="Mono.Addins" Version="1.4.1" />
+    <PackageReference Include="Mono.Addins.CecilReflector" Version="1.4.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\..\bin\Newtonsoft.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Nini">
+      <HintPath>..\..\bin\Nini.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenMetaverse">
+      <HintPath>..\..\bin\OpenMetaverse.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenMetaverse.StructuredData">
+      <HintPath>..\..\bin\OpenMetaverse.StructuredData.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenMetaverseTypes">
+      <HintPath>..\..\bin\OpenMetaverseTypes.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\OpenSim\Framework\OpenSim.Framework.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Framework\Console\OpenSim.Framework.Console.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Region\Framework\OpenSim.Region.Framework.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Resources\OpenSim.Region.OptionalModules.AI.addin.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>OpenSim.Region.OptionalModules.AI.addin.xml</Link>
+    </None>
+  </ItemGroup>
+</Project>

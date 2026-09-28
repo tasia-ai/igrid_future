@@ -115,7 +115,6 @@ ALTER TABLE userpicks DROP CONSTRAINT userpicks_pkey;
 ALTER TABLE userpicks ALTER COLUMN pickuuid SET DATA TYPE uuid USING pickuuid::uuid;
 ALTER TABLE userpicks ALTER COLUMN creatoruuid SET DATA TYPE uuid USING creatoruuid::uuid;
 ALTER TABLE userpicks ALTER COLUMN parceluuid SET DATA TYPE uuid USING parceluuid::uuid;
-ALTER TABLE userpicks ALTER COLUMN parceluuid SET DATA TYPE uuid USING parceluuid::uuid;
 ALTER TABLE userpicks ADD PRIMARY KEY (pickuuid);
 
 -- Userprofile
@@ -123,8 +122,8 @@ ALTER TABLE userprofile DROP CONSTRAINT userprofile_pkey;
 ALTER TABLE userprofile ALTER COLUMN useruuid SET DATA TYPE uuid USING useruuid::uuid;
 ALTER TABLE userprofile ALTER COLUMN "profilePartner" SET DATA TYPE uuid USING "profilePartner"::uuid;
 -- Force column conversions
-ALTER TABLE userprofile ALTER COLUMN "profileAllowPublish" SET DATA TYPE boolean USING CASE WHEN false THEN false ELSE true END;
-ALTER TABLE userprofile ALTER COLUMN "profileMaturePublish" SET DATA TYPE boolean USING CASE WHEN false THEN false ELSE true END;
+ALTER TABLE userprofile ALTER COLUMN "profileAllowPublish" SET DATA TYPE boolean USING get_byte("profileAllowPublish", 0) <> 0;
+ALTER TABLE userprofile ALTER COLUMN "profileMaturePublish" SET DATA TYPE boolean USING get_byte("profileMaturePublish", 0) <> 0;
 ALTER TABLE userprofile ALTER COLUMN "profileImage" SET DATA TYPE uuid USING "profileImage"::uuid;
 ALTER TABLE userprofile ALTER COLUMN "profileFirstImage" SET DATA TYPE uuid USING "profileFirstImage"::uuid;
 ALTER TABLE userprofile ADD PRIMARY KEY (useruuid);
@@ -132,14 +131,13 @@ ALTER TABLE userprofile ADD PRIMARY KEY (useruuid);
 -- Userdata
 ALTER TABLE userdata DROP CONSTRAINT userdata_pkey;
 ALTER TABLE userdata ALTER COLUMN "UserId" SET DATA TYPE uuid USING "UserId"::uuid;
-ALTER TABLE userdata ALTER COLUMN "UserId" SET DATA TYPE uuid USING "UserId"::uuid;
 ALTER TABLE userdata ADD PRIMARY KEY ("UserId","TagId");
 
 
 -- Usersettings
 ALTER TABLE usersettings DROP CONSTRAINT usersettings_pkey;
 ALTER TABLE usersettings ALTER COLUMN useruuid SET DATA TYPE uuid USING useruuid::uuid;
-ALTER TABLE usersettings ALTER COLUMN visible SET DATA TYPE boolean USING CASE WHEN false THEN false ELSE true END;
+ALTER TABLE usersettings ALTER COLUMN visible SET DATA TYPE boolean USING get_byte(visible, 0) <> 0;
 ALTER TABLE usersettings ADD COLUMN email varchar(254) NOT NULL;
 ALTER TABLE usersettings ADD PRIMARY KEY (useruuid);
 
@@ -150,7 +148,7 @@ COMMIT;
 
 BEGIN;
 
-ALTER TABLE usersettings ALTER COLUMN imviaemail SET DATA TYPE boolean USING CASE WHEN false THEN false ELSE true END;
+ALTER TABLE usersettings ALTER COLUMN imviaemail SET DATA TYPE boolean USING get_byte(imviaemail, 0) <> 0;
 
 COMMIT;
 
@@ -160,4 +158,37 @@ BEGIN TRANSACTION;
 
 ALTER TABLE userpicks ADD "gatekeeper" varchar(255) COLLATE "default";
 
+COMMIT;
+
+:VERSION 7         # I-Grid virtual-avatar profiles
+
+BEGIN TRANSACTION;
+
+CREATE TABLE IF NOT EXISTS "TasiaVirtualAvatars" (
+    "VirtualID" uuid NOT NULL PRIMARY KEY,
+    "AvatarName" varchar(255) NOT NULL,
+    "FirstName" varchar(64) NOT NULL,
+    "LastName" varchar(64) NOT NULL,
+    "DisplayName" varchar(255) NOT NULL,
+    "OwnerID" uuid NOT NULL,
+    "AboutText" text NOT NULL,
+    "ProfileImage" uuid NOT NULL,
+    "FirstLifeImage" uuid NOT NULL,
+    "FirstLifeText" text NOT NULL,
+    "WebUrl" varchar(255) NOT NULL,
+    "UserTitle" varchar(255) NOT NULL,
+    "BornOn" varchar(64) NOT NULL,
+    "Enabled" integer NOT NULL DEFAULT 1,
+    "Created" integer NOT NULL DEFAULT 0,
+    "Updated" integer NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS "ix_tasiavirtualavatars_enabled"
+    ON "TasiaVirtualAvatars" ("Enabled");
+
+COMMIT;
+
+:VERSION 8         # I-Grid profile compatibility column
+BEGIN TRANSACTION;
+ALTER TABLE userprofile ADD COLUMN IF NOT EXISTS "profileCustomerType" text NULL;
 COMMIT;

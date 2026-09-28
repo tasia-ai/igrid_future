@@ -1257,7 +1257,7 @@ COMMIT;
 
 :VERSION 53         #----- add linkset data storage column
 BEGIN;
-ALTER TABLE "public".`prims` ADD COLUMN `linksetdata` varchar default NULL;
+ALTER TABLE "public"."prims" ADD COLUMN "linksetdata" varchar default NULL;
 COMMIT;
 
 :VERSION 54         #----- add pbr terrain storage
@@ -1307,5 +1307,17 @@ COMMIT;
 
 :VERSION 58         #----- add rez start string param column
 BEGIN;
-ALTER TABLE `prims` ADD COLUMN `StartStr` TEXT;
+ALTER TABLE "prims" ADD COLUMN "StartStr" TEXT;
 COMMIT;
+
+:VERSION 59         #----- preserve fork-specific prim persistence columns
+BEGIN;
+ALTER TABLE "public"."prims" ADD COLUMN IF NOT EXISTS "KeyframeMotion" bytea NULL;
+ALTER TABLE "public"."prims" ADD COLUMN IF NOT EXISTS "AttachedPosX" double precision NOT NULL DEFAULT 0;
+ALTER TABLE "public"."prims" ADD COLUMN IF NOT EXISTS "AttachedPosY" double precision NOT NULL DEFAULT 0;
+ALTER TABLE "public"."prims" ADD COLUMN IF NOT EXISTS "AttachedPosZ" double precision NOT NULL DEFAULT 0;
+ALTER TABLE "public"."prims" ADD COLUMN IF NOT EXISTS "AllowUnsit" smallint NOT NULL DEFAULT 1;
+ALTER TABLE "public"."prims" ADD COLUMN IF NOT EXISTS "ScriptedSitOnly" smallint NOT NULL DEFAULT 0;
+ALTER TABLE "public"."primshapes" ADD COLUMN IF NOT EXISTS "LastAttachPoint" integer NOT NULL DEFAULT 0;
+COMMIT;
+

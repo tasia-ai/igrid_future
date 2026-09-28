@@ -40,7 +40,7 @@ using System.Xml;
 
 namespace OpenSim.Region.OptionalModules.World.NPC
 {
-    public class NPCAvatar : IClientAPI, INPC
+    public class NPCAvatar : IClientAPI, INPC, INPCProfileMembership
     {
         public bool SenseAsAgent { get; set; }
         public UUID Owner
@@ -75,6 +75,7 @@ namespace OpenSim.Region.OptionalModules.World.NPC
         private string m_profileAbout = "";
         private UUID m_profileImage = UUID.Zero;
         private string m_born;
+        private string m_profileMembership = "Non Player Character (NPC)";
         public List<uint> SelectedObjects {get; private set;}
 
         public NPCAvatar(
@@ -120,6 +121,12 @@ namespace OpenSim.Region.OptionalModules.World.NPC
         {
             get { return m_profileImage; }
             set { m_profileImage = value; }
+        }
+
+        public string ProfileMembership
+        {
+            get { return m_profileMembership; }
+            set { m_profileMembership = string.IsNullOrWhiteSpace(value) ? "Non Player Character (NPC)" : value; }
         }
 
         public IScene Scene

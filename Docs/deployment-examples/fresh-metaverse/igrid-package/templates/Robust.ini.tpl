@@ -31,8 +31,9 @@
     InventoryInConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:XInventoryInConnector"
     GridServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:GridServiceConnector"
     GridInfoServerInConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:GridInfoServerInConnector"
-    AuthenticationServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:AuthenticationServiceConnector"
-    OpenIdServerConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:OpenIdServerConnector"
+     AuthenticationServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:AuthenticationServiceConnector"
+     ;; OpenID is disabled by default. Enable it only when the endpoint is protected and intentionally deployed.
+     ; OpenIdServerConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:OpenIdServerConnector"
     AvatarServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:AvatarServiceConnector"
     LLLoginServiceInConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:LLLoginServiceInConnector"
     PresenceServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:PresenceServiceConnector"
@@ -62,8 +63,12 @@
     port = ${Const|PrivatePort}
     ExternalHostName = "${Const|BaseHostname}"
     ;; Per-process cute 404 page — file at 404/robust.html relative to Robust CWD
-    http_404 = "404/robust.html"
-    AllowllHTTPRequestIn = false
+     http_404 = "404/robust.html"
+     AllowllHTTPRequestIn = false
+
+     ;; Explicit source addresses allowed to call internal control-plane endpoints.
+     ;; Keep this list narrow; loopback is always trusted. Do not add public clients or arbitrary grids.
+     ControlPlaneTrustedHosts = 127.0.0.1
 
 [AccessControl]
     AllowedClients = ""

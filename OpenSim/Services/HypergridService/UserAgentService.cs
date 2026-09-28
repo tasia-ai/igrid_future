@@ -228,12 +228,50 @@ namespace OpenSim.Services.HypergridService
             return home;
         }
 
+        public static bool IsLocalGridURI(string localGridURI, string requestedGridURI)
+        {
+            string local = NormalizeGridURI(localGridURI);
+            string requested = NormalizeGridURI(requestedGridURI);
+
+            if (string.IsNullOrEmpty(local) || string.IsNullOrEmpty(requested))
+                return false;
+
+            if (Uri.TryCreate(local, UriKind.Absolute, out Uri localUri) &&
+                Uri.TryCreate(requested, UriKind.Absolute, out Uri requestedUri))
+            {
+                return localUri.Scheme.Equals(requestedUri.Scheme, StringComparison.OrdinalIgnoreCase) &&
+                       localUri.Host.Equals(requestedUri.Host, StringComparison.OrdinalIgnoreCase) &&
+                       localUri.Port == requestedUri.Port;
+            }
+
+            return local.Equals(requested, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static string NormalizeGridURI(string gridURI)
+        {
+            if (string.IsNullOrWhiteSpace(gridURI))
+                return string.Empty;
+
+            gridURI = gridURI.Trim();
+            if (!gridURI.EndsWith("/", StringComparison.Ordinal))
+                gridURI += "/";
+            return gridURI.ToLowerInvariant();
+        }
+
         public bool LoginAgentToGrid(GridRegion source, AgentCircuitData agentCircuit, GridRegion gatekeeper, GridRegion finalDestination, bool fromLogin, out string reason)
         {
             m_log.DebugFormat("[USER AGENT SERVICE]: Request to login user {0} {1} (@{2}) to grid {3}",
                 agentCircuit.firstname, agentCircuit.lastname, (fromLogin ? agentCircuit.IPAddress : "stored IP"), gatekeeper.ServerURI);
 
-            string gridName = gatekeeper.ServerURI.ToLowerInvariant();
+            string gridName = NormalizeGridURI(gatekeeper.ServerURI);
+
+            if (!fromLogin && IsLocalGridURI(m_GridName, gridName))
+            {
+                reason = "Please log in again to return home";
+                m_log.WarnFormat("[USER AGENT SERVICE]: Refusing Hypergrid return-home login for user {0} {1}; return-home requires a fresh login.",
+                    agentCircuit.firstname, agentCircuit.lastname);
+                return false;
+            }
 
             UserAccount account = m_UserAccountService.GetUserAccount(UUID.Zero, agentCircuit.AgentID);
             if (account is null)
@@ -297,6 +335,13 @@ namespace OpenSim.Services.HypergridService
             }
             else
             {
+                if (!HypergridEgressPolicy.IsAllowedTarget(region.ServerURI, m_GridName))
+                {
+                    reason = "Destination is not allowed";
+                    m_log.WarnFormat("[USER AGENT SERVICE]: Refusing outbound Hypergrid agent transfer to disallowed target {0}", region.ServerURI);
+                    return false;
+                }
+
                 //TODO: Should there not be a call to QueryAccess here?
                 EntityTransferContext ctx = new();
                 success = m_GatekeeperConnector.CreateAgent(source, region, agentCircuit, (uint)Constants.TeleportFlags.ViaLogin, ctx, out reason);
@@ -355,6 +400,24 @@ namespace OpenSim.Services.HypergridService
             StoreTravelInfo(travel);
 
             return travel;
+        }
+
+        public bool IsKnownTravelingAgent(UUID userID, UUID sessionID)
+        {
+            HGTravelingData hgt = m_Database.Get(sessionID);
+            return TravelSessionMatches(hgt, userID, sessionID);
+        }
+
+        public static bool TravelSessionMatches(HGTravelingData travelData, UUID userID, UUID sessionID)
+        {
+            if (travelData == null || travelData.Data == null || travelData.SessionID != sessionID)
+                return false;
+
+            if (!travelData.Data.TryGetValue("UserID", out string storedUserID) ||
+                !UUID.TryParse(storedUserID, out UUID storedUserUUID))
+                return false;
+
+            return storedUserUUID == userID;
         }
 
         public void LogoutAgent(UUID userID, UUID sessionID)

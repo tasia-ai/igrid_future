@@ -50,6 +50,7 @@ namespace OpenSim.Server.Handlers.Neighbour
         {
 
             m_NeighbourService = nService;
+            var controlPlaneAccess = new ControlPlaneAccess(source);
             if (m_NeighbourService == null)
             {
                 m_log.Error("[NEIGHBOUR IN CONNECTOR]: neighbour service was not provided");
@@ -60,7 +61,7 @@ namespace OpenSim.Server.Handlers.Neighbour
             //if (authentication)
             //    m_AuthenticationService = scene.RequestModuleInterface<IAuthenticationService>();
 
-            server.AddSimpleStreamHandler(new NeighbourSimpleHandler(m_NeighbourService, m_AuthenticationService), true);
+            server.AddSimpleStreamHandler(new NeighbourSimpleHandler(m_NeighbourService, m_AuthenticationService, controlPlaneAccess), true);
         }
     }
 }

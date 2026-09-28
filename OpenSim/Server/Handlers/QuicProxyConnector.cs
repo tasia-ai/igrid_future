@@ -302,37 +302,55 @@ namespace OpenSim.Server.Handlers
                 {
                     string simHost = map.ContainsKey("simHost") ? map["simHost"].AsString() : "127.0.0.1";
                     int simPort = map.ContainsKey("simPort") ? map["simPort"].AsInteger() : 0;
-
-                    if (simPort > 0)
-                    {
-                        IPAddress simAddress = ResolveRegistrationAddress(simHost);
-                        var simEndpoint = new IPEndPoint(simAddress, simPort);
-                        if (string.Equals(agentType, "child", StringComparison.OrdinalIgnoreCase) &&
-                            QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint currentSim) &&
-                            (currentSim.Port != simEndpoint.Port || !currentSim.Address.Equals(simEndpoint.Address)))
-                        {
-                            m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} child-agent flip {currentSim} -> {simEndpoint} ignored; keeping root route");
-                        }
-                        else
-                        {
-                            QuicCircuitRegistry.Register(circuitCode, simEndpoint);
-                            m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} agent {agentType} registered -> LLUDP {simEndpoint}");
-                        }
-                    }
-
                     string quicHost = map.ContainsKey("quicHost") ? map["quicHost"].AsString() : simHost;
                     int quicPort = map.ContainsKey("quicPort") ? map["quicPort"].AsInteger() : 0;
 
+                    IPEndPoint simEndpoint = null;
+                    if (simPort > 0 && simPort <= 65535)
+                        simEndpoint = new IPEndPoint(ResolveRegistrationAddress(simHost), simPort);
+
+                    IPEndPoint quicEndpoint = null;
+                    if (quicPort > 0 && quicPort <= 65535 &&
+                        quicPort != m_listenPort &&
+                        (m_quicPoolStart <= 0 || (quicPort >= m_quicPoolStart && quicPort <= m_quicPoolEnd)))
+                    {
+                        quicEndpoint = new IPEndPoint(ResolveRegistrationAddress(quicHost), quicPort);
+                    }
+
+                    bool ignoredChildRouteFlip = false;
+                    bool isChild = string.Equals(agentType, "child", StringComparison.OrdinalIgnoreCase);
+                    if (isChild)
+                    {
+                        bool simWouldFlip = simEndpoint != null &&
+                            QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint currentSim) &&
+                            !EndpointEquals(currentSim, simEndpoint);
+                        bool quicWouldFlip = quicEndpoint != null &&
+                            QuicCircuitRegistry.TryGetQUIC(circuitCode, out IPEndPoint currentQuic) &&
+                            !EndpointEquals(currentQuic, quicEndpoint);
+
+                        ignoredChildRouteFlip = simWouldFlip || quicWouldFlip;
+                        if (ignoredChildRouteFlip)
+                            m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} child-agent route flip ignored; keeping root route (LLUDP={simEndpoint}, QUIC={quicEndpoint})");
+                    }
+
+                    if (!ignoredChildRouteFlip && simEndpoint != null)
+                    {
+                        QuicCircuitRegistry.Register(circuitCode, simEndpoint);
+                        m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} agent {agentType} registered -> LLUDP {simEndpoint}");
+                    }
+
                     if (quicPort > 0 && quicPort <= 65535)
                     {
-                        if (quicPort == m_listenPort || (m_quicPoolStart > 0 && (quicPort < m_quicPoolStart || quicPort > m_quicPoolEnd)))
+                        if (ignoredChildRouteFlip)
+                        {
+                            m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} child-agent QUIC route ignored with child flip; keeping root QUIC route");
+                        }
+                        else if (quicEndpoint == null)
                         {
                             m_log.Warn($"[QuicProxy] Circuit {circuitCode} region {regionTag} sent stale quicPort {quicPort} (pool {m_quicPoolStart}-{m_quicPoolEnd}, lease={brainLease}); keeping LLUDP only");
                         }
                         else
                         {
-                            IPAddress quicAddress = ResolveRegistrationAddress(quicHost);
-                            var quicEndpoint = new IPEndPoint(quicAddress, quicPort);
                             QuicCircuitRegistry.RegisterQUIC(circuitCode, quicEndpoint);
                             m_log.Info($"[QuicProxy] Circuit {circuitCode} region {regionTag} registered -> QUIC {quicEndpoint}");
                         }
@@ -382,6 +400,11 @@ namespace OpenSim.Server.Handlers
             }
 
             return IPAddress.Loopback;
+        }
+
+        private static bool EndpointEquals(IPEndPoint a, IPEndPoint b)
+        {
+            return a != null && b != null && a.Port == b.Port && a.Address.Equals(b.Address);
         }
 
         /// <summary>
@@ -459,16 +482,27 @@ namespace OpenSim.Server.Handlers
             return response;
         }
 
-        private void ForwardToQuickG(string operation, string body)
+        private bool ForwardToQuickG(string operation, string body)
         {
             if (string.IsNullOrEmpty(m_quickGControlPort))
-                return;
+                return true;
 
-            using StringContent content = new StringContent(body, Encoding.UTF8, "application/json");
-            HttpResponseMessage result = s_quickGClient.PostAsync(
-                $"http://127.0.0.1:{m_quickGControlPort}/{operation}", content).GetAwaiter().GetResult();
-            if (!result.IsSuccessStatusCode)
-                throw new InvalidOperationException($"Quick-G {operation} returned {(int)result.StatusCode}");
+            try
+            {
+                using StringContent content = new StringContent(body, Encoding.UTF8, "application/json");
+                using HttpResponseMessage result = s_quickGClient.PostAsync(
+                    $"http://127.0.0.1:{m_quickGControlPort}/{operation}", content).GetAwaiter().GetResult();
+                if (result.IsSuccessStatusCode)
+                    return true;
+
+                m_log.Warn($"[QuicProxy] Quick-G {operation} returned {(int)result.StatusCode}; keeping local registry update");
+            }
+            catch (Exception ex)
+            {
+                m_log.Warn($"[QuicProxy] Quick-G {operation} forward failed: {ex.GetType().Name}: {ex.Message}; keeping local registry update");
+            }
+
+            return false;
         }
 
         private void ForwardRegistryRouteToQuickG(uint circuitCode, IPEndPoint endpoint)
@@ -642,8 +676,16 @@ namespace OpenSim.Server.Handlers
                 m_log.Info($"[QuicProxy] Viewer from {viewerConn.RemoteEndPoint}, circuit={circuitCode}");
 
                 // Resolve target sim - QUIC endpoint from registry
+                bool quickGBridgeMode = !string.IsNullOrEmpty(m_quickGControlPort);
                 if (!QuicCircuitRegistry.TryGetQUIC(circuitCode, out IPEndPoint quicEndpoint))
                 {
+                    if (quickGBridgeMode && QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint bridgeEndpoint))
+                    {
+                        m_log.Info($"[QuicProxy] Bridge mode: circuit {circuitCode} has LLUDP route {bridgeEndpoint}; skipping native QUIC wait");
+                        await BridgeViewerQuicToSimUdpAsync(viewerConn, viewerStream, circuitCode, firstPayload, bridgeEndpoint, ct);
+                        return;
+                    }
+
                     // Race condition: sim may still be registering this circuit.
                     // Wait briefly for the registration POST to arrive.
                     m_log.Info($"[QuicProxy] No QUIC route for circuit {circuitCode} yet, waiting for registration...");
@@ -657,6 +699,12 @@ namespace OpenSim.Server.Handlers
                         {
                             m_log.Info($"[QuicProxy] Circuit {circuitCode} QUIC route appeared after {waited}ms");
                             break;
+                        }
+                        if (quickGBridgeMode && QuicCircuitRegistry.TryGetCircuit(circuitCode, out bridgeEndpoint))
+                        {
+                            m_log.Info($"[QuicProxy] Bridge mode: circuit {circuitCode} LLUDP route appeared after {waited}ms");
+                            await BridgeViewerQuicToSimUdpAsync(viewerConn, viewerStream, circuitCode, firstPayload, bridgeEndpoint, ct);
+                            return;
                         }
                     }
                 }
@@ -739,6 +787,8 @@ namespace OpenSim.Server.Handlers
                     return;
                 }
 
+                QuicCircuitRegistry.TryGetCircuit(circuitCode, out IPEndPoint simEndpointForSession);
+
                 session = new ProxySession
                 {
                     ViewerConn = viewerConn,
@@ -746,6 +796,8 @@ namespace OpenSim.Server.Handlers
                     SimConn = simConn,
                     SimStream = simStream,
                     CircuitCode = circuitCode,
+                    SimEndpoint = simEndpointForSession,
+                    QuicEndpoint = quicEndpoint,
                     KeepaliveCts = CancellationTokenSource.CreateLinkedTokenSource(ct)
                 };
 
@@ -1005,9 +1057,15 @@ namespace OpenSim.Server.Handlers
             try { session.ViewerConn?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
 
             if (removed)
+            {
+                if (QuicCircuitRegistry.TryUnregisterIfMatches(circuitCode, session.SimEndpoint, session.QuicEndpoint))
+                    m_log.Info($"[QuicProxy] Unregistered route for closed bridge circuit {circuitCode}");
                 m_log.Info($"[QuicProxy] Closed bridge for circuit {circuitCode}");
+            }
             else
+            {
                 m_log.Info($"[QuicProxy] Closed stale bridge for circuit {circuitCode}; newer session kept alive");
+            }
         }
 
         /// <summary>
@@ -1397,6 +1455,7 @@ namespace OpenSim.Server.Handlers
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var viewerToSim = Task.Run(async () =>
             {
+                int packets = 0;
                 try
                 {
                     byte[] header = new byte[4];
@@ -1413,12 +1472,20 @@ namespace OpenSim.Server.Handlers
                         if (payloadRead < payloadLen)
                             break;
                         await udp.SendAsync(payload, payload.Length);
+                        packets++;
+                        if (packets <= 5)
+                            m_log.Debug($"[QuicProxy] Circuit {circuitCode} viewer->sim UDP packet {packets}, {payload.Length} bytes");
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    if (!linked.Token.IsCancellationRequested)
+                        m_log.Warn($"[QuicProxy] Circuit {circuitCode} viewer->sim UDP bridge ended after {packets} packets: {ex.GetType().Name}: {ex.Message}");
+                }
             }, linked.Token);
             var simToViewer = Task.Run(async () =>
             {
+                int packets = 0;
                 try
                 {
                     udp.Client.ReceiveTimeout = 1000;
@@ -1445,13 +1512,22 @@ namespace OpenSim.Server.Handlers
                         Buffer.BlockCopy(buf, 0, framed, 4, n);
                         await viewerStream.WriteAsync(framed.AsMemory(0, framed.Length), linked.Token);
                         await viewerStream.FlushAsync(linked.Token);
+                        packets++;
+                        if (packets <= 5)
+                            m_log.Debug($"[QuicProxy] Circuit {circuitCode} sim->viewer UDP packet {packets}, {n} bytes");
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    if (!linked.Token.IsCancellationRequested)
+                        m_log.Warn($"[QuicProxy] Circuit {circuitCode} sim->viewer UDP bridge ended after {packets} packets: {ex.GetType().Name}: {ex.Message}");
+                }
             }, linked.Token);
             await Task.WhenAny(viewerToSim, simToViewer);
             linked.Cancel();
             try { await Task.WhenAll(viewerToSim, simToViewer); } catch { }
+            if (QuicCircuitRegistry.TryUnregisterIfMatches(circuitCode, simEndpoint, null))
+                m_log.Info($"[QuicProxy] Unregistered LLUDP bridge route for closed circuit {circuitCode}");
         }
 
         #region Stream helpers
@@ -1502,6 +1578,8 @@ namespace OpenSim.Server.Handlers
             public QuicStream SimStream { get; set; }
 
             public uint CircuitCode { get; set; }
+            public IPEndPoint SimEndpoint { get; set; }
+            public IPEndPoint QuicEndpoint { get; set; }
 
             // Keepalive cancellation
             public CancellationTokenSource KeepaliveCts { get; set; }

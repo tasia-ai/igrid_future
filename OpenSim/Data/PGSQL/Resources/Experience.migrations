@@ -1,0 +1,35 @@
+:VERSION 1
+
+BEGIN TRANSACTION;
+
+CREATE TABLE IF NOT EXISTS experiences (
+    public_id uuid NOT NULL PRIMARY KEY,
+    owner_id uuid NOT NULL,
+    name varchar(42) NOT NULL,
+    description varchar(128) NOT NULL,
+    group_id uuid NOT NULL,
+    logo uuid NOT NULL,
+    marketplace varchar(256) NOT NULL,
+    slurl varchar(256) NOT NULL,
+    maturity integer NOT NULL,
+    properties integer NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS experience_permissions (
+    experience uuid NOT NULL,
+    avatar uuid NOT NULL,
+    allow boolean NOT NULL,
+    PRIMARY KEY (experience, avatar)
+);
+
+CREATE INDEX IF NOT EXISTS ix_experience_permissions_avatar
+    ON experience_permissions (avatar);
+
+CREATE TABLE IF NOT EXISTS experience_kv (
+    experience uuid NOT NULL,
+    key varchar(1011) NOT NULL,
+    value text NOT NULL,
+    PRIMARY KEY (experience, key)
+);
+
+COMMIT;

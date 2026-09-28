@@ -94,6 +94,7 @@ namespace OpenSim.Services.LLLoginService
         protected string m_quicAdvertiseHost = string.Empty;
         protected int m_quicAdvertisePort = 9001;
         protected bool m_quicAdvertisePortExplicit = false;
+        protected bool m_quickGBridgeMode = false;
 
         protected bool m_allowDuplicatePresences = false;
         protected string m_messageKey;
@@ -201,6 +202,18 @@ namespace OpenSim.Services.LLLoginService
                 m_quicAdvertisePort = m_quicAdvertisePortExplicit
                     ? quicConfig.GetInt("AdvertisePort", 0)
                     : 0;
+            }
+
+            IConfig quickGConfig = config.Configs["QuickG"];
+            if (quickGConfig is not null)
+            {
+                // In Quick-G DLL/bridge mode simulators do not expose native
+                // per-region QUIC listeners.  GridRegion.QuicPort can be stale
+                // DB metadata, so login must pre-register only the LLUDP route;
+                // the public viewer QUIC endpoint is still AdvertisePort.
+                bool quickGEnabled = quickGConfig.GetBoolean("Enabled", false);
+                bool quickGUseDll = quickGConfig.GetBoolean("UseDll", false);
+                m_quickGBridgeMode = quickGEnabled && quickGUseDll;
             }
 
 
@@ -742,6 +755,9 @@ namespace OpenSim.Services.LLLoginService
         {
             try
             {
+                if (m_quickGBridgeMode)
+                    return null;
+
                 int quicPort = 0;
 
                 // If GridRegion has a per-sim QUIC port, use it unless it is the

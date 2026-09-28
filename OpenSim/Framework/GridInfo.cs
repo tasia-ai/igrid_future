@@ -345,6 +345,17 @@ namespace OpenSim.Framework
             return false;
         }
 
+        // Required: HashSet<OSHHTPHost>.Contains() (used by
+        // IsLocalGrid gatekeeper-alias checks) calls Equals(object).
+        // Without this override the default ValueType.Equals compares
+        // every field (including DNS-resolved IP), so parsed aliases
+        // never match parsed destinations and every same-grid neighbour
+        // is misclassified as FOREIGN.
+        public override bool Equals(object obj)
+        {
+            return obj is OSHHTPHost other && Equals(other);
+        }
+
         public override int GetHashCode()
         {
             return Host.GetHashCode() + Port;

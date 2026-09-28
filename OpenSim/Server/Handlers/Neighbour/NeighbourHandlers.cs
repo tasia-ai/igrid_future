@@ -50,12 +50,14 @@ namespace OpenSim.Server.Handlers.Neighbour
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private INeighbourService m_NeighbourService;
         private IAuthenticationService m_AuthenticationService;
+        private readonly ControlPlaneAccess m_ControlPlaneAccess;
 
-        public NeighbourSimpleHandler(INeighbourService service, IAuthenticationService authentication) :
+        public NeighbourSimpleHandler(INeighbourService service, IAuthenticationService authentication, ControlPlaneAccess controlPlaneAccess) :
                 base("/region")
         {
             m_NeighbourService = service;
             m_AuthenticationService = authentication;
+            m_ControlPlaneAccess = controlPlaneAccess;
         }
 
         protected override void ProcessRequest(IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
@@ -72,6 +74,9 @@ namespace OpenSim.Server.Handlers.Neighbour
             {
                 case "POST":
                 {
+                    if (!m_ControlPlaneAccess.Authorize(httpRequest, httpResponse, HttpStatusCode.NotFound))
+                        return;
+
                     OSDMap args = RestHandlerUtils.DeserializeOSMap(httpRequest);
                     if (args == null)
                     {

@@ -92,9 +92,9 @@ namespace OpenSim.Data.PGSQL
             }
             else
             {
-                pattern = " \"ShowInList\" = 1 AND lower(\"Name\") LIKE lower('%" + pattern + "%')";
-
-                return m_Groups.Get(pattern, new NpgsqlParameter("pattern", pattern));
+                return m_Groups.Get(
+                    "\"ShowInList\" = 1 AND lower(\"Name\") LIKE lower(:pattern)",
+                    new NpgsqlParameter("pattern", "%" + pattern + "%"));
             }
         }
 
@@ -345,13 +345,16 @@ namespace OpenSim.Data.PGSQL
         #region combinations
         public MembershipData RetrievePrincipalGroupMembership(string principalID, UUID groupID)
         {
-            // TODO
-            return null;
+            MembershipData[] memberships = m_Membership.Get(
+                new[] { "GroupID", "PrincipalID" },
+                new[] { groupID.ToString(), principalID });
+
+            return memberships != null && memberships.Length > 0 ? memberships[0] : null;
         }
+
         public MembershipData[] RetrievePrincipalGroupMemberships(string principalID)
         {
-            // TODO
-            return null;
+            return m_Membership.Get("PrincipalID", principalID);
         }
 
         #endregion
@@ -435,7 +438,7 @@ namespace OpenSim.Data.PGSQL
 
             using (NpgsqlCommand cmd = new NpgsqlCommand())
             {
-                cmd.CommandText = String.Format("delete from {0} where \"TMStamp\"::abstime::timestamp < now() - INTERVAL '2 week'", m_Realm);
+                cmd.CommandText = String.Format("delete from {0} where \"TMStamp\" < now() - INTERVAL '2 weeks'", m_Realm);
 
                 ExecuteNonQuery(cmd);
             }
@@ -461,7 +464,7 @@ namespace OpenSim.Data.PGSQL
 
             using (NpgsqlCommand cmd = new NpgsqlCommand())
             {
-                cmd.CommandText = String.Format("delete from {0} where \"TMStamp\"::abstime::timestamp < now() - INTERVAL '2 week'", m_Realm);
+                cmd.CommandText = String.Format("delete from {0} where to_timestamp(\"TMStamp\") < now() - INTERVAL '2 weeks'", m_Realm);
 
                 ExecuteNonQuery(cmd);
             }

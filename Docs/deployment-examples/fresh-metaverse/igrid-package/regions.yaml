@@ -1,4 +1,4 @@
-# I-Grid Fresh Metaverse - region definitions
+﻿# I-Grid Fresh Metaverse - region definitions
 #
 # Each entry is one separate sim process with its own port.
 # size is in 256m region-units (e.g. 2 = 512m), x/y are grid coordinates.
@@ -7,7 +7,7 @@
 
 estate:
   name: Fresh Estate
-  owner: estate manager
+  owner: Cute Devil
   owner_uuid: ""           # filled at first-run by the manager (created user)
   managers:
     - Cute Devil
@@ -36,7 +36,7 @@ db:
   database: robust
   database_assets: assets
   user: opensim
-  password: CHANGE_ME
+  password: opensim
 
 regions:
   - id: 01
@@ -113,5 +113,15 @@ regions:
     physics: ubODE
     meshing: Meshmerizer
 
+
   # Fresh01..Fresh22: 1x1 regions on a side grid, away from MainLand (X1998-2004,Y1998-2004)
   # placed at X2200..Y2200+, 5-column layout. Coordinates are generated automatically.
+
+  - id: custom_31
+    name: Dark_Secrets
+    database: sim_dark_secrets
+    size: 1
+    x: 9300
+    y: 9300
+    physics: BulletSim
+    meshing: Meshmerizer

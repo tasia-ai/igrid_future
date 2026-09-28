@@ -50,6 +50,7 @@ namespace OpenSim.Server.Handlers.Hypergrid
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private IInstantMessage m_IMService;
+        private readonly ControlPlaneAccess m_ControlPlaneAccess;
 
         public InstantMessageServerConnector(IConfigSource config, IHttpServer server) :
             this(config, server, (IInstantMessageSimConnector)null)
@@ -64,6 +65,7 @@ namespace OpenSim.Server.Handlers.Hypergrid
         public InstantMessageServerConnector(IConfigSource config, IHttpServer server, IInstantMessageSimConnector simConnector) :
                 base(config, server, String.Empty)
         {
+            m_ControlPlaneAccess = new ControlPlaneAccess(config);
             IConfig gridConfig = config.Configs["HGInstantMessageService"];
             if (gridConfig != null)
             {
@@ -157,6 +159,15 @@ namespace OpenSim.Server.Handlers.Hypergrid
                     {
                         byte[] dialogdata = Convert.FromBase64String(requestData1);
                         dialog = dialogdata[0];
+                    }
+
+                    if (!m_ControlPlaneAccess.AuthorizePrivilegedInstantMessage(dialog, remoteClient))
+                    {
+                        XmlRpcResponse denied = new XmlRpcResponse();
+                        Hashtable deniedData = new Hashtable();
+                        deniedData["success"] = "FALSE";
+                        denied.Value = deniedData;
+                        return denied;
                     }
 
                     if ((string)requestData["from_group"] == "TRUE")

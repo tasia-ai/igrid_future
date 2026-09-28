@@ -27,6 +27,7 @@
 
 using System;
 using System.Data;
+using System.Linq;
 using System.Reflection;
 using System.Collections.Generic;
 using OpenMetaverse;
@@ -206,6 +207,7 @@ namespace OpenSim.Data.PGSQL
                 catch(Exception e)
                 {
                     m_log.Error("[ASSET DB]: Error storing item :" + e.Message + " sql "+sql);
+                    return false;
                 }
             }
             return true;
@@ -243,12 +245,15 @@ namespace OpenSim.Data.PGSQL
 
             HashSet<UUID> exist = new HashSet<UUID>();
 
-            string ids = "'" + string.Join("','", uuids) + "'";
-            string sql = string.Format("SELECT id FROM assets WHERE id IN ({0})", ids);
+            string sql = "SELECT id FROM assets WHERE id = ANY(@ids)";
 
             using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
             using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn))
             {
+                cmd.Parameters.Add(new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid)
+                {
+                    Value = uuids.Select(id => id.Guid).ToArray()
+                });
                 conn.Open();
                 using (NpgsqlDataReader reader = cmd.ExecuteReader())
                 {
@@ -280,14 +285,14 @@ namespace OpenSim.Data.PGSQL
             string sql = @" SELECT id, name, description, " + "\"assetType\"" + @", temporary, creatorid
                               FROM assets
                              order by id
-                             limit :stop
+                             limit :count
                             offset :start;";
 
             using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
             using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn))
             {
                 cmd.Parameters.Add(m_database.CreateParameter("start", start));
-                cmd.Parameters.Add(m_database.CreateParameter("stop", start + count - 1));
+                cmd.Parameters.Add(m_database.CreateParameter("count", count));
                 conn.Open();
                 using (NpgsqlDataReader reader = cmd.ExecuteReader())
                 {
@@ -310,7 +315,17 @@ namespace OpenSim.Data.PGSQL
 
         public override bool Delete(string id)
         {
-            return false;
+            if (!UUID.TryParse(id, out UUID assetID))
+                return false;
+
+            using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
+            using (NpgsqlCommand cmd = new NpgsqlCommand(
+                "DELETE FROM assets WHERE id = :id", conn))
+            {
+                cmd.Parameters.Add(m_database.CreateParameter("id", assetID));
+                conn.Open();
+                return cmd.ExecuteNonQuery() > 0;
+            }
         }
         #endregion
     }

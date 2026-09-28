@@ -90,6 +90,7 @@
                                         <TextBlock Text="Grid Facts" FontWeight="Bold" Foreground="#4A3040"/>
                                         <TextBlock x:Name="TxtDbInfo" Text="PGSQL 127.0.0.1 / robust • assets" FontSize="11" Foreground="#8A6B7A" Margin="0,4,0,2"/>
                                         <TextBlock x:Name="TxtMoneyStatus" Text="Money: checking..." FontSize="11" FontWeight="Bold" Foreground="#8A6B7A" Margin="0,2,0,2"/>
+                                        <TextBlock x:Name="TxtHelperStatus" Text="Helper: checking..." FontSize="11" FontWeight="Bold" Foreground="#8A6B7A" Margin="0,2,0,2"/>
                                         <TextBlock x:Name="TxtApacheDashboardStatus" Text="Apache: checking..." FontSize="11" FontWeight="Bold" Foreground="#8A6B7A" Margin="0,2,0,2"/>
                                         <TextBlock Text="MaxPrims 999555333 (template) • var regions unlimited" FontSize="11" Foreground="#8A6B7A" TextWrapping="Wrap"/>
                                         <TextBlock Text="External os.tasia.work.gd • regions ok.tasia.work.gd" FontSize="10" Foreground="#C9B6E4" Margin="0,6,0,0"/>
@@ -98,8 +99,12 @@
                                             <Button Content="Refresh Status" Style="{StaticResource GhostButton}" Click="BtnRefreshDashboard_Click"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                            <Button x:Name="BtnStartMoney" Content="▶ Start Money" Style="{StaticResource CuteButton}" Click="BtnStartMoney_Click"/>
-                                            <Button x:Name="BtnStopMoney" Content="⏹ Stop Money" Style="{StaticResource GhostButton}" Click="BtnStopMoney_Click"/>
+                                            <Button x:Name="BtnStartMoney" Content="▶ Start Money + Helper" Style="{StaticResource CuteButton}" Click="BtnStartMoney_Click"/>
+                                            <Button x:Name="BtnStopMoney" Content="⏹ Stop Money+Helper" Style="{StaticResource GhostButton}" Click="BtnStopMoney_Click"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <Button x:Name="BtnStartHelper" Content="▶ Start Helper (8015)" Style="{StaticResource CuteButton}" Click="BtnStartHelper_Click"/>
+                                            <Button x:Name="BtnStopHelper" Content="⏹ Stop Helper" Style="{StaticResource GhostButton}" Click="BtnStopHelper_Click"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                             <Button x:Name="BtnStartApacheDashboard" Content="▶ Start XAMPP" Style="{StaticResource CuteButton}" Click="BtnStartApacheDashboard_Click"/>
@@ -201,21 +206,43 @@
                                 </WrapPanel>
                                 <Border Background="#FFF7FB" CornerRadius="12" Padding="10" Margin="0,8,0,0" BorderBrush="#FFE0EA" BorderThickness="1">
                                     <StackPanel>
+                                        <TextBlock Text="Estates — create &amp; assign to regions" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <TextBlock Text="Estates live in regions.yaml (estates: list). Add a new estate, then pick it when you Add Sim. Leave empty to use default (Fresh Estate / Cute Devil)." FontSize="10" Foreground="#8A6B7A" TextWrapping="Wrap" Margin="0,2,0,6"/>
+                                        <WrapPanel>
+                                            <TextBlock Text="Estate name" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <TextBox x:Name="TxtNewEstateName" Width="160" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Owner" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <TextBox x:Name="TxtNewEstateOwner" Width="140" Text="Cute Devil" Margin="0,0,8,0"/>
+                                            <Button x:Name="BtnAddEstate" Content="＋ Add Estate" Style="{StaticResource CuteButton}" Click="BtnAddEstate_Click"/>
+                                            <Button x:Name="BtnRemoveEstate" Content="− Remove Estate" Style="{StaticResource GhostButton}" Click="BtnRemoveEstate_Click"/>
+                                            <Button Content="Reload" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnReloadEstates_Click"/>
+                                        </WrapPanel>
+                                        <WrapPanel Margin="0,6,0,0">
+                                            <TextBlock Text="Existing:" VerticalAlignment="Center" FontSize="11" Foreground="#8A6B7A" Margin="0,0,6,0"/>
+                                            <ComboBox x:Name="CboEstateList" Width="320" Margin="0,0,8,0"/>
+                                            <TextBlock x:Name="TxtEstateInfo" Text="—" FontSize="11" Foreground="#8A6B7A" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="#FFF7FB" CornerRadius="12" Padding="10" Margin="0,8,0,0" BorderBrush="#FFE0EA" BorderThickness="1">
+                                    <StackPanel>
                                         <TextBlock Text="Add / Remove Named Sim" FontWeight="Bold" Foreground="#4A3040"/>
                                         <TextBlock Text="Adds/removes named entries in regions.yaml, regenerates configs, then refreshes this list. Fresh01..Fresh22 are generated automatically and are not removed here." FontSize="10" Foreground="#8A6B7A" TextWrapping="Wrap" Margin="0,2,0,6"/>
                                         <WrapPanel>
                                             <TextBlock Text="Name" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <TextBox x:Name="TxtNewRegionName" Width="190" Margin="0,0,8,0"/>
+                                            <TextBox x:Name="TxtNewRegionName" Width="150" Margin="0,0,8,0"/>
                                             <TextBlock Text="X" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                             <TextBox x:Name="TxtNewRegionX" Width="58" Text="2300" Margin="0,0,8,0"/>
                                             <TextBlock Text="Y" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                             <TextBox x:Name="TxtNewRegionY" Width="58" Text="2300" Margin="0,0,8,0"/>
                                             <TextBlock Text="Size" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                             <TextBox x:Name="TxtNewRegionSize" Width="48" Text="1" Margin="0,0,8,0"/>
-                                            <ComboBox x:Name="CboNewRegionPhysics" Width="100" SelectedIndex="0" Margin="0,0,8,0">
+                                            <ComboBox x:Name="CboNewRegionPhysics" Width="90" SelectedIndex="0" Margin="0,0,8,0">
                                                 <ComboBoxItem Content="ubODE"/>
                                                 <ComboBoxItem Content="BulletSim"/>
                                             </ComboBox>
+                                            <TextBlock Text="Estate" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <ComboBox x:Name="CboNewRegionEstate" Width="140" Margin="0,0,8,0"/>
                                             <Button x:Name="BtnAddRegion" Content="＋ Add Sim" Style="{StaticResource CuteButton}" Click="BtnAddRegion_Click"/>
                                             <Button x:Name="BtnRemoveRegion" Content="− Remove Selected Sim" Style="{StaticResource GhostButton}" Click="BtnRemoveRegion_Click"/>
                                         </WrapPanel>
@@ -342,24 +369,102 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <!-- OAR Restore -->
-                <TabItem Header="📦 OAR Restore">
+                <!-- OAR Restore + Save — full wiki options -->
+                <TabItem Header="📦 OAR">
                     <ScrollViewer Padding="16" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
+                            <!-- SAVE OAR: save oar options noassets home publish perm all -->
+                            <Border Style="{StaticResource Card}" Background="#FFF7FB" BorderBrush="#E8DFF5">
+                                <StackPanel>
+                                    <TextBlock Text="💾 Save OAR — create archive from a running sim" FontWeight="Bold" Foreground="#4A3040"/>
+                                    <TextBlock Text="Sends 'save oar [options] &lt;file&gt;' to the selected sim's console (via managed stdin — works even when window hidden). See http://opensimulator.org/wiki/Save_Oar" FontSize="10" Foreground="#8A6B7A" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox x:Name="CboSaveOarRegion" Margin="0,0,8,0"/>
+                                        <TextBox x:Name="TxtSaveOarFile" Grid.Column="1" Margin="0,0,8,0" ToolTip="Filename — absolute or relative. Empty = region.oar in sim data/. Use H:/backups/my.oar"/>
+                                        <Button x:Name="BtnPickSaveOarFile" Grid.Column="2" Content="📁 Pick" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnPickSaveOarFile_Click"/>
+                                    </Grid>
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <CheckBox x:Name="ChkSaveNoAssets" Content="--noassets (no assets — faster, DB backed up separately)" Margin="0,0,12,0" Foreground="#4A3040"/>
+                                        <CheckBox x:Name="ChkSavePublish" Content="--publish (strip owner/last-owner + parcels + groups)" Margin="0,0,12,0" Foreground="#4A3040"/>
+                                        <CheckBox x:Name="ChkSaveAll" Content="--all (multi-region OAR Format 1.0 — all regions in this sim)" Foreground="#4A3040"/>
+                                    </WrapPanel>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="--home" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBox x:Name="TxtSaveHome" Width="220" Margin="0,0,8,0" ToolTip="Creator home URL, e.g. http://mygrid.com"/>
+                                        <TextBlock Text="--perm" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <ComboBox x:Name="CboSavePerm" Width="120" SelectedIndex="0" Margin="0,0,8,0">
+                                            <ComboBoxItem Content="(any — no filter)"/>
+                                            <ComboBoxItem Content="C"/>
+                                            <ComboBoxItem Content="T"/>
+                                            <ComboBoxItem Content="CT"/>
+                                        </ComboBox>
+                                        <Button x:Name="BtnSaveOar" Content="💾 Save OAR" Style="{StaticResource CuteButton}" Click="BtnSaveOar_Click"/>
+                                    </WrapPanel>
+                                    <TextBlock Text="Save: sim writes file on server. Check Logs tab or Sim data/ folder. --perm checks estate owner perms (C=Copy T=Transfer)." FontSize="10" Foreground="#C9B6E4" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
                             <Border Style="{StaticResource Card}" Background="#FFF0F6">
                                 <StackPanel>
-                                    <TextBlock Text="OAR Restore — bulk supported" FontWeight="Bold" Foreground="#4A3040"/>
-                                    <TextBlock Text="Upload an .oar and restore to one or many regions. Uses 'load oar' console command via Robust/sim HTTP." FontSize="11" Foreground="#8A6B7A" Margin="0,4,0,10" TextWrapping="Wrap"/>
+                                    <TextBlock Text="📥 Load OAR — restore archive into sim(s) (0.9.0+ full options)" FontWeight="Bold" Foreground="#4A3040"/>
+                                    <TextBlock Text="Same OAR to many sims, or smart-map different OAR per sim. Uses 'load oar [opts] &lt;file&gt;' via managed sim stdin. http://opensimulator.org/wiki/Load_Oar_0.9.0+" FontSize="10" Foreground="#8A6B7A" Margin="0,4,0,10" TextWrapping="Wrap"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBox x:Name="TxtOarPath" IsReadOnly="True" Margin="0,0,8,0"/>
+                                        <TextBox x:Name="TxtOarPath" IsReadOnly="True" Margin="0,0,8,0" ToolTip="Path to .oar — filesystem or http://"/>
                                         <Button x:Name="BtnPickOar" Grid.Column="1" Content="📁 Pick .oar" Style="{StaticResource GhostButton}" Click="BtnPickOar_Click"/>
                                     </Grid>
-                                    <CheckBox x:Name="ChkOarMerge" Content="Merge (keep existing) — otherwise --force / wipe" IsChecked="True" Margin="0,8,0,0" Foreground="#4A3040"/>
-                                    <CheckBox x:Name="ChkOarSkipAssets" Content="Skip assets (faster) — uses --skip-assets" IsChecked="False" Margin="0,4,0,0" Foreground="#4A3040"/>
+                                    <!-- primary flags load oar -->
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <CheckBox x:Name="ChkOarMerge" Content="--merge" IsChecked="True" Margin="0,0,12,0" Foreground="#4A3040" ToolTip="Merge with existing instead of wipe"/>
+                                        <CheckBox x:Name="ChkOarSkipAssets" Content="--skip-assets" Margin="0,0,12,0" Foreground="#4A3040"/>
+                                        <CheckBox x:Name="ChkOarNoObjects" Content="--no-objects" Margin="0,0,12,0" Foreground="#4A3040"/>
+                                        <CheckBox x:Name="ChkOarForceAssets" Content="--force-assets" Margin="0,0,12,0" Foreground="#4A3040" ToolTip="Force replace assets in cache (0.9.3-dev recovery)"/>
+                                        <CheckBox x:Name="ChkOarForceTerrain" Content="--force-terrain" Margin="0,0,12,0" Foreground="#4A3040"/>
+                                        <CheckBox x:Name="ChkOarForceParcels" Content="--force-parcels" Margin="0,0,12,0" Foreground="#4A3040"/>
+                                        <CheckBox x:Name="ChkOarDebug" Content="--debug" Foreground="#4A3040"/>
+                                    </WrapPanel>
+                                    <!-- geometry load oar -->
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="90"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="130"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="130"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="130"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="--rotation" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBox x:Name="TxtOarRotation" Grid.Column="1" Margin="0,0,8,0" ToolTip="degrees counter-clockwise, -359..359"/>
+                                        <TextBlock Text="--displacement" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBox x:Name="TxtOarDisplacement" Grid.Column="3" Margin="0,0,8,0" ToolTip='e.g. &lt;128,128,0&gt; or &lt;0,0,1000&gt; for skybox'/>
+                                        <TextBlock Text="--bounding-origin" Grid.Column="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBox x:Name="TxtOarBoundingOrigin" Grid.Column="5" Margin="0,0,8,0" ToolTip='SW corner &lt;x,y,z&gt; to crop source'/>
+                                        <TextBlock Text="--bounding-size" Grid.Column="6" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBox x:Name="TxtOarBoundingSize" Grid.Column="7" Margin="0,0,0,0" ToolTip='size &lt;x,y,z&gt; of crop cuboid'/>
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="220"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text='--default-user' VerticalAlignment="Center" Margin="0,0,4,0" ToolTip="Assign unknown UUID objects to this user instead of estate owner"/>
+                                        <TextBox x:Name="TxtOarDefaultUser" Grid.Column="1" Margin="0,0,8,0" ToolTip='e.g. Cute Devil — format &quot;First Last&quot;'/>
+                                        <CheckBox x:Name="ChkOarDirectPath" Grid.Column="2" Content="Direct path (no copy to data/)" IsChecked="True" Margin="0,0,8,0" Foreground="#4A3040" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="3" Text="Uncheck to copy into generated/sims/{Region}/data/ first." FontSize="10" Foreground="#C9B6E4" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                    </Grid>
+                                    <TextBlock Text="Order: --rotation → --bounding-origin/size crop → --displacement into destination. Terrain/parcel rotation jags at 45°. --force-terrain/parcels only matters with --merge." FontSize="10" Foreground="#C9B6E4" TextWrapping="Wrap" Margin="0,4,0,0"/>
                                 </StackPanel>
                             </Border>
 
@@ -370,23 +475,115 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Target Regions (multi-select for bulk restore)" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <TextBlock Text="A) Same OAR → many Regions (multi-select)" FontWeight="Bold" Foreground="#4A3040"/>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                                             <Button Content="All" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnOarSelectAll_Click"/>
                                             <Button Content="None" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnOarSelectNone_Click"/>
                                         </StackPanel>
                                     </Grid>
-                                    <ListBox x:Name="ListOarRegions" Height="220" Margin="0,8,0,0" SelectionMode="Multiple" BorderBrush="#FFE0EA"/>
+                                    <ListBox x:Name="ListOarRegions" Height="150" Margin="0,8,0,0" SelectionMode="Multiple" BorderBrush="#FFE0EA"/>
                                     <WrapPanel Margin="0,8,0,0">
                                         <Button x:Name="BtnRestoreOar" Content="📦 Restore to Selected" Style="{StaticResource CuteButton}" Click="BtnRestoreOar_Click"/>
                                         <Button x:Name="BtnBulkOar" Content="Bulk Restore All (same OAR)" Style="{StaticResource CuteButton}" Background="{StaticResource ButtonGradientLav}" Click="BtnBulkOar_Click"/>
                                     </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Background="#FFF7FB" BorderBrush="#E8DFF5">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="B) Smart Bulk — different OAR per Region" FontWeight="Bold" Foreground="#4A3040"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button x:Name="BtnAddOarMapping" Content="＋ Add Mapping" Style="{StaticResource CuteButton}" FontSize="10" Padding="8,4" Click="BtnAddOarMapping_Click"/>
+                                            <Button x:Name="BtnRemoveOarMapping" Content="− Remove" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnRemoveOarMapping_Click"/>
+                                            <Button x:Name="BtnClearOarMappings" Content="Clear" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnClearOarMappings_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="Add rows: each row = one Region → one .oar file. Then click Smart Bulk Restore. Uses original paths directly, parallel 2." FontSize="10" Foreground="#8A6B7A" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="220"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox x:Name="CboOarRegion" Width="210" Margin="0,0,8,0"/>
+                                        <TextBox x:Name="TxtOarMappingPath" IsReadOnly="True" Grid.Column="1" Margin="0,0,8,0"/>
+                                        <Button x:Name="BtnPickOarMapping" Grid.Column="2" Content="📁 Pick .oar for row" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnPickOarMapping_Click"/>
+                                    </Grid>
+                                    <ListBox x:Name="ListOarMappings" Height="150" Margin="0,8,0,0" BorderBrush="#FFE0EA" FontFamily="Consolas" FontSize="11"/>
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Button x:Name="BtnSmartBulkOar" Content="✨ Smart Bulk Restore Mapped (parallel 2)" Style="{StaticResource CuteButton}" Background="{StaticResource HeaderGradient}" Foreground="White" Click="BtnSmartBulkOar_Click"/>
+                                    </WrapPanel>
+                                    <ProgressBar x:Name="ProgressOarSmart" Minimum="0" Maximum="100" Value="0" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
                                     <ProgressBar x:Name="ProgressOar" Minimum="0" Maximum="100" Value="0"/>
-                                    <TextBox x:Name="TxtOarLog" Height="150" IsReadOnly="True" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" Text="OAR restore log…"/>
+                                    <TextBox x:Name="TxtOarLog" Height="150" IsReadOnly="True" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" Text="OAR log — save &amp; restore appear here."/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
+                </TabItem>
+
+                <!-- Console send to region or Robust -->
+                <TabItem Header="⌨ Console">
+                    <Grid Margin="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Style="{StaticResource Card}" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Send console command — any region or Robust (works hidden ✨)" FontWeight="Bold" Foreground="#4A3040"/>
+                                <TextBlock Text="Commands go via managed stdin kept by this app — hidden windows included. Try: help, show users, backup, save oar, load oar, alert, change region ..." FontSize="11" Foreground="#8A6B7A" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="240"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="CboConsoleTarget" Margin="0,0,8,0" ToolTip="Pick Robust or any sim"/>
+                                    <TextBox x:Name="TxtConsoleCommand" Grid.Column="1" Margin="0,0,8,0" ToolTip="e.g. show users  |  backup  |  alert &quot;hello&quot;  |  save oar H:/backups/a.oar --noassets"/>
+                                    <Button x:Name="BtnConsoleSend" Grid.Column="2" Content="▶ Send" Style="{StaticResource CuteButton}" Click="BtnConsoleSend_Click"/>
+                                </Grid>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Content="Robust: show info" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnConsoleShowInfo_Click"/>
+                                    <Button Content="Clear log" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnConsoleClear_Click"/>
+                                    <TextBlock x:Name="TxtConsoleHint" Text="Tip: 'help' lists all commands. Live output → Logs tab." FontSize="10" Foreground="#C9B6E4" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,8,0,0" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Quick commands" FontWeight="Bold" Foreground="#4A3040"/>
+                                <WrapPanel Margin="0,6,0,0">
+                                    <Button Content="backup" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnConsoleQuickBackup_Click"/>
+                                    <Button Content="show users" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnConsoleQuickShowUsers_Click"/>
+                                    <Button Content="show regions" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnConsoleQuickShowRegions_Click"/>
+                                    <Button Content="alert message" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnConsoleQuickAlert_Click"/>
+                                    <Button Content="change region" Style="{StaticResource GhostButton}" FontSize="10" Padding="8,4" Click="BtnConsoleQuickChangeRegion_Click"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,8,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="Console output (sent commands — live output in Logs → Robust/Sim history)" FontWeight="Bold" Foreground="#4A3040"/>
+                                <TextBox x:Name="TxtConsoleLog" Grid.Row="1" Height="320" IsReadOnly="True" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" Text="Console ready. Pick target, type command, Send. Works even when windows hidden (stdin managed)."/>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </TabItem>
 
                 <!-- Money -->

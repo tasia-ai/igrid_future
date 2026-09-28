@@ -273,6 +273,9 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         protected BlockingCollection<IncomingPacket> packetInbox = new();
 
+        private readonly object m_quickGBridgeDiagLock = new();
+        private readonly Dictionary<UUID, int> m_quickGBridgeDiagOutCounts = new();
+
         /// <summary>Bandwidth throttle for this UDP server</summary>
         public TokenBucket Throttle { get; protected set; }
 
@@ -1150,6 +1153,23 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 return;
             }
 
+            if (udpClient.RemoteEndPoint != null &&
+                (udpClient.RemoteEndPoint.Address.Equals(IPAddress.Loopback) || udpClient.RemoteEndPoint.Address.Equals(IPAddress.IPv6Loopback)))
+            {
+                int diagCount;
+                lock (m_quickGBridgeDiagLock)
+                {
+                    m_quickGBridgeDiagOutCounts.TryGetValue(udpClient.AgentID, out diagCount);
+                    diagCount++;
+                    m_quickGBridgeDiagOutCounts[udpClient.AgentID] = diagCount;
+                }
+
+                if (diagCount <= 40 || diagCount == 100 || diagCount == 500 || diagCount == 1000)
+                {
+                    m_log.Info($"[LLUDPSERVER][QuickGBridgeDiag]: outgoing #{diagCount} seq={outgoingPacket.SequenceNumber} len={dataLength} rel={isReliable} res={isResend} agent={udpClient.AgentID} endpoint={udpClient.RemoteEndPoint} scene={Scene.Name}");
+                }
+            }
+
             SyncSend(buffer);
 
             // Keep track of when this packet was sent out (right now)
@@ -1159,8 +1179,19 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 FreeUDPBuffer(buffer);
             else if(!isResend)
             {
-                // Add this packet to the list of ACK responses we are waiting on from the server
-                udpClient.NeedAcks.Add(outgoingPacket);
+                if (udpClient.IsQuickGBridged)
+                {
+                    // Quick-G bridged client: the viewer leg is QUIC and the viewer never
+                    // sends application level PacketAcks for it (see LLUDPClient.IsQuickGBridged),
+                    // so tracking this packet for resend would only latch the >50 unacked stall.
+                    // Release the buffer here instead of handing it to NeedAcks.
+                    FreeUDPBuffer(buffer);
+                }
+                else
+                {
+                    // Add this packet to the list of ACK responses we are waiting on from the server
+                    udpClient.NeedAcks.Add(outgoingPacket);
+                }
             }
 
             if (udpClient.DebugDataOutLevel > 0)
@@ -1328,8 +1359,26 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
                 if (aCircuit == null)
                 {
-                    Scene.CloseAgent(client.AgentId, true);
-                    return;
+                    // For teleport UpdateAgent, child already exists as presence before viewer UseCircuitCode arrives.
+                    // Closing here would delete the child that IncomingUpdateChildAgent is waiting to promote to root,
+                    // causing "Found presence unexpectedly still child" after 25s and teleport failure.
+                    // If presence exists as child, keep it and still complete QUIC handshake.
+                    ScenePresence spDbg = Scene.GetScenePresence(uccp.CircuitCode.ID);
+                    m_log.WarnFormat("[LLUDPSERVER][DEBUG] QUIC UseCircuitCode {0} for {1} aCircuit==null sp={2} isChild={3} endpoint={4} aCircuitIP={5}",
+                        uccp.CircuitCode.Code, uccp.CircuitCode.ID,
+                        spDbg != null ? "found" : "null",
+                        spDbg != null ? spDbg.IsChildAgent.ToString() : "n/a",
+                        endPoint, "n/a");
+                    ScenePresence sp = spDbg;
+                    if (sp != null && sp.IsChildAgent)
+                    {
+                        m_log.DebugFormat("[LLUDPSERVER]: QUIC UseCircuitCode {0} for {1} has no circuit data but child presence exists, keeping child for UpdateAgent", uccp.CircuitCode.Code, uccp.CircuitCode.ID);
+                    }
+                    else
+                    {
+                        Scene.CloseAgent(client.AgentId, true);
+                        return;
+                    }
                 }
 
                 // Associate the QUIC transport with this client so outgoing packets
@@ -1515,17 +1564,31 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             FreeUDPBuffer(buffer);
 
             // Determine which agent this packet came from
-            if (client == null || client is not LLClientView lclient)
+            LLClientView lclient = client as LLClientView;
+            if (lclient == null)
             {
-                //m_log.Debug("[LLUDPSERVER]: Received a " + packet.Type + " packet from an unrecognized source: " + address + " in " + m_scene.RegionInfo.RegionName);
+                // Crossing fix 2026-09-21: the newt/pangolin tunnel relay may
+                // re-create its UDP proxy socket after a low-rate child flow
+                // idles out. Packets for an existing agent then arrive from a
+                // new endpoint and would be dropped here as orphaned, killing
+                // the circuit. Re-home by AgentID + SessionID before dropping.
+                if (client == null && packet.Type != PacketType.UseCircuitCode)
+                    lclient = TryRehomeClient(packet, endPoint);
 
-                IncomingOrphanedPacketCount++;
+                if (lclient == null)
+                {
+                    //m_log.Debug("[LLUDPSERVER]: Received a " + packet.Type + " packet from an unrecognized source: " + address + " in " + m_scene.RegionInfo.RegionName);
 
-                if ((IncomingOrphanedPacketCount % 10000) == 0)
-                    m_log.Warn(
-                        $"[LLUDPSERVER]: Received {IncomingOrphanedPacketCount} orphaned packets so far.  Last was from {endPoint}");
+                    IncomingOrphanedPacketCount++;
 
-                return;
+                    if ((IncomingOrphanedPacketCount % 10000) == 0)
+                        m_log.Warn(
+                            $"[LLUDPSERVER]: Received {IncomingOrphanedPacketCount} orphaned packets so far.  Last was from {endPoint}");
+
+                    return;
+                }
+
+                client = lclient;
             }
 
             LLUDPClient udpClient = lclient.UDPClient;
@@ -1665,6 +1728,81 @@ namespace OpenSim.Region.ClientStack.LindenUDP
             #endregion Ping Check Handling
 
             packetInbox.Add(new IncomingPacket((LLClientView)client, packet));
+        }
+
+        private LLClientView TryRehomeClient(Packet packet, IPEndPoint endPoint)
+        {
+            try
+            {
+                UUID? agentId = GetPacketBlockUUID(packet, "AgentID");
+                if (!agentId.HasValue)
+                    return null;
+
+                if (!Scene.TryGetClient(agentId.Value, out IClientAPI existing) || existing is not LLClientView lclient)
+                    return null;
+
+                LLUDPClient udpClient = lclient.UDPClient;
+                if (udpClient == null || udpClient.RemoteEndPoint.Equals(endPoint))
+                    return null;
+
+                // SessionID is the viewer's per-login secret. Require it to
+                // match before accepting endpoint migration, so a packet with
+                // only a guessed AgentID cannot hijack the circuit.
+                UUID? sessionId = GetPacketBlockUUID(packet, "SessionID");
+                if (!sessionId.HasValue || !sessionId.Value.Equals(lclient.SecureSessionId))
+                    return null;
+
+                IPEndPoint oldEndPoint = udpClient.RemoteEndPoint;
+                udpClient.RemoteEndPoint = endPoint;
+                Scene.UpdateClientEndPoint(lclient, oldEndPoint, endPoint);
+
+                m_log.Warn(
+                    $"[LLUDPSERVER]: Re-homed circuit {udpClient.CircuitCode} agent {lclient.AgentId} in {Scene.Name} from {oldEndPoint} to {endPoint} after tunnel endpoint change");
+
+                return lclient;
+            }
+            catch (Exception e)
+            {
+                m_log.Debug($"[LLUDPSERVER]: Endpoint re-home attempt failed in {Scene.Name}: {e.Message}");
+                return null;
+            }
+        }
+
+        private static UUID? GetPacketBlockUUID(Packet packet, string fieldName)
+        {
+            foreach (FieldInfo packetField in packet.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                object block = packetField.GetValue(packet);
+                UUID? value = GetBlockUUID(block, fieldName);
+                if (value.HasValue)
+                    return value;
+            }
+
+            return null;
+        }
+
+        private static UUID? GetBlockUUID(object block, string fieldName)
+        {
+            if (block == null)
+                return null;
+
+            if (block is Array blocks)
+            {
+                foreach (object item in blocks)
+                {
+                    UUID? value = GetBlockUUID(item, fieldName);
+                    if (value.HasValue)
+                        return value;
+                }
+
+                return null;
+            }
+
+            FieldInfo field = block.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.Instance);
+            if (field != null && field.GetValue(block) is UUID uuid)
+                return uuid;
+
+            return null;
         }
 
         #region BinaryStats
@@ -1823,13 +1961,29 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     }
 
                     // This will be true if the client is new, e.g. not
-                    // an existing child agent, and there is no circuit data
+                    // an existing child agent, and there is no circuit data.
+                    // For teleport UpdateAgent, child presence already exists before UseCircuitCode;
+                    // closing here orphaned the child and made teleport UpdateAgent fail after 25s.
                     if (aCircuit == null)
                     {
-                        Scene.CloseAgent(client.AgentId, true);
-                        lock (m_pendingCache)
-                            m_pendingCache.Remove(endPoint);
-                        return;
+                        ScenePresence spDbg2 = Scene.GetScenePresence(uccp.CircuitCode.ID);
+                        m_log.WarnFormat("[LLUDPSERVER][DEBUG] UseCircuitCode {0} for {1} aCircuit==null sp={2} isChild={3} endpoint={4}",
+                            uccp.CircuitCode.Code, uccp.CircuitCode.ID,
+                            spDbg2 != null ? "found" : "null",
+                            spDbg2 != null ? spDbg2.IsChildAgent.ToString() : "n/a",
+                            endPoint);
+                        ScenePresence sp2 = spDbg2;
+                        if (sp2 != null && sp2.IsChildAgent)
+                        {
+                            m_log.DebugFormat("[LLUDPSERVER]: UseCircuitCode {0} for {1} has no circuit data but child presence exists, keeping child for UpdateAgent", uccp.CircuitCode.Code, uccp.CircuitCode.ID);
+                        }
+                        else
+                        {
+                            Scene.CloseAgent(client.AgentId, true);
+                            lock (m_pendingCache)
+                                m_pendingCache.Remove(endPoint);
+                            return;
+                        }
                     }
 
                     m_log.Debug("[LLUDPSERVER]: Client created");
@@ -1840,8 +1994,24 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     // bridged circuits that never touch a native listener.
                     if (endPoint.Address.Equals(IPAddress.Loopback) || endPoint.Address.Equals(IPAddress.IPv6Loopback))
                     {
+                        // Quick-G bridge mode: this peer is the local bridge, the viewer leg is
+                        // QUIC and the viewer sends no application level PacketAcks for it. Mark the
+                        // client before the first reliable send below so no outgoing packet is ever
+                        // registered in NeedAcks (see LLUDPClient.IsQuickGBridged).
+                        if (client is LLClientView bridgedClient)
+                            bridgedClient.UDPClient.IsQuickGBridged = true;
+
                         try
                         {
+                            // Quick-G bridge mode relays viewer QUIC to the sim as
+                            // local LLUDP.  In that path the viewer waits for the
+                            // quicready GenericMessage before releasing normal
+                            // session traffic.  Send it here directly so login does
+                            // not depend on QuicServerModule event subscription
+                            // timing or module lifecycle.
+                            client.SendGenericMessage("quicready", UUID.Zero, new List<string>());
+                            m_log.Info($"[LLUDPSERVER]: Sent quicready for loopback bridged circuit {uccp.CircuitCode.Code} agent {client.AgentId} via {endPoint}");
+
                             OnLoopbackCircuitCreated?.Invoke(uccp.CircuitCode.Code, client.AgentId, endPoint);
                         }
                         catch (Exception ex)
@@ -1991,9 +2161,21 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                     if (client.SceneAgent is not null &&
                             client.CircuitCode == circuitCode &&
                             client.SessionId == sessionID &&
-                            client.RemoteEndPoint == remoteEndPoint &&
                             client.SceneAgent.ControllingClient.SecureSessionId.Equals(sessionInfo.LoginInfo.SecureSession))
+                    {
+                        if (!client.RemoteEndPoint.Equals(remoteEndPoint) && client is LLClientView lclient)
+                        {
+                            IPEndPoint oldEndPoint = lclient.UDPClient.RemoteEndPoint;
+                            lclient.UDPClient.RemoteEndPoint = remoteEndPoint;
+                            Scene.UpdateClientEndPoint(lclient, oldEndPoint, remoteEndPoint);
+
+                            m_log.Warn(
+                                $"[LLUDPSERVER]: Re-homed existing circuit {circuitCode} agent {agentID} in {Scene.Name} from {oldEndPoint} to {remoteEndPoint} during UseCircuitCode");
+                        }
+
                         return client;
+                    }
+
                     Scene.CloseAgent(agentID, true);
                 }
 

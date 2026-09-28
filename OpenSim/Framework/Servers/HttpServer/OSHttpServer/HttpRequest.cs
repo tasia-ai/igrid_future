@@ -281,28 +281,7 @@ namespace OSHttpServer
 
         public IPEndPoint RemoteIPEndPoint
         {
-            get
-            {
-                if(m_remoteIPEndPoint == null)
-                {
-                    string addr = m_headers["x-forwarded-for"];
-                    if(!string.IsNullOrEmpty(addr))
-                    {
-                        int port = m_context.LocalIPEndPoint.Port;
-                        try
-                        {
-                            m_remoteIPEndPoint = new IPEndPoint(IPAddress.Parse(addr), port);
-                        }
-                        catch
-                        {
-                            m_remoteIPEndPoint = null;
-                        }
-                    }
-                }
-                m_remoteIPEndPoint ??= m_context.LocalIPEndPoint;
-
-                return m_remoteIPEndPoint;
-            }
+            get { return m_context.LocalIPEndPoint; }
         }
         /*
         /// <summary>

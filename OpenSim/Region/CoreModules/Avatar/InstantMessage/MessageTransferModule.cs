@@ -36,6 +36,7 @@ using Nwc.XmlRpc;
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Framework.Servers;
+using OpenSim.Server.Handlers.Base;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 using GridRegion = OpenSim.Services.Interfaces.GridRegion;
@@ -54,6 +55,7 @@ namespace OpenSim.Region.CoreModules.Avatar.InstantMessage
         protected string m_MessageKey = String.Empty;
         protected List<Scene> m_Scenes = new List<Scene>();
         protected Dictionary<UUID, UUID> m_UserRegionMap = new Dictionary<UUID, UUID>();
+        private ControlPlaneAccess m_ControlPlaneAccess;
 
         public event UndeliveredMessage OnUndeliveredMessage;
 
@@ -72,6 +74,7 @@ namespace OpenSim.Region.CoreModules.Avatar.InstantMessage
 
         public virtual void Initialise(IConfigSource config)
         {
+            m_ControlPlaneAccess = new ControlPlaneAccess(config);
             IConfig cnf = config.Configs["Messaging"];
             if (cnf != null)
             {
@@ -293,6 +296,15 @@ namespace OpenSim.Region.CoreModules.Avatar.InstantMessage
                     {
                         byte[] dialogdata = Convert.FromBase64String(requestData1);
                         dialog = dialogdata[0];
+                    }
+
+                    if (!m_ControlPlaneAccess.AuthorizePrivilegedInstantMessage(dialog, remoteClient))
+                    {
+                        XmlRpcResponse denied = new XmlRpcResponse();
+                        Hashtable deniedData = new Hashtable();
+                        deniedData["success"] = "FALSE";
+                        denied.Value = deniedData;
+                        return denied;
                     }
 
                     if ((string)requestData["from_group"] == "TRUE")

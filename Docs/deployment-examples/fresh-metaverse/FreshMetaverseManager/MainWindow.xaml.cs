@@ -16,6 +16,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Xml.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Encodings.Web;
 using Microsoft.Win32;
 
 namespace FreshMetaverseManager;
@@ -38,20 +39,35 @@ public class RegionRow : INotifyPropertyChanged
     public string Physics { get; set; } = "";
     public string RegionUuid { get; set; } = "";
     public string Folder { get; set; } = "";
+    public string Estate { get; set; } = "";
+    public string Database { get; set; } = "";
     public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+public class OarMapping
+{
+    public RegionRow Region { get; set; } = null!;
+    public string OarPath { get; set; } = "";
+    public string Display => $"{Region.Name}  →  {System.IO.Path.GetFileName(OarPath)}";
+    public string FullDisplay => $"{Region.Name}  →  {OarPath}";
 }
 
 public partial class MainWindow : Window
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(8) };
+    private static readonly HttpClient RestartHttp = new() { Timeout = TimeSpan.FromSeconds(180) };
     private readonly ObservableCollection<RegionRow> _regions = new();
     private readonly string _robustUrl = "http://127.0.0.1:22000";
     private readonly string _moneyUrl = "http://127.0.0.1:1026";
+    private readonly string _helperUrl = "http://127.0.0.1:8015";
     private readonly string _gridRoot = @"H:\grid\igrid-package";
     private readonly string _moneyRoot = @"H:\grid\moneyd";
     private readonly string _xamppRoot = @"H:\grid\xampp";
+    private readonly string _helperRoot = @"H:\grid\xampp\htdocs\ostools";
+    private readonly string _helperConfigPath = @"H:\grid\xampp\htdocs\ostools\config.json";
     private readonly string _deployPath;
     private readonly Dictionary<string, Process> _managedProcesses = new();
+    private static readonly JsonSerializerOptions s_psArgsOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
     private CancellationTokenSource? _logCts;
     private Process? _apacheProc;
     private bool HideWindows => (ChkHideWindows?.IsChecked ?? true) == true;
@@ -78,6 +94,7 @@ public partial class MainWindow : Window
         LoadIniFileList();
         await RefreshRobustStatusAsync();
         await RefreshMoneyStatusAsync();
+        await RefreshHelperStatusAsync();
         await RefreshApacheStatusAsync();
         await RefreshRegionStatusesAsync();
         // background refresh every 15s
@@ -86,7 +103,7 @@ public partial class MainWindow : Window
             while (true)
             {
                 await Task.Delay(15000);
-                await Dispatcher.InvokeAsync(async () => { await RefreshRobustStatusAsync(); await RefreshMoneyStatusAsync(); await RefreshApacheStatusAsync(); await RefreshRegionStatusesAsync(); });
+                await Dispatcher.InvokeAsync(async () => { await RefreshRobustStatusAsync(); await RefreshMoneyStatusAsync(); await RefreshHelperStatusAsync(); await RefreshApacheStatusAsync(); await RefreshRegionStatusesAsync(); });
             }
         });
         LogBulk("Manager loaded. Found " + _regions.Count + " regions from deploy.json");
@@ -128,7 +145,9 @@ public partial class MainWindow : Window
                     Size = s.GetProperty("size").GetInt32(),
                     Physics = s.GetProperty("physics").GetString() ?? "",
                     RegionUuid = s.GetProperty("region_uuid").GetString() ?? "",
-                    Folder = s.TryGetProperty("folder", out var f) ? f.GetString() ?? "" : ""
+                    Folder = s.TryGetProperty("folder", out var f) ? f.GetString() ?? "" : "",
+                    Estate = s.TryGetProperty("estate", out var est) ? est.GetString() ?? "" : "",
+                    Database = s.TryGetProperty("database", out var db) ? db.GetString() ?? "" : ""
                 });
             }
             TxtRegionFilterInfo.Text = $"{_regions.Count} loaded from deploy.json";
@@ -139,15 +158,28 @@ public partial class MainWindow : Window
         }
     }
 
+    private readonly ObservableCollection<OarMapping> _oarMappings = new();
+
     private void PopulateListBoxes()
     {
         ListBackupRegions.Items.Clear();
         ListOarRegions.Items.Clear();
+        if (CboOarRegion != null) CboOarRegion.Items.Clear();
+        if (ListOarMappings != null) ListOarMappings.Items.Clear();
+        if (CboConsoleTarget != null) CboConsoleTarget.Items.Clear();
+        if (CboSaveOarRegion != null) CboSaveOarRegion.Items.Clear();
+        if (CboConsoleTarget != null) CboConsoleTarget.Items.Add("Robust (robust:robust)");
         foreach (var r in _regions)
         {
             ListBackupRegions.Items.Add(new CheckBox { Content = $"{r.Name}  ({r.RegionUuid[..8]}… port {r.Port})", Tag = r, Margin = new Thickness(2) });
             ListOarRegions.Items.Add(new CheckBox { Content = r.Name, Tag = r, Margin = new Thickness(2) });
+            if (CboOarRegion != null) CboOarRegion.Items.Add(r.Name);
+            if (CboConsoleTarget != null) CboConsoleTarget.Items.Add(r.Name);
+            if (CboSaveOarRegion != null) CboSaveOarRegion.Items.Add(r.Name);
         }
+        if (CboOarRegion != null && CboOarRegion.Items.Count > 0) CboOarRegion.SelectedIndex = 0;
+        if (CboConsoleTarget != null && CboConsoleTarget.Items.Count > 0) CboConsoleTarget.SelectedIndex = 0;
+        if (CboSaveOarRegion != null && CboSaveOarRegion.Items.Count > 0) CboSaveOarRegion.SelectedIndex = 0;
         TxtApachePath.Text = $"{Path.Combine(_xamppRoot, @"apache\bin\httpd.exe")}  •  {Path.Combine(_xamppRoot, "apache_start.bat")}";
         var dbInfo = "PGSQL 127.0.0.1 / robust • assets";
         try
@@ -162,6 +194,58 @@ public partial class MainWindow : Window
         catch { }
         TxtDbInfo.Text = dbInfo;
         TxtRegionCount.Text = $"{_regions.Count} regions";
+        RefreshEstateCombos();
+    }
+
+    private void RefreshEstateCombos()
+    {
+        try
+        {
+            var yamlPath = Path.Combine(_gridRoot, "regions.yaml");
+            if (!File.Exists(yamlPath)) return;
+            var txt = File.ReadAllText(yamlPath);
+            var estates = new List<string>();
+            // parse estates: [{name: ...}] or single estate: {name: ...}
+            var m = Regex.Matches(txt, @"^\s*-\s*name:\s*(.+)\s*$", RegexOptions.Multiline);
+            // estates block: lines after "estates:" containing "- name:"
+            var estStart = txt.IndexOf("\nestates:", StringComparison.Ordinal);
+            if (estStart >= 0)
+            {
+                var estBlock = txt.Substring(estStart, Math.Min(3000, txt.Length - estStart));
+                foreach (Match mm in Regex.Matches(estBlock, @"-\s*name:\s*(.+)"))
+                    estates.Add(mm.Groups[1].Value.Trim().Trim('"').Trim('\''));
+            }
+            else
+            {
+                var em = Regex.Match(txt, @"^\s*estate:\s*\n(?:.*\n)*?\s*name:\s*(.+)\s*$", RegexOptions.Multiline);
+                if (em.Success) estates.Add(em.Groups[1].Value.Trim().Trim('"').Trim('\''));
+            }
+            if (estates.Count == 0) estates.Add("Fresh Estate");
+
+            if (CboEstateList != null)
+            {
+                CboEstateList.Items.Clear();
+                foreach (var e in estates) CboEstateList.Items.Add(e);
+                if (CboEstateList.Items.Count > 0) CboEstateList.SelectedIndex = 0;
+            }
+            if (CboNewRegionEstate != null)
+            {
+                CboNewRegionEstate.Items.Clear();
+                CboNewRegionEstate.Items.Add("(default)");
+                foreach (var e in estates) CboNewRegionEstate.Items.Add(e);
+                CboNewRegionEstate.SelectedIndex = 0;
+            }
+            // also update TxtEstateInfo if present
+            try
+            {
+                if (TxtEstateInfo != null)
+                {
+                    TxtEstateInfo.Text = $"{estates.Count} estate(s): " + string.Join(", ", estates);
+                }
+            }
+            catch { }
+        }
+        catch { }
     }
 
     private async Task RefreshRobustStatusAsync()
@@ -189,11 +273,32 @@ public partial class MainWindow : Window
         {
             using var cts = new CancellationTokenSource(2000);
             var resp = await Http.GetAsync(_moneyUrl, cts.Token);
-            TxtMoneyStatus.Text = $"Money: online ({(int)resp.StatusCode})";
+            if (TxtMoneyStatus != null) TxtMoneyStatus.Text = $"Money: online ({(int)resp.StatusCode})";
+        }
+        catch (HttpRequestException ex) when (ex.Message.Contains("501"))
+        {
+            if (TxtMoneyStatus != null) TxtMoneyStatus.Text = "Money: online (501 POST-only)";
         }
         catch
         {
-            TxtMoneyStatus.Text = "Money: offline";
+            if (TxtMoneyStatus != null) TxtMoneyStatus.Text = "Money: offline";
+        }
+    }
+
+    private async Task RefreshHelperStatusAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(2000);
+            var resp = await Http.GetAsync(_helperUrl + "/healthz", cts.Token);
+            var body = await resp.Content.ReadAsStringAsync(cts.Token);
+            string mode = "";
+            try { using var doc = JsonDocument.Parse(body); if (doc.RootElement.TryGetProperty("mode", out var m)) mode = m.GetString() ?? ""; } catch { }
+            if (TxtHelperStatus != null) TxtHelperStatus.Text = $"Helper: online ({(int)resp.StatusCode} {mode})";
+        }
+        catch
+        {
+            if (TxtHelperStatus != null) TxtHelperStatus.Text = "Helper: offline";
         }
     }
 
@@ -240,27 +345,57 @@ public partial class MainWindow : Window
 
     private async Task StopApacheAsync(IProgress<string>? log = null)
     {
+        bool anyStopped = false;
         string stopBat = Path.Combine(_xamppRoot, "apache_stop.bat");
+        string killBat = Path.Combine(_xamppRoot, "killprocess.bat");
+        // Try the shipped stop bat first (it uses a placeholder path so may no-op — still try)
         if (File.Exists(stopBat))
         {
-            Process.Start(new ProcessStartInfo(stopBat) { WorkingDirectory = _xamppRoot, UseShellExecute = true });
-            log?.Report("Apache stop requested via apache_stop.bat.");
+            try { Process.Start(new ProcessStartInfo(stopBat) { WorkingDirectory = _xamppRoot, UseShellExecute = true }); log?.Report("Apache stop requested via apache_stop.bat."); } catch (Exception ex) { log?.Report("apache_stop.bat launch failed: " + ex.Message); }
+            await Task.Delay(900); // give it a chance
         }
-        else if (_apacheProc != null && !_apacheProc.HasExited)
+        else if (File.Exists(killBat))
         {
-            _apacheProc.Kill(true);
-            log?.Report($"Apache stopped pid {_apacheProc.Id}.");
-        }
-        else
-        {
-            foreach (var p in Process.GetProcessesByName("httpd"))
-            {
-                p.Kill(true);
-                log?.Report($"Apache/httpd stopped pid {p.Id}.");
-            }
+            try { Process.Start(new ProcessStartInfo(killBat, "\"httpd.exe\"") { WorkingDirectory = _xamppRoot, UseShellExecute = true }); } catch { }
         }
 
-        await Task.Delay(1200);
+        // Managed proc handle if we launched httpd.exe ourselves
+        if (_apacheProc != null && !_apacheProc.HasExited)
+        {
+            try { _apacheProc.Kill(true); log?.Report($"Apache stopped pid {_apacheProc.Id} (managed)."); anyStopped = true; } catch (Exception ex) { log?.Report($"Managed httpd kill failed: {ex.Message}"); }
+            _apacheProc = null;
+        }
+
+        // Always sweep any remaining httpd.exe — covers XAMPP-launched daemons + placeholder-bat failure
+        foreach (var p in Process.GetProcessesByName("httpd"))
+        {
+            try { p.Kill(true); log?.Report($"Apache/httpd stopped pid {p.Id}."); anyStopped = true; } catch (Exception ex) { log?.Report($"httpd pid {p.Id} kill failed: {ex.Message}"); }
+        }
+
+        // Extra sweep: some XAMPP httpd hide as child without name match — catch by commandline
+        try
+        {
+            var script = "$hits = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'httpd.exe' }; $hits | ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force; \"killed httpd pid \" + $_.ProcessId } catch { \"fail \" + $_.ProcessId + \" \" + $_.Exception.Message } }";
+            var psi = new ProcessStartInfo("powershell", "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command " + JsonSerializer.Serialize(script, s_psArgsOptions))
+            { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+            using var sweep = Process.Start(psi);
+            if (sweep != null)
+            {
+                var stdout = await sweep.StandardOutput.ReadToEndAsync();
+                var stderr = await sweep.StandardError.ReadToEndAsync();
+                await sweep.WaitForExitAsync();
+                if (!string.IsNullOrWhiteSpace(stdout)) foreach (var line in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)) { log?.Report("[apache] " + line.Trim()); anyStopped = true; }
+                if (!string.IsNullOrWhiteSpace(stderr) && !stderr.Contains("killed")) log?.Report("[apache] sweep stderr: " + stderr.Trim());
+            }
+        }
+        catch { }
+
+        // Remove stale pid file that makes XAMPP think it's still running
+        try { var pidFile = Path.Combine(_xamppRoot, @"apache\logs\httpd.pid"); if (File.Exists(pidFile)) File.Delete(pidFile); } catch { }
+
+        if (!anyStopped) log?.Report("No running httpd.exe found to stop.");
+
+        await Task.Delay(600);
         await RefreshApacheStatusAsync();
     }
 
@@ -361,6 +496,25 @@ public partial class MainWindow : Window
                 logPath = Path.Combine(cwd, "moneyd-managed.log");
                 Directory.CreateDirectory(cwd);
             }
+            else if (kind == "helper")
+            {
+                cwd = _helperRoot;
+                dll = Path.Combine(_helperRoot, "app.py");
+                fileName = "python";
+                args = $"\"{dll}\"";
+                logPath = Path.Combine(cwd, "bridge-managed.log");
+                Directory.CreateDirectory(cwd);
+                if (!File.Exists(dll))
+                {
+                    log?.Report($"[process] missing helper bridge: {dll}");
+                    return false;
+                }
+                if (!File.Exists(_helperConfigPath))
+                {
+                    log?.Report($"[process] helper config missing: {_helperConfigPath}");
+                    return false;
+                }
+            }
             else
             {
                 // SIM: must run from bin with -inifile, otherwise OpenSim can't find its plugin DLLs
@@ -402,6 +556,10 @@ public partial class MainWindow : Window
                 RedirectStandardError = true,
                 CreateNoWindow = HideWindows
             };
+            if (kind == "helper")
+            {
+                psi.Environment["OS_HELPER_CONFIG"] = _helperConfigPath;
+            }
             if (Directory.Exists(binLib64))
             {
                 var existingPath = psi.Environment.ContainsKey("PATH") ? psi.Environment["PATH"] : Environment.GetEnvironmentVariable("PATH") ?? "";
@@ -491,7 +649,7 @@ public partial class MainWindow : Window
             var robustDll = Path.Combine(_gridRoot, "bin", "Robust.dll");
             var script = "$hits = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'dotnet.exe' -and ($_.CommandLine -like '*Robust.dll*' -or $_.CommandLine -like '*" + robustDir.Replace("'", "''") + "*' -or $_.CommandLine -like '*" + robustDll.Replace("'", "''") + "*') }; " +
                          "$hits | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; $_.ProcessId }";
-            var psi = new ProcessStartInfo("powershell", "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command " + JsonSerializer.Serialize(script))
+            var psi = new ProcessStartInfo("powershell", "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command " + JsonSerializer.Serialize(script, s_psArgsOptions))
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -555,25 +713,201 @@ public partial class MainWindow : Window
     private async Task<bool> TasiaApiActionAsync(RegionRow r, string action, int delaySeconds, string reason, string label, IProgress<string>? log = null)
     {
         string token = ResolveConsolePass();
-        int[] tryPorts = new[] { r.HttpPort, r.Port };
-        foreach (var port in tryPorts)
+        if (string.IsNullOrWhiteSpace(token))
+            log?.Report($"[{label}] restart token is empty; check generated/deploy.json console_pass and [RestartModule] ApiToken.");
+
+        var uuids = ResolveRegionUuidCandidates(r).ToList();
+        if (uuids.Count == 0)
         {
+            log?.Report($"[{label}] {r.Name} has no valid RegionUUID in live region INI or deploy.json; restart API path cannot be built.");
+            return false;
+        }
+
+        var primaryPorts = ResolveRestartPortCandidates(r, broadScan: false).ToList();
+
+        foreach (var port in primaryPorts)
+        foreach (var uuid in uuids)
+        {
+            if (await SendRestartApiActionAsync(r, action, delaySeconds, reason, label, port, uuid, token, log))
+                return true;
+        }
+
+        var broadPorts = ResolveRestartPortCandidates(r, broadScan: true)
+            .Where(p => !primaryPorts.Contains(p))
+            .ToList();
+        if (broadPorts.Count > 0)
+            log?.Report($"[{label}] {r.Name} primary API endpoint failed; scanning {broadPorts.Count} configured sim HTTP port(s) for UUID {uuids.FirstOrDefault()}...");
+
+        foreach (var port in broadPorts)
+        foreach (var uuid in uuids)
+        {
+            if (!await ProbeRestartApiStatusAsync(port, uuid, token))
+                continue;
+
+            log?.Report($"[{label}] {r.Name} restart API found on port {port} for UUID {uuid}; updating in-memory row.");
+            r.HttpPort = port;
+            r.RegionUuid = uuid;
+            if (await SendRestartApiActionAsync(r, action, delaySeconds, reason, label, port, uuid, token, log))
+                return true;
+        }
+
+        return false;
+    }
+
+    private IEnumerable<string> ResolveRegionUuidCandidates(RegionRow r)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ordered = new List<string>();
+
+        void AddUuid(string? value)
+        {
+            value = (value ?? string.Empty).Trim().Trim('"');
+            if (Guid.TryParse(value, out var guid))
+            {
+                var normalized = guid.ToString("D").ToLowerInvariant();
+                if (seen.Add(normalized))
+                    ordered.Add(normalized);
+            }
+        }
+
+        try
+        {
+            var regionDir = Path.Combine(_gridRoot, "generated", "sims", r.Name, "regions");
+            if (Directory.Exists(regionDir))
+            {
+                foreach (var file in Directory.GetFiles(regionDir, "*.ini"))
+                {
+                    var txt = File.ReadAllText(file);
+                    var m = Regex.Match(txt, @"(?im)^\s*RegionUUID\s*=\s*""?([^""\r\n]+)");
+                    if (m.Success) AddUuid(m.Groups[1].Value);
+                }
+            }
+        }
+        catch { }
+
+        AddUuid(r.RegionUuid);
+        return ordered;
+    }
+
+    private IEnumerable<int> ResolveRestartPortCandidates(RegionRow r, bool broadScan)
+    {
+        var seen = new HashSet<int>();
+        var ordered = new List<int>();
+
+        void AddPort(int port)
+        {
+            if (port > 0 && port <= 65535)
+            {
+                if (seen.Add(port))
+                    ordered.Add(port);
+            }
+        }
+
+        try
+        {
+            var simIni = Path.Combine(_gridRoot, "generated", "sims", r.Name, "OpenSim.ini");
+            if (File.Exists(simIni))
+            {
+                var txt = File.ReadAllText(simIni);
+                var m = Regex.Match(txt, @"(?im)^\s*http_listener_port\s*=\s*""?([^""\r\n]+)");
+                if (m.Success && int.TryParse(m.Groups[1].Value.Trim(), out var iniHttp))
+                    AddPort(iniHttp);
+            }
+        }
+        catch { }
+
+        AddPort(r.HttpPort);
+        AddPort(r.Port);
+        AddPort(r.Port + 30);
+
+        if (broadScan)
+        {
+            foreach (var region in _regions)
+            {
+                AddPort(region.HttpPort);
+                AddPort(region.Port + 30);
+            }
+
             try
             {
-                var url = $"http://127.0.0.1:{port}/tasia-ngc/restart/{r.RegionUuid}";
-                var body = JsonSerializer.Serialize(new { action, delay_seconds = delaySeconds, reason });
-                var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-                if (!string.IsNullOrEmpty(token)) req.Headers.TryAddWithoutValidation("X-Restart-Token", token);
-                req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
-                var resp = await Http.SendAsync(req);
-                var txt = await resp.Content.ReadAsStringAsync();
-                log?.Report($"[{label}] {r.Name} action={action} port {port} -> {(int)resp.StatusCode} {txt[..Math.Min(120, txt.Length)]}");
-                if (resp.IsSuccessStatusCode) return true;
+                var simsDir = Path.Combine(_gridRoot, "generated", "sims");
+                if (Directory.Exists(simsDir))
+                {
+                    foreach (var ini in Directory.GetFiles(simsDir, "OpenSim.ini", SearchOption.AllDirectories))
+                    {
+                        var txt = File.ReadAllText(ini);
+                        var m = Regex.Match(txt, @"(?im)^\s*http_listener_port\s*=\s*""?([^""\r\n]+)");
+                        if (m.Success && int.TryParse(m.Groups[1].Value.Trim(), out var iniHttp))
+                            AddPort(iniHttp);
+                    }
+                }
             }
-            catch (Exception ex)
+            catch { }
+        }
+
+        return ordered;
+    }
+
+    private static void AddRestartAuthHeaders(HttpRequestMessage req, string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return;
+        req.Headers.TryAddWithoutValidation("X-Restart-Token", token);
+        req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+    }
+
+    private async Task<bool> ProbeRestartApiStatusAsync(int port, string regionUuid, string token)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            var url = $"http://127.0.0.1:{port}/tasia-ngc/restart/{regionUuid}?action=status";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            AddRestartAuthHeaders(req, token);
+            using var resp = await RestartHttp.SendAsync(req, cts.Token);
+            if (!resp.IsSuccessStatusCode)
+                return false;
+            var txt = await resp.Content.ReadAsStringAsync(cts.Token);
+            using var doc = JsonDocument.Parse(txt);
+            if (doc.RootElement.TryGetProperty("region_uuid", out var uuidEl))
+                return string.Equals(uuidEl.GetString(), regionUuid, StringComparison.OrdinalIgnoreCase);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private async Task<bool> SendRestartApiActionAsync(RegionRow r, string action, int delaySeconds, string reason, string label, int port, string regionUuid, string token, IProgress<string>? log)
+    {
+        try
+        {
+            var timeout = action.Equals("backup", StringComparison.OrdinalIgnoreCase)
+                ? TimeSpan.FromSeconds(180)
+                : TimeSpan.FromSeconds(45);
+            using var cts = new CancellationTokenSource(timeout);
+            var url = $"http://127.0.0.1:{port}/tasia-ngc/restart/{regionUuid}";
+            var body = JsonSerializer.Serialize(new { action, delay_seconds = delaySeconds, reason });
+            using var req = new HttpRequestMessage(HttpMethod.Post, url)
             {
-                log?.Report($"[{label}] {r.Name} port {port} failed: {ex.Message}");
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            };
+            AddRestartAuthHeaders(req, token);
+            using var resp = await RestartHttp.SendAsync(req, cts.Token);
+            var txt = await resp.Content.ReadAsStringAsync(cts.Token);
+            log?.Report($"[{label}] {r.Name} action={action} port {port} uuid {regionUuid[..Math.Min(8, regionUuid.Length)]} -> {(int)resp.StatusCode} {txt[..Math.Min(180, txt.Length)]}");
+            if (resp.IsSuccessStatusCode)
+            {
+                r.HttpPort = port;
+                r.RegionUuid = regionUuid;
+                return true;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            log?.Report($"[{label}] {r.Name} port {port} timed out after {(action.Equals("backup", StringComparison.OrdinalIgnoreCase) ? 180 : 45)}s while calling restart API.");
+        }
+        catch (Exception ex)
+        {
+            log?.Report($"[{label}] {r.Name} port {port} failed: {ex.Message}");
         }
         return false;
     }
@@ -822,23 +1156,138 @@ public partial class MainWindow : Window
             await StartManagedServiceAsync("money", "moneyd", log);
             await Task.Delay(1200);
             await RefreshMoneyStatusAsync();
+            LogBulk("Start Helper Bridge requested: ostools bridge on 8015 (xmlrpc_passthrough → money 1026)");
+            await StartManagedServiceAsync("helper", "bridge", log);
+            await Task.Delay(1200);
+            await RefreshHelperStatusAsync();
         }
         finally { BtnStartMoney.IsEnabled = true; }
     }
 
     private async void BtnStopMoney_Click(object sender, RoutedEventArgs e)
     {
-        var key = "money:moneyd";
-        if (_managedProcesses.TryGetValue(key, out var proc) && !proc.HasExited)
+        var logBulk = new Progress<string>(s => { LogBulk(s); TxtBulkLog.ScrollToEnd(); });
+        BtnStopMoney.IsEnabled = false;
+        try
         {
-            proc.Kill(true);
-            LogBulk($"Money Server stopped (pid {proc.Id}).");
+            // helper first — managed kill then external sweep (covers stray python launched outside manager)
+            var hk = "helper:bridge";
+            if (_managedProcesses.TryGetValue(hk, out var hproc) && !hproc.HasExited)
+            {
+                try { hproc.Kill(true); LogBulk($"Helper Bridge stopped (pid {hproc.Id})."); } catch (Exception ex) { LogBulk($"Helper stop failed: {ex.Message}"); }
+                _managedProcesses.Remove(hk);
+            }
+            await StopExternalHelperAsync(logBulk);
+
+            var key = "money:moneyd";
+            if (_managedProcesses.TryGetValue(key, out var proc) && !proc.HasExited)
+            {
+                try { proc.Kill(true); LogBulk($"Money Server stopped (pid {proc.Id})."); } catch (Exception ex) { LogBulk($"Money stop failed: {ex.Message}"); }
+                _managedProcesses.Remove(key);
+            }
+            // always sweep external moneyd — handles processes started outside manager or orphaned
+            bool killedExternal = await StopExternalMoneyAsync(logBulk);
+            if (!killedExternal && !_managedProcesses.ContainsKey(key))
+                LogBulk("Money Server not running (no managed or external process found).");
+
+            await RefreshMoneyStatusAsync();
+            await RefreshHelperStatusAsync();
         }
-        else
+        finally { BtnStopMoney.IsEnabled = true; }
+    }
+
+    private async void BtnStartHelper_Click(object sender, RoutedEventArgs e)
+    {
+        var log = new Progress<string>(s => { LogBulk(s); TxtBulkLog.ScrollToEnd(); });
+        BtnStartHelper.IsEnabled = false;
+        try
         {
-            LogBulk("Money Server is not managed by this app, or already stopped.");
+            LogBulk("Start Helper Bridge requested: python app.py with OS_HELPER_CONFIG");
+            await StartManagedServiceAsync("helper", "bridge", log);
+            await Task.Delay(1200);
+            await RefreshHelperStatusAsync();
         }
-        await RefreshMoneyStatusAsync();
+        finally { BtnStartHelper.IsEnabled = true; }
+    }
+
+    private async void BtnStopHelper_Click(object sender, RoutedEventArgs e)
+    {
+        BtnStopHelper.IsEnabled = false;
+        var logBulk = new Progress<string>(s => { LogBulk(s); TxtBulkLog.ScrollToEnd(); });
+        try
+        {
+            var key = "helper:bridge";
+            bool hadManaged = false;
+            if (_managedProcesses.TryGetValue(key, out var proc) && !proc.HasExited)
+            {
+                try { proc.Kill(true); LogBulk($"Helper Bridge stopped (pid {proc.Id})."); hadManaged = true; } catch (Exception ex) { LogBulk($"Helper stop failed: {ex.Message}"); }
+                _managedProcesses.Remove(key);
+            }
+            bool killedExternal = await StopExternalHelperAsync(logBulk);
+            if (!hadManaged && !killedExternal)
+                LogBulk("Helper Bridge not running (no managed or external process found).");
+            await RefreshHelperStatusAsync();
+        }
+        finally { BtnStopHelper.IsEnabled = true; }
+    }
+
+    private async Task<bool> StopExternalMoneyAsync(IProgress<string>? log = null)
+    {
+        try
+        {
+            var script = "$hits = Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like '*tasia_moneyd.py*' }; $hits | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; \"killed Money pid \" + $_.ProcessId }";
+            var psi = new ProcessStartInfo("powershell", "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command " + JsonSerializer.Serialize(script, s_psArgsOptions))
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) return false;
+            var stdout = await proc.StandardOutput.ReadToEndAsync();
+            var stderr = await proc.StandardError.ReadToEndAsync();
+            await proc.WaitForExitAsync();
+            if (!string.IsNullOrWhiteSpace(stderr)) log?.Report("[money] external stop stderr: " + stderr.Trim());
+            if (!string.IsNullOrWhiteSpace(stdout))
+            {
+                foreach (var line in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)) log?.Report("[money] " + line.Trim());
+                return true;
+            }
+        }
+        catch (Exception ex) { log?.Report("[money] external stop failed: " + ex.Message); }
+        return false;
+    }
+
+    private async Task<bool> StopExternalHelperAsync(IProgress<string>? log = null)
+    {
+        try
+        {
+            var script = "$hits = Get-CimInstance Win32_Process | Where-Object { ($_.Name -like 'python*') -and ($_.CommandLine -like '*ostools*app.py*' -or $_.CommandLine -like '*bridge.server*' -or $_.CommandLine -like '*htdocs*ostools*') }; $hits | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; \"killed Helper pid \" + $_.ProcessId }";
+            var psi = new ProcessStartInfo("powershell", "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command " + JsonSerializer.Serialize(script, s_psArgsOptions))
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) return false;
+            var stdout = await proc.StandardOutput.ReadToEndAsync();
+            var stderr = await proc.StandardError.ReadToEndAsync();
+            await proc.WaitForExitAsync();
+            if (!string.IsNullOrWhiteSpace(stderr)) log?.Report("[helper] external stop stderr: " + stderr.Trim());
+            if (!string.IsNullOrWhiteSpace(stdout))
+            {
+                foreach (var line in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)) log?.Report("[helper] " + line.Trim());
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            log?.Report("[helper] external stop failed: " + ex.Message);
+        }
+        return false;
     }
 
     private void LogMoney(string s)
@@ -1030,6 +1479,102 @@ public partial class MainWindow : Window
         return "sim_" + (string.IsNullOrWhiteSpace(safe) ? "region" : safe);
     }
 
+    private void BtnAddEstate_Click(object sender, RoutedEventArgs e)
+    {
+        var name = TxtNewEstateName.Text.Trim();
+        var owner = TxtNewEstateOwner.Text.Trim();
+        if (!Regex.IsMatch(name, "^[A-Za-z0-9_ \\-]{2,64}$")) { MessageBox.Show("Estate name: 2-64 chars letters/numbers/space/_/-"); return; }
+        if (string.IsNullOrWhiteSpace(owner)) { MessageBox.Show("Owner required (e.g. Cute Devil)"); return; }
+        var yamlPath = Path.Combine(_gridRoot, "regions.yaml");
+        var txt = File.ReadAllText(yamlPath);
+        if (txt.Contains($"name: {name}") || Regex.IsMatch(txt, Regex.Escape(name), RegexOptions.IgnoreCase))
+        {
+            // loose check — still allow if not in estates block
+        }
+        var lines = File.ReadAllLines(yamlPath).ToList();
+        // If estates: list exists, append; otherwise create it from estate: single + new
+        int estatesAt = lines.FindIndex(l => l.TrimStart().StartsWith("estates:"));
+        int estateSingleAt = lines.FindIndex(l => l.TrimStart().StartsWith("estate:"));
+        if (estatesAt >= 0)
+        {
+            // append after last estate entry (next top-level key or regions:)
+            int regionsAt = lines.FindIndex(estatesAt, l => l.TrimStart().StartsWith("regions:"));
+            if (regionsAt < 0) regionsAt = lines.Count;
+            // find last estate block end before regionsAt
+            int insertAt2 = regionsAt;
+            var block = new[]
+            {
+                $"  - name: {name}",
+                $"    owner: {owner}",
+                $"    owner_uuid: \"\"",
+                $"    managers:",
+                $"      - {owner}",
+            };
+            lines.InsertRange(insertAt2, block);
+        }
+        else if (estateSingleAt >= 0)
+        {
+            // convert single estate: into estates: [old, new]
+            var oldName = Regex.Match(txt, @"estate:\s*\n(?:.*\n)*?\s*name:\s*(.+)\s*\n").Groups[1].Value.Trim().Trim('"').Trim('\'');
+            var oldOwner = Regex.Match(txt, @"estate:\s*\n(?:.*\n)*?\s*owner:\s*(.+)\s*\n").Groups[1].Value.Trim().Trim('"').Trim('\'');
+            if (string.IsNullOrWhiteSpace(oldName)) oldName = "Fresh Estate";
+            if (string.IsNullOrWhiteSpace(oldOwner)) oldOwner = "Cute Devil";
+            // replace estate: block with estates:
+            int estateEnd = lines.FindIndex(estateSingleAt + 1, l => !l.StartsWith(" ") && !string.IsNullOrWhiteSpace(l));
+            if (estateEnd < 0) estateEnd = lines.FindIndex(estateSingleAt + 1, l => l.TrimStart().StartsWith("gate:"));
+            if (estateEnd < 0) estateEnd = estateSingleAt + 6;
+            lines.RemoveRange(estateSingleAt, estateEnd - estateSingleAt);
+            var repl = new[]
+            {
+                "estates:",
+                $"  - name: {oldName}",
+                $"    owner: {oldOwner}",
+                $"    owner_uuid: \"\"",
+                $"    managers:",
+                $"      - {oldOwner}",
+                $"  - name: {name}",
+                $"    owner: {owner}",
+                $"    owner_uuid: \"\"",
+                $"    managers:",
+                $"      - {owner}",
+            };
+            lines.InsertRange(estateSingleAt, repl);
+        }
+        else
+        {
+            MessageBox.Show("regions.yaml missing estate: block.");
+            return;
+        }
+        File.WriteAllLines(yamlPath, lines);
+        LogRegion($"Added estate '{name}' owner '{owner}' to regions.yaml.");
+        RefreshEstateCombos();
+        TxtNewEstateName.Clear();
+    }
+
+    private void BtnRemoveEstate_Click(object sender, RoutedEventArgs e)
+    {
+        if (CboEstateList.SelectedItem == null) { MessageBox.Show("Pick an estate first."); return; }
+        var name = CboEstateList.SelectedItem.ToString() ?? "";
+        if (MessageBox.Show($"Remove estate '{name}'? Regions using it will fall back to default.", "Remove Estate", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        var yamlPath = Path.Combine(_gridRoot, "regions.yaml");
+        var lines = File.ReadAllLines(yamlPath).ToList();
+        int start = lines.FindIndex(l => Regex.IsMatch(l, $@"^\s*-\s*name:\s*{Regex.Escape(name)}\s*$"));
+        if (start < 0) { MessageBox.Show("Estate block not found."); return; }
+        int end = start + 1;
+        while (end < lines.Count && (lines[end].StartsWith(" ") || string.IsNullOrWhiteSpace(lines[end])) && !Regex.IsMatch(lines[end], @"^\s*-\s*name:") && !lines[end].TrimStart().StartsWith("regions:") && !lines[end].TrimStart().StartsWith("gate:"))
+            end++;
+        // also remove following blank lines
+        while (end < lines.Count && string.IsNullOrWhiteSpace(lines[end])) end++;
+        // but keep regions: if we overshot — back off one
+        if (end < lines.Count && (lines[end].TrimStart().StartsWith("regions:") || lines[end].TrimStart().StartsWith("gate:"))) { }
+        lines.RemoveRange(start, end - start);
+        File.WriteAllLines(yamlPath, lines);
+        LogRegion($"Removed estate '{name}'.");
+        RefreshEstateCombos();
+    }
+
+    private void BtnReloadEstates_Click(object sender, RoutedEventArgs e) => RefreshEstateCombos();
+
     private async void BtnAddRegion_Click(object sender, RoutedEventArgs e)
     {
         var name = TxtNewRegionName.Text.Trim();
@@ -1038,12 +1583,14 @@ public partial class MainWindow : Window
         if (!int.TryParse(TxtNewRegionX.Text.Trim(), out var x) || !int.TryParse(TxtNewRegionY.Text.Trim(), out var y)) { MessageBox.Show("X/Y must be numbers."); return; }
         if (!int.TryParse(TxtNewRegionSize.Text.Trim(), out var size) || size < 1 || size > 16) { MessageBox.Show("Size must be 1-16 region units."); return; }
         var physics = ((ComboBoxItem)CboNewRegionPhysics.SelectedItem).Content.ToString() ?? "ubODE";
+        string? estatePick = CboNewRegionEstate.SelectedItem?.ToString();
+        if (estatePick == "(default)") estatePick = null;
         var yamlPath = Path.Combine(_gridRoot, "regions.yaml");
         var lines = File.ReadAllLines(yamlPath).ToList();
         var insertAt = lines.FindIndex(l => l.TrimStart().StartsWith("# Fresh01", StringComparison.OrdinalIgnoreCase));
         if (insertAt < 0) insertAt = lines.Count;
         var nextId = (_regions.Count + 1).ToString("00");
-        var block = new[]
+        var block = new List<string>
         {
             "",
             $"  - id: custom_{nextId}",
@@ -1055,9 +1602,10 @@ public partial class MainWindow : Window
             $"    physics: {physics}",
             "    meshing: Meshmerizer"
         };
+        if (!string.IsNullOrWhiteSpace(estatePick)) block.Add($"    estate: {estatePick}");
         lines.InsertRange(insertAt, block);
         File.WriteAllLines(yamlPath, lines);
-        LogRegion($"Added {name} to regions.yaml; regenerating configs...");
+        LogRegion($"Added {name} {(estatePick != null ? $"estate '{estatePick}' " : "")}to regions.yaml; regenerating configs...");
         try { await RegenerateAndReloadRegionsAsync(); }
         catch (Exception ex) { LogRegion("Add sim/regenerate failed: " + ex.Message); MessageBox.Show(ex.Message); }
     }
@@ -1261,6 +1809,91 @@ public partial class MainWindow : Window
     private void BtnBackupSelectAll_Click(object sender, RoutedEventArgs e) { foreach (CheckBox c in ListBackupRegions.Items) c.IsChecked = true; }
     private void BtnBackupSelectNone_Click(object sender, RoutedEventArgs e) { foreach (CheckBox c in ListBackupRegions.Items) c.IsChecked = false; }
 
+    // ---------- OAR helpers — full wiki options ----------
+    private string BuildLoadOarOptions()
+    {
+        string opts = "";
+        if (ChkOarMerge?.IsChecked == true) opts += " --merge";
+        if (ChkOarSkipAssets?.IsChecked == true) opts += " --skip-assets";
+        if (ChkOarNoObjects?.IsChecked == true) opts += " --no-objects";
+        if (ChkOarForceAssets?.IsChecked == true) opts += " --force-assets";
+        if (ChkOarForceTerrain?.IsChecked == true) opts += " --force-terrain";
+        if (ChkOarForceParcels?.IsChecked == true) opts += " --force-parcels";
+        if (ChkOarDebug?.IsChecked == true) opts += " --debug";
+        var rot = TxtOarRotation?.Text.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(rot))
+        {
+            // allow "30" or "30.0" — keep as-is
+            opts += $" --rotation {rot}";
+        }
+        var disp = TxtOarDisplacement?.Text.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(disp))
+        {
+            if (!disp.StartsWith("<")) disp = "<" + disp;
+            if (!disp.EndsWith(">")) disp = disp + ">";
+            opts += $" --displacement \"{disp}\"";
+        }
+        var bo = TxtOarBoundingOrigin?.Text.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(bo))
+        {
+            if (!bo.StartsWith("<")) bo = "<" + bo;
+            if (!bo.EndsWith(">")) bo = bo + ">";
+            opts += $" --bounding-origin \"{bo}\"";
+        }
+        var bs = TxtOarBoundingSize?.Text.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(bs))
+        {
+            if (!bs.StartsWith("<")) bs = "<" + bs;
+            if (!bs.EndsWith(">")) bs = bs + ">";
+            opts += $" --bounding-size \"{bs}\"";
+        }
+        var du = TxtOarDefaultUser?.Text.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(du))
+        {
+            // format is --default-user "First Last"
+            opts += $" --default-user \"{du}\"";
+        }
+        return opts;
+    }
+
+    private string BuildSaveOarCommand(string file)
+    {
+        string opts = "";
+        if (ChkSaveNoAssets?.IsChecked == true) opts += " --noassets";
+        var home = TxtSaveHome?.Text.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(home)) opts += $" --home={home}";
+        if (ChkSavePublish?.IsChecked == true) opts += " --publish";
+        var permIdx = CboSavePerm?.SelectedIndex ?? 0;
+        string perm = permIdx switch { 1 => "C", 2 => "T", 3 => "CT", _ => "" };
+        if (!string.IsNullOrEmpty(perm)) opts += $" --perm={perm}";
+        if (ChkSaveAll?.IsChecked == true) opts += " --all";
+        var f = file.Trim();
+        if (string.IsNullOrWhiteSpace(f)) return "save oar" + opts;
+        // quote if spaces
+        var quoted = f.Contains(' ') ? $"\"{f}\"" : f;
+        return "save oar" + opts + " " + quoted;
+    }
+
+    private void BtnPickSaveOarFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new SaveFileDialog { Filter = "OAR files (*.oar)|*.oar|All files (*.*)|*.*", Title = "Save OAR as", FileName = "region.oar", InitialDirectory = Path.Combine(_gridRoot, "generated") };
+        if (dlg.ShowDialog() == true) TxtSaveOarFile.Text = dlg.FileName;
+    }
+
+    private async void BtnSaveOar_Click(object sender, RoutedEventArgs e)
+    {
+        if (CboSaveOarRegion.SelectedItem == null) { MessageBox.Show("Pick a region first."); return; }
+        var regionName = CboSaveOarRegion.SelectedItem.ToString() ?? "";
+        var region = _regions.FirstOrDefault(r => r.Name == regionName);
+        if (region == null) { MessageBox.Show("Region not found."); return; }
+        var file = TxtSaveOarFile.Text.Trim();
+        var cmd = BuildSaveOarCommand(file);
+        LogOar($"[save] {region.Name} → {cmd}");
+        var ok = await SendConsoleCommandAsync(region, cmd, "save-oar", new Progress<string>(s => { LogOar(s); TxtOarLog.ScrollToEnd(); }));
+        if (!ok) LogOar($"[save] {region.Name} not managed — start it from this manager first, then retry.");
+        else LogOar($"[save] command sent to {region.Name}. Check Logs tab or {Path.Combine(GetRegionFolder(region), "data")} for file.");
+    }
+
     // ---------- OAR ----------
     private void BtnPickOar_Click(object sender, RoutedEventArgs e)
     {
@@ -1274,7 +1907,7 @@ public partial class MainWindow : Window
     private async Task DoOarAsync(bool bulkAll)
     {
         var path = TxtOarPath.Text.Trim();
-        if (string.IsNullOrEmpty(path) || !File.Exists(path)) { MessageBox.Show("Pick a valid .oar file first."); return; }
+        if (string.IsNullOrEmpty(path) || (!File.Exists(path) && !path.StartsWith("http", StringComparison.OrdinalIgnoreCase))) { MessageBox.Show("Pick a valid .oar file first (or http:// URL)."); return; }
         List<RegionRow> targets;
         if (bulkAll) targets = _regions.ToList();
         else
@@ -1282,22 +1915,21 @@ public partial class MainWindow : Window
             targets = ListOarRegions.Items.Cast<CheckBox>().Where(c => c.IsChecked == true).Select(c => (RegionRow)c.Tag!).ToList();
             if (!targets.Any()) { MessageBox.Show("Select at least one target region (check boxes)."); return; }
         }
-        bool merge = ChkOarMerge.IsChecked == true;
-        bool skipAssets = ChkOarSkipAssets.IsChecked == true;
         BtnRestoreOar.IsEnabled = false; BtnBulkOar.IsEnabled = false;
         ProgressOar.Value = 0;
         var log = new Progress<string>(s => { LogOar(s); TxtOarLog.ScrollToEnd(); });
         var prog = new Progress<double>(v => ProgressOar.Value = v);
         try
         {
-            await BulkOarRestoreAsync(path, targets, merge, skipAssets, prog, log);
+            await BulkOarRestoreAsync(path, targets, prog, log);
         }
         finally { BtnRestoreOar.IsEnabled = true; BtnBulkOar.IsEnabled = true; }
     }
 
-    private async Task BulkOarRestoreAsync(string oarPath, List<RegionRow> targets, bool merge, bool skipAssets, IProgress<double> prog, IProgress<string> log)
+    private async Task BulkOarRestoreAsync(string oarPath, List<RegionRow> targets, IProgress<double> prog, IProgress<string> log)
     {
-        log.Report($"OAR restore: {Path.GetFileName(oarPath)} → {targets.Count} region(s) bulk (merge={merge} skipAssets={skipAssets})");
+        var opts = BuildLoadOarOptions();
+        log.Report($"OAR restore: {Path.GetFileName(oarPath)} → {targets.Count} region(s) bulk opts:{opts}");
         var sem = new SemaphoreSlim(2); // OAR is heavy
         int done = 0;
         var tasks = targets.Select(async r =>
@@ -1305,29 +1937,31 @@ public partial class MainWindow : Window
             await sem.WaitAsync();
             try
             {
-                log.Report($"[{r.Name}] copying OAR to sim folder...");
-                var simDir = Path.Combine(_gridRoot, "generated", "sims", r.Name);
-                var dest = Path.Combine(simDir, "data", Path.GetFileName(oarPath));
-                try { Directory.CreateDirectory(Path.Combine(simDir, "data")); File.Copy(oarPath, dest, true); } catch (Exception ex) { log.Report($"[{r.Name}] copy failed: {ex.Message}"); }
-
-                // Issue load oar through this app's managed sim stdin.
-                string opts = "";
-                if (merge) opts += " --merge";
-                else opts += " --force";
-                if (skipAssets) opts += " --skip-assets";
-                bool ok = false;
-                var cmd = $"load oar \"{dest}\"{opts}";
-                ok = await SendConsoleCommandAsync(r, cmd, "load-oar", log);
+                bool direct = ChkOarDirectPath == null || ChkOarDirectPath.IsChecked == true;
+                string loadPath;
+                if (direct || oarPath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    loadPath = oarPath;
+                    if (direct) log.Report($"[{r.Name}] direct load from original path (no copy).");
+                }
+                else
+                {
+                    var simDir = Path.Combine(_gridRoot, "generated", "sims", r.Name);
+                    var dest = Path.Combine(simDir, "data", Path.GetFileName(oarPath));
+                    try { Directory.CreateDirectory(Path.Combine(simDir, "data")); File.Copy(oarPath, dest, true); log.Report($"[{r.Name}] copied OAR to {dest}"); } catch (Exception ex) { log.Report($"[{r.Name}] copy failed: {ex.Message}"); }
+                    loadPath = Path.Combine(_gridRoot, "generated", "sims", r.Name, "data", Path.GetFileName(oarPath));
+                    try { if (File.Exists(Path.Combine(_gridRoot, "generated", "sims", r.Name, "data", Path.GetFileName(oarPath)))) loadPath = Path.Combine(_gridRoot, "generated", "sims", r.Name, "data", Path.GetFileName(oarPath)); } catch { }
+                }
+                var cmd = $"load oar{opts} \"{loadPath}\"";
+                var ok = await SendConsoleCommandAsync(r, cmd, "load-oar", log);
                 if (!ok)
                 {
-                    // fallback console command simulation
-                    log.Report($"[{r.Name}] Sim offline — OAR staged at {dest}. Will run 'load oar \"{dest}\"{opts}' when the sim is managed/running.");
-                    // Simulate progress
+                    log.Report($"[{r.Name}] Sim offline/not managed — OAR ready at \"{loadPath}\". Start sim from this manager then retry.");
                     await Task.Delay(800);
                 }
                 else
                 {
-                    log.Report($"[{r.Name}] OAR restore issued.");
+                    log.Report($"[{r.Name}] OAR restore issued: {cmd}");
                 }
             }
             finally { sem.Release(); Interlocked.Increment(ref done); prog.Report(done * 100.0 / targets.Count); }
@@ -1335,10 +1969,106 @@ public partial class MainWindow : Window
         await Task.WhenAll(tasks);
         log.Report($"Bulk OAR restore complete for {targets.Count} region(s).");
         prog.Report(100);
+        if (ProgressOarSmart != null) ProgressOarSmart.Value = 100;
     }
 
     private void BtnOarSelectAll_Click(object sender, RoutedEventArgs e) { foreach (CheckBox c in ListOarRegions.Items) c.IsChecked = true; }
     private void BtnOarSelectNone_Click(object sender, RoutedEventArgs e) { foreach (CheckBox c in ListOarRegions.Items) c.IsChecked = false; }
+
+    // ---------- Smart OAR mappings (different OAR per sim) ----------
+    private void BtnPickOarMapping_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog { Filter = "OAR files (*.oar)|*.oar|All files (*.*)|*.*", Title = "Pick OAR for mapped region" };
+        if (dlg.ShowDialog() == true) TxtOarMappingPath.Text = dlg.FileName;
+    }
+
+    private void BtnAddOarMapping_Click(object sender, RoutedEventArgs e)
+    {
+        if (CboOarRegion.SelectedItem == null) { MessageBox.Show("Pick a region first."); return; }
+        var regionName = CboOarRegion.SelectedItem.ToString() ?? "";
+        var path = TxtOarMappingPath.Text.Trim();
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) { MessageBox.Show("Pick a valid .oar file first (right side Pick)."); return; }
+        var region = _regions.FirstOrDefault(r => r.Name == regionName);
+        if (region == null) { MessageBox.Show("Region not found."); return; }
+        if (_oarMappings.Any(m => m.Region.Name == regionName)) { MessageBox.Show($"{regionName} already mapped. Remove it first to replace."); return; }
+        var mapping = new OarMapping { Region = region, OarPath = path };
+        _oarMappings.Add(mapping);
+        ListOarMappings.Items.Add(mapping.FullDisplay);
+        LogOar($"Mapped {mapping.FullDisplay}");
+    }
+
+    private void BtnRemoveOarMapping_Click(object sender, RoutedEventArgs e)
+    {
+        int idx = ListOarMappings.SelectedIndex;
+        if (idx < 0) { MessageBox.Show("Select a mapping to remove."); return; }
+        var m = _oarMappings[idx];
+        _oarMappings.RemoveAt(idx);
+        ListOarMappings.Items.RemoveAt(idx);
+        LogOar($"Removed mapping {m.FullDisplay}");
+    }
+
+    private void BtnClearOarMappings_Click(object sender, RoutedEventArgs e)
+    {
+        _oarMappings.Clear();
+        ListOarMappings.Items.Clear();
+        LogOar("Cleared all OAR mappings.");
+    }
+
+    private async void BtnSmartBulkOar_Click(object sender, RoutedEventArgs e) => await DoSmartBulkOarAsync();
+
+    private async Task DoSmartBulkOarAsync()
+    {
+        if (!_oarMappings.Any()) { MessageBox.Show("Add at least one mapping: pick Region + .oar → Add Mapping, repeat for each sim."); return; }
+        var missing = _oarMappings.Where(m => !File.Exists(m.OarPath) && !m.OarPath.StartsWith("http", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (missing.Any()) { MessageBox.Show("Missing file(s):\n" + string.Join("\n", missing.Select(m => m.FullDisplay))); return; }
+        bool direct = ChkOarDirectPath == null || ChkOarDirectPath.IsChecked == true;
+        var opts = BuildLoadOarOptions();
+        BtnSmartBulkOar.IsEnabled = false; BtnAddOarMapping.IsEnabled = false; BtnRemoveOarMapping.IsEnabled = false;
+        ProgressOar.Value = 0; ProgressOarSmart.Value = 0;
+        IProgress<string> log = new Progress<string>(s => { LogOar(s); TxtOarLog.ScrollToEnd(); });
+        IProgress<double> prog = new Progress<double>(v => { ProgressOar.Value = v; ProgressOarSmart.Value = v; });
+        try
+        {
+            log.Report($"Smart bulk: {_oarMappings.Count} different OAR→Region mappings (direct={direct} opts:{opts}) parallel 2...");
+            await BulkOarRestoreMappedAsync(_oarMappings.ToList(), direct, opts, prog, log);
+        }
+        finally { BtnSmartBulkOar.IsEnabled = true; BtnAddOarMapping.IsEnabled = true; BtnRemoveOarMapping.IsEnabled = true; }
+    }
+
+    private async Task BulkOarRestoreMappedAsync(List<OarMapping> mappings, bool direct, string opts, IProgress<double> prog, IProgress<string> log)
+    {
+        var sem = new SemaphoreSlim(2);
+        int done = 0;
+        var tasks = mappings.Select(async m =>
+        {
+            await sem.WaitAsync();
+            try
+            {
+                string loadPath;
+                if (direct || m.OarPath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    loadPath = m.OarPath;
+                    log.Report($"[{m.Region.Name}] direct: {Path.GetFileName(loadPath)} from {loadPath}");
+                }
+                else
+                {
+                    var simDir = Path.Combine(_gridRoot, "generated", "sims", m.Region.Name);
+                    var dest = Path.Combine(simDir, "data", Path.GetFileName(m.OarPath));
+                    try { Directory.CreateDirectory(Path.Combine(simDir, "data")); File.Copy(m.OarPath, dest, true); log.Report($"[{m.Region.Name}] copied to {dest}"); } catch (Exception ex) { log.Report($"[{m.Region.Name}] copy failed: {ex.Message}"); loadPath = m.OarPath; goto doLoad; }
+                    loadPath = dest;
+                }
+            doLoad:
+                var cmd = $"load oar{opts} \"{loadPath}\"";
+                bool ok = await SendConsoleCommandAsync(m.Region, cmd, "load-oar", log);
+                if (!ok) log.Report($"[{m.Region.Name}] Sim offline/not managed — ready at \"{loadPath}\". Start sim then retry Smart Bulk.");
+                else log.Report($"[{m.Region.Name}] issued: {cmd}");
+            }
+            finally { sem.Release(); Interlocked.Increment(ref done); prog.Report(done * 100.0 / mappings.Count); }
+        }).ToArray();
+        await Task.WhenAll(tasks);
+        log.Report($"Smart bulk complete for {mappings.Count} region(s).");
+        prog.Report(100);
+    }
 
     // ---------- Apache ----------
     private async void BtnApacheStart_Click(object sender, RoutedEventArgs e)
@@ -1431,30 +2161,140 @@ public partial class MainWindow : Window
     }
     private void StopLogAuto() { _logCts?.Cancel(); _logCts = null; }
 
+    private string ResolveRobustLogPath()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(_gridRoot, "generated", "robust", "data", "RobustConsoleHistory.txt"),
+            Path.Combine(_gridRoot, "generated", "robust", "data", "RobustManaged.log"),
+            Path.Combine(_gridRoot, "generated", "robust", "data", "robust.log"),
+            Path.Combine(_gridRoot, "bin", "Robust.log"),
+        };
+        foreach (var p in candidates) if (File.Exists(p)) return p;
+        return candidates[0];
+    }
+
+    private string ResolveSimLogPath(RegionRow r)
+    {
+        var baseDir = GetRegionFolder(r);
+        var candidates = new[]
+        {
+            Path.Combine(baseDir, "data", "OpenSimConsoleHistory.txt"),
+            Path.Combine(baseDir, "data", "OpenSimManaged.log"),
+            Path.Combine(baseDir, "data", "OpenSim.log"),
+            Path.Combine(_gridRoot, "bin", "OpenSim.log"),
+        };
+        foreach (var p in candidates) if (File.Exists(p)) return p;
+        return candidates[0];
+    }
+
     private async Task RefreshLogViewAsync()
     {
         if (CboLogSource == null || TxtLogView == null) return;
         string path;
         if (CboLogSource.SelectedIndex == 0)
         {
-            path = Path.Combine(_gridRoot, "generated", "robust", "data", "RobustConsoleHistory.txt");
-            if (!File.Exists(path)) path = Path.Combine(_gridRoot, "generated", "robust", "data", "robust.log");
+            path = ResolveRobustLogPath();
         }
         else
         {
             var r = SelectedRegion();
             if (r == null) { TxtLogView.Text = "Select a region in Regions tab first, then choose 'Region — select via Regions tab' and Refresh."; return; }
-            path = Path.Combine(GetRegionFolder(r), "data", "OpenSimConsoleHistory.txt");
+            path = ResolveSimLogPath(r);
         }
-        if (!File.Exists(path)) { TxtLogView.Text = $"Log not created yet: {path}\nStart the selected sim once, then refresh logs."; return; }
+        if (!File.Exists(path))
+        {
+            var hint = CboLogSource.SelectedIndex == 0
+                ? "Start Robust from this manager (Dashboard → Start Robust) — logs stream to RobustManaged.log even when hidden."
+                : "Start the selected sim from this manager (Regions → Start) — logs stream to OpenSimManaged.log even when hidden.";
+            TxtLogView.Text = $"Log not created yet: {path}\n{hint}";
+            return;
+        }
         try
         {
+            // tail 600 lines + live size hint — fixes 'hidden' confusion: managed stdin still captures
             var lines = await File.ReadAllLinesAsync(path);
-            var tail = lines.TakeLast(400);
-            TxtLogView.Text = string.Join("\n", tail);
+            var tail = lines.TakeLast(600);
+            var header = $"— {Path.GetFileName(path)}  {new FileInfo(path).Length / 1024} KB  {File.GetLastWriteTime(path):HH:mm:ss} —\n";
+            TxtLogView.Text = header + string.Join("\n", tail);
             TxtLogView.ScrollToEnd();
         }
         catch (Exception ex) { TxtLogView.Text = "Read failed: " + ex.Message; }
+    }
+
+    // ---------- Console — send to any region or Robust (hidden stdin) ----------
+    private void LogConsole(string s)
+    {
+        try { TxtConsoleLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {s}\n"); TxtConsoleLog.ScrollToEnd(); } catch { }
+    }
+
+    private async Task<bool> SendRobustCommandAsync(string command, IProgress<string>? log = null)
+    {
+        const string key = "robust:robust";
+        if (!_managedProcesses.TryGetValue(key, out var proc) || proc.HasExited)
+        {
+            log?.Report($"[console] Robust not managed by this app. Start Robust from Dashboard first, then retry '{command}'. Hidden windows still work if started here.");
+            return false;
+        }
+        try
+        {
+            proc.StandardInput.WriteLine(command);
+            proc.StandardInput.Flush();
+            log?.Report($"[console] Robust ({proc.Id}) ← {command}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            log?.Report($"[console] Robust send failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async void BtnConsoleSend_Click(object sender, RoutedEventArgs e)
+    {
+        var target = CboConsoleTarget.SelectedItem?.ToString() ?? "";
+        var cmd = TxtConsoleCommand.Text.Trim();
+        if (string.IsNullOrWhiteSpace(cmd)) { MessageBox.Show("Type a command first (e.g. help, show users, backup, save oar ...)"); return; }
+        var log = new Progress<string>(s => LogConsole(s));
+        bool isRobust = target.StartsWith("Robust", StringComparison.OrdinalIgnoreCase);
+        if (isRobust)
+        {
+            LogConsole($"> Robust ← {cmd}");
+            await SendRobustCommandAsync(cmd, log);
+        }
+        else
+        {
+            var r = _regions.FirstOrDefault(x => x.Name == target);
+            if (r == null) { MessageBox.Show("Pick a target first."); return; }
+            LogConsole($"> {r.Name} ← {cmd}");
+            await SendConsoleCommandAsync(r, cmd, "console", log);
+        }
+        LogConsole("Tip: open Logs tab → Robust / Region to see output (also in RobustManaged.log / OpenSimManaged.log).");
+        TxtConsoleCommand.SelectAll();
+    }
+
+    private void BtnConsoleClear_Click(object sender, RoutedEventArgs e) => TxtConsoleLog.Clear();
+    private void BtnConsoleShowInfo_Click(object sender, RoutedEventArgs e)
+    {
+        TxtConsoleCommand.Text = "show info";
+        BtnConsoleSend_Click(sender, e);
+    }
+    private void BtnConsoleQuickBackup_Click(object sender, RoutedEventArgs e) { TxtConsoleCommand.Text = "backup"; BtnConsoleSend_Click(sender, e); }
+    private void BtnConsoleQuickShowUsers_Click(object sender, RoutedEventArgs e) { TxtConsoleCommand.Text = "show users"; BtnConsoleSend_Click(sender, e); }
+    private void BtnConsoleQuickShowRegions_Click(object sender, RoutedEventArgs e) { TxtConsoleCommand.Text = "show regions"; BtnConsoleSend_Click(sender, e); }
+    private void BtnConsoleQuickAlert_Click(object sender, RoutedEventArgs e)
+    {
+        var msg = Microsoft.VisualBasic.Interaction.InputBox("Alert message to send to all users in target region:", "Console — alert", "Hello from Fresh Metaverse ✨");
+        if (string.IsNullOrWhiteSpace(msg)) return;
+        // alert needs quotes if spaces
+        TxtConsoleCommand.Text = $"alert \"{msg.Replace("\"", "'")}\"";
+        BtnConsoleSend_Click(sender, e);
+    }
+    private void BtnConsoleQuickChangeRegion_Click(object sender, RoutedEventArgs e)
+    {
+        TxtConsoleCommand.Text = "change region ";
+        TxtConsoleCommand.Focus();
+        TxtConsoleCommand.CaretIndex = TxtConsoleCommand.Text.Length;
     }
 
     // ---------- Config ----------
@@ -1611,7 +2451,7 @@ public partial class MainWindow : Window
                 else
                     script = "$hits = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*OpenSim.dll*' }; $hits | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; \"killed sim pid \" + $_.ProcessId }";
             }
-            var psi = new ProcessStartInfo("powershell", "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command " + JsonSerializer.Serialize(script))
+            var psi = new ProcessStartInfo("powershell", "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command " + JsonSerializer.Serialize(script, s_psArgsOptions))
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,

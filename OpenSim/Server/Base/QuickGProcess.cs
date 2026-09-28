@@ -15,7 +15,34 @@ namespace OpenSim.Server.Base
     {
         private static readonly ILog m_log = LogManager.GetLogger(typeof(QuickGProcess));
         private static Process m_process;
+        private static bool m_dllStarted;
         private static readonly HttpClient s_healthClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(350) };
+
+        [DllImport("Quick-G.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern int QuickGStart(
+            int listenPort,
+            int controlPort,
+            int brainPort,
+            int regionPortStart,
+            int regionPortEnd,
+            int brainLeaseSeconds,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string certPath,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string keyPath,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string alpn,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string brainBind,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string regionPortExclude);
+
+        [DllImport("Quick-G.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int QuickGStop();
+
+        [DllImport("Quick-G.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int QuickGIsRunning();
+
+        [DllImport("Quick-G.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr QuickGLastError();
+
+        [DllImport("Quick-G.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void QuickGFreeString(IntPtr value);
 
         internal static void Start(IConfigSource source)
         {
@@ -48,6 +75,10 @@ namespace OpenSim.Server.Base
                 m_log.Info("[QUICK-G]: Connected to already-running Quick-G");
                 return;
             }
+
+            bool preferDll = config?.GetBoolean("UseDll", true) ?? true;
+            if (preferDll && TryStartDll(config, controlPort, brainPort))
+                return;
 
             string executable = config?.GetString("Executable", "Quick-G.exe") ?? "Quick-G.exe";
             if (!Path.IsPathRooted(executable))
@@ -100,6 +131,91 @@ namespace OpenSim.Server.Base
             }
 
             WaitForManualQuickG(controlPort, brainPort, executable, exitCode);
+        }
+
+        private static bool TryStartDll(IConfig config, int controlPort, int brainPort)
+        {
+            try
+            {
+                int listenPort = config?.GetInt("Port", 9001) ?? 9001;
+                string brainBind = config?.GetString("BrainBind", "127.0.0.1") ?? "127.0.0.1";
+                int regionPortStart = config?.GetInt("RegionPortStart", 22000) ?? 22000;
+                int regionPortEnd = config?.GetInt("RegionPortEnd", 22500) ?? 22500;
+                string regionPortExclude = config?.GetString("RegionPortExclude", "") ?? "";
+                int leaseSeconds = config?.GetInt("BrainLeaseSeconds", 90) ?? 90;
+                string cert = ResolveBasePath(config?.GetString("CertificatePath", "SSL/quic/quic-cert.pem") ?? "SSL/quic/quic-cert.pem");
+                string key = ResolveBasePath(config?.GetString("PrivateKeyPath", "SSL/quic/quic-key.pem") ?? "SSL/quic/quic-key.pem");
+                string alpn = config?.GetString("ALPN", "opensim-ll/1") ?? "opensim-ll/1";
+
+                int started = QuickGStart(
+                    listenPort,
+                    controlPort,
+                    brainPort,
+                    regionPortStart,
+                    regionPortEnd,
+                    leaseSeconds,
+                    cert,
+                    key,
+                    alpn,
+                    brainBind,
+                    regionPortExclude);
+
+                if (started == 0)
+                {
+                    m_log.WarnFormat("[QUICK-G]: DLL start declined: {0}", GetDllLastError());
+                    return false;
+                }
+
+                if (WaitUntilReady(controlPort, 5000))
+                {
+                    m_dllStarted = true;
+                    MarkConnected(controlPort, brainPort);
+                    m_log.Info("[QUICK-G]: Started in-process DLL compatibility helper");
+                    return true;
+                }
+
+                string error = GetDllLastError();
+                try { QuickGStop(); } catch { }
+                m_log.WarnFormat("[QUICK-G]: DLL did not become ready{0}", string.IsNullOrEmpty(error) ? string.Empty : ": " + error);
+            }
+            catch (DllNotFoundException e)
+            {
+                m_log.WarnFormat("[QUICK-G]: DLL not found, falling back to EXE: {0}", e.Message);
+            }
+            catch (EntryPointNotFoundException e)
+            {
+                m_log.WarnFormat("[QUICK-G]: DLL export missing, falling back to EXE: {0}", e.Message);
+            }
+            catch (Exception e)
+            {
+                m_log.WarnFormat("[QUICK-G]: DLL start failed, falling back to EXE: {0}", e.Message);
+            }
+            return false;
+        }
+
+        private static string ResolveBasePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path))
+                return path;
+            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, path));
+        }
+
+        private static string GetDllLastError()
+        {
+            IntPtr value = IntPtr.Zero;
+            try
+            {
+                value = QuickGLastError();
+                return value == IntPtr.Zero ? string.Empty : Marshal.PtrToStringUTF8(value) ?? string.Empty;
+            }
+            catch { return string.Empty; }
+            finally
+            {
+                if (value != IntPtr.Zero)
+                {
+                    try { QuickGFreeString(value); } catch { }
+                }
+            }
         }
 
         private static string BuildArguments(IConfig config, int controlPort, int brainPort)
@@ -230,6 +346,12 @@ namespace OpenSim.Server.Base
             m_process = null;
             try
             {
+                if (m_dllStarted)
+                {
+                    m_dllStarted = false;
+                    try { QuickGStop(); } catch { }
+                }
+
                 // This also shuts down a manually started helper that ROBUST adopted.
                 if (!string.IsNullOrEmpty(controlPort))
                 {

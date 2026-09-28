@@ -109,7 +109,7 @@ namespace OpenSim.Data.PGSQL
 
         public FriendsData[] GetFriends(Guid principalID)
         {
-            return GetFriends(principalID);
+            return GetFriends(new UUID(principalID.ToString()));
         }
 
     }

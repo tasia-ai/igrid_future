@@ -27,6 +27,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using log4net;
 using OpenMetaverse;
 
@@ -81,6 +83,7 @@ namespace Gloebit.GloebitMoneyModule {
         public bool enacted;
         public bool consumed;
         public bool canceled;
+        public string CallbackKey;
 
         // Timestamps for reporting
         public DateTime cTime;
@@ -162,6 +165,7 @@ namespace Gloebit.GloebitMoneyModule {
             this.enacted = false;
             this.consumed = false;
             this.canceled = false;
+            this.CallbackKey = UUID.Random().ToString();
 
             // Timestamps for reporting
             this.cTime = DateTime.UtcNow;
@@ -269,20 +273,29 @@ namespace Gloebit.GloebitMoneyModule {
         public Uri BuildEnactURI(Uri baseURI) {
             UriBuilder enact_uri = new UriBuilder(baseURI);
             enact_uri.Path = "gloebit/transaction";
-            enact_uri.Query = String.Format("id={0}&state={1}", this.TransactionID, "enact");
+            enact_uri.Query = BuildCallbackQuery("enact");
             return enact_uri.Uri;
         }
         public Uri BuildConsumeURI(Uri baseURI) {
             UriBuilder consume_uri = new UriBuilder(baseURI);
             consume_uri.Path = "gloebit/transaction";
-            consume_uri.Query = String.Format("id={0}&state={1}", this.TransactionID, "consume");
+            consume_uri.Query = BuildCallbackQuery("consume");
             return consume_uri.Uri;
         }
         public Uri BuildCancelURI(Uri baseURI) {
             UriBuilder cancel_uri = new UriBuilder(baseURI);
             cancel_uri.Path = "gloebit/transaction";
-            cancel_uri.Query = String.Format("id={0}&state={1}", this.TransactionID, "cancel");
+            cancel_uri.Query = BuildCallbackQuery("cancel");
             return cancel_uri.Uri;
+        }
+
+        private string BuildCallbackQuery(string state)
+        {
+            return String.Format(
+                "id={0}&state={1}&key={2}",
+                Uri.EscapeDataString(this.TransactionID),
+                Uri.EscapeDataString(state),
+                Uri.EscapeDataString(this.CallbackKey ?? String.Empty));
         }
 
         /**************************************************/
@@ -291,65 +304,90 @@ namespace Gloebit.GloebitMoneyModule {
 
         public static bool ProcessStateRequest(string transactionIDstr, string stateRequested, IAssetCallback assetCallbacks, GloebitAPIWrapper.ITransactionAlert transactionAlerts, out string returnMsg)
         {
-            bool result = false;
+            return ProcessStateRequest(transactionIDstr, stateRequested, null, assetCallbacks, transactionAlerts, out returnMsg);
+        }
 
-            // Retrieve asset
-            GloebitTransaction myTxn = GloebitTransaction.Get(UUID.Parse(transactionIDstr));
+        public static bool ProcessStateRequest(string transactionIDstr, string stateRequested, string callbackKey, IAssetCallback assetCallbacks, GloebitAPIWrapper.ITransactionAlert transactionAlerts, out string returnMsg)
+        {
+            if (!UUID.TryParse(transactionIDstr, out UUID transactionID) || transactionID.IsZero())
+            {
+                returnMsg = "Invalid transaction ID.";
+                return false;
+            }
 
-            // If no matching transaction, return false
-            // TODO: is this what we want to return?
-            if (myTxn == null) {
+            GloebitTransaction myTxn = GloebitTransaction.Get(transactionID);
+            if (myTxn == null)
+            {
                 returnMsg = "No matching transaction found.";
                 return false;
             }
 
-            // Attempt to avoid race conditions (not sure if even possible)
-            bool alreadyProcessing = false;
-            lock(s_pendingTransactionMap) {
-                alreadyProcessing = s_pendingTransactionMap.ContainsKey(transactionIDstr);
-                if (!alreadyProcessing) {
-                    // add to race condition protection
-                    s_pendingTransactionMap[transactionIDstr] = myTxn;
-                }
-            }
-            if (alreadyProcessing) {
-                returnMsg = "pending";  // DO NOT CHANGE --- this message needs to be returned to Gloebit to know it is a retryable error
+            if (!myTxn.VerifyCallbackKey(callbackKey))
+            {
+                returnMsg = "Invalid callback key.";
                 return false;
             }
 
-            // Call proper state processor
-            switch (stateRequested) {
-            case "enact":
-                result = myTxn.enactHold(assetCallbacks, transactionAlerts, out returnMsg);
-                break;
-            case "consume":
-                result = myTxn.consumeHold(assetCallbacks, transactionAlerts, out returnMsg);
-                if (result) {
-                    lock(s_transactionMap) {
-                        s_transactionMap.Remove(transactionIDstr);
-                    }
-                }
-                break;
-            case "cancel":
-                result = myTxn.cancelHold(assetCallbacks, transactionAlerts, out returnMsg);
-                if (result) {
-                    lock(s_transactionMap) {
-                        s_transactionMap.Remove(transactionIDstr);
-                    }
-                }
-                break;
-            default:
-                // no recognized state request
-                returnMsg = "Unrecognized state request";
-                result = false;
-                break;
+            string normalizedTransactionId = transactionID.ToString();
+            bool alreadyProcessing;
+            lock (s_pendingTransactionMap)
+            {
+                alreadyProcessing = s_pendingTransactionMap.ContainsKey(normalizedTransactionId);
+                if (!alreadyProcessing)
+                    s_pendingTransactionMap[normalizedTransactionId] = myTxn;
             }
 
-            // remove from race condition protection
-            lock(s_pendingTransactionMap) {
-                s_pendingTransactionMap.Remove(transactionIDstr);
+            if (alreadyProcessing)
+            {
+                returnMsg = "pending"; // DO NOT CHANGE: Gloebit retries this response.
+                return false;
             }
-            return result;
+
+            try
+            {
+                switch (stateRequested)
+                {
+                    case "enact":
+                        return myTxn.enactHold(assetCallbacks, transactionAlerts, out returnMsg);
+
+                    case "consume":
+                        bool consumed = myTxn.consumeHold(assetCallbacks, transactionAlerts, out returnMsg);
+                        if (consumed)
+                        {
+                            lock (s_transactionMap)
+                                s_transactionMap.Remove(normalizedTransactionId);
+                        }
+                        return consumed;
+
+                    case "cancel":
+                        bool canceled = myTxn.cancelHold(assetCallbacks, transactionAlerts, out returnMsg);
+                        if (canceled)
+                        {
+                            lock (s_transactionMap)
+                                s_transactionMap.Remove(normalizedTransactionId);
+                        }
+                        return canceled;
+
+                    default:
+                        returnMsg = "Unrecognized state request";
+                        return false;
+                }
+            }
+            finally
+            {
+                lock (s_pendingTransactionMap)
+                    s_pendingTransactionMap.Remove(normalizedTransactionId);
+            }
+        }
+
+        public bool VerifyCallbackKey(string callbackKey)
+        {
+            if (String.IsNullOrEmpty(CallbackKey) || String.IsNullOrEmpty(callbackKey))
+                return false;
+
+            byte[] expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(CallbackKey));
+            byte[] actualHash = SHA256.HashData(Encoding.UTF8.GetBytes(callbackKey));
+            return CryptographicOperations.FixedTimeEquals(expectedHash, actualHash);
         }
 
         private bool enactHold(IAssetCallback assetCallbacks, GloebitAPIWrapper.ITransactionAlert transactionAlerts, out string returnMsg)

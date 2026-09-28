@@ -15,14 +15,22 @@ CREATE TABLE UserAccounts (
 
 BEGIN TRANSACTION;
 
-INSERT INTO UserAccounts ("PrincipalID", "ScopeID", "FirstName", "LastName", "Email", "ServiceURLs", "Created") 
-SELECT UUID AS "PrincipalID", '00000000-0000-0000-0000-000000000000' AS "ScopeID", 
-username AS "FirstName", 
-lastname AS "LastName", 
-email as "Email", (
-'AssetServerURI=' +  
-userAssetURI + ' InventoryServerURI='  + userInventoryURI + ' GatewayURI= HomeURI=') AS "ServiceURLs", 
-created as "Created" FROM users;
+DO $$
+BEGIN
+    IF to_regclass('public.users') IS NOT NULL THEN
+        EXECUTE $sql$
+            INSERT INTO UserAccounts ("PrincipalID", "ScopeID", "FirstName", "LastName", "Email", "ServiceURLs", "Created")
+            SELECT uuid, '00000000-0000-0000-0000-000000000000'::uuid,
+                   username, lastname, email,
+                   'AssetServerURI=' || userAssetURI ||
+                   ' InventoryServerURI=' || userInventoryURI ||
+                   ' GatewayURI= HomeURI=',
+                   created
+            FROM users
+        $sql$;
+    END IF;
+END
+$$;
 
 COMMIT;
 
@@ -49,9 +57,18 @@ ALTER TABLE UserAccounts ADD "UserTitle" varchar(64) NOT NULL DEFAULT '';
 COMMIT;
 
 :VERSION 5
-
+                  
 BEGIN TRANSACTION;
 
 ALTER TABLE UserAccounts ADD "active" integer NOT NULL DEFAULT 1;
+
+COMMIT;
+
+:VERSION 6
+-- I-Grid fork fields used by UserAccount display-name flows.
+BEGIN TRANSACTION;
+
+ALTER TABLE UserAccounts ADD COLUMN IF NOT EXISTS "DisplayName" text NULL;
+ALTER TABLE UserAccounts ADD COLUMN IF NOT EXISTS "NameChanged" character varying(64) NULL DEFAULT '0';
 
 COMMIT;

@@ -80,7 +80,7 @@ namespace OpenSim.Region.Framework.Interfaces
 
         //        void DisableSimulator(ulong handle, UUID avatarID);
         void EnableSimulator(ulong handle, IPEndPoint endPoint, UUID avatarID, int regionSizeX, int regionSizeY,
-                             string quicHost = null, uint quicPort = 0);
+                             string quicHost = null, uint quicPort = 0, bool advertiseQuic = true);
         void EstablishAgentCommunication(UUID avatarID, IPEndPoint endPoint,
                                          string capsPath, ulong regionHandle, int regionSizeX, int regionSizeY);
         void TeleportFinishEvent(ulong regionHandle, byte simAccess,

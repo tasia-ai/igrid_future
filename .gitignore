@@ -1,0 +1,49 @@
+# Build output — regenerable, never commit
+**/obj/
+**/bin/Debug/
+**/bin/Release/
+bin/net*/
+bin/cs/
+bin/de/
+bin/es/
+bin/fr/
+bin/it/
+bin/ja/
+bin/ko/
+bin/pl/
+bin/pt-BR/
+bin/ru/
+build/
+publish/
+
+# My local pre-edit backups (kept on disk, not in history)
+*.bak
+*.bak-*
+
+# Compiled binaries and symbols
+*.dll
+*.exe
+*.pdb
+*.so
+*.dylib
+*.dat
+*.resources
+*.deps.json
+*.runtimeconfig.json
+
+# Generated deployment output (contains credentials: console_pass, RestartModule ApiToken)
+generated-pgsql2/
+
+# Secrets
+.env
+.env.*
+*.pfx
+*.pem
+secrets/
+
+# Editor / OS noise
+.vs/
+.vscode/
+*.user
+Thumbs.db
+desktop.ini

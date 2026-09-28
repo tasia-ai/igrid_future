@@ -1,6 +1,0 @@
-/home/marty/igrid-server-code-2026-07-03/.publish-windows/SmartThreadPool.dll
-/home/marty/igrid-server-code-2026-07-03/.publish-windows/SmartThreadPool.pdb
-/home/marty/igrid-server-code-2026-07-03/.publish-windows/log4net.dll
-/home/marty/igrid-server-code-2026-07-03/.publish-windows/System.Configuration.ConfigurationManager.dll
-/home/marty/igrid-server-code-2026-07-03/.publish-windows/System.Security.Cryptography.ProtectedData.dll
-/home/marty/igrid-server-code-2026-07-03/.publish-windows/System.Security.Permissions.dll

@@ -106,7 +106,8 @@ namespace OpenSim.Data.PGSQL
 
             string query = string.Format(@"select column_name,data_type
                         from INFORMATION_SCHEMA.COLUMNS
-                       where table_name = lower('{0}');
+                       where table_schema = 'public'
+                         and table_name = lower('{0}');
 
                 ", m_Realm);
             using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
@@ -249,7 +250,15 @@ namespace OpenSim.Data.PGSQL
                     else
                         cmd.Parameters.Add(m_database.CreateParameter(fields[i], keys[i]));
 
-                    terms.Add(" \"" + fields[i] + "\" = :" + fields[i]);
+                    if (m_FieldTypes.TryGetValue(fields[i], out string fieldType) &&
+                        (fieldType == "text" || fieldType == "character varying" || fieldType == "character"))
+                    {
+                        terms.Add(" LOWER(\"" + fields[i] + "\") = LOWER(:" + fields[i] + ")");
+                    }
+                    else
+                    {
+                        terms.Add(" \"" + fields[i] + "\" = :" + fields[i]);
+                    }
                 }
 
                 string where = String.Join(" AND ", terms.ToArray());

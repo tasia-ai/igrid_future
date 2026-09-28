@@ -19,19 +19,25 @@
       <HintPath>..\..\bin\OpenMetaverseTypes.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Nini">
+      <HintPath>..\..\bin\Nini.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="XMLRPC">
       <HintPath>..\..\bin\XMLRPC.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Framework\OpenSim.Framework.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Framework.Console\OpenSim.Framework.Console.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Framework.Servers.HttpServer\OpenSim.Framework.Servers.HttpServer.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Server.Base\OpenSim.Server.Base.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Server.Handlers\OpenSim.Server.Handlers.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Services\OpenSim.Services.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Services.Interfaces\OpenSim.Services.Interfaces.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Framework\OpenSim.Framework.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Framework\Console\OpenSim.Framework.Console.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Framework\Servers\HttpServer\OpenSim.Framework.Servers.HttpServer.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Server\Base\OpenSim.Server.Base.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Server\Handlers\OpenSim.Server.Handlers.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Services\Base\OpenSim.Services.Base.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Services\AssetService\OpenSim.Services.AssetService.csproj" />
+    <ProjectReference Include="..\..\addon-modules\Gloebit\GloebitMoneyModule\Gloebit.csproj" />
+    <ProjectReference Include="..\..\OpenSim\Services\Interfaces\OpenSim.Services.Interfaces.csproj" />
     <ProjectReference Include="..\..\Tests\OpenSim.Tests.Common\OpenSim.Tests.Common.csproj" />
   </ItemGroup>
 
@@ -52,6 +58,7 @@
 
   <ItemGroup>
     <Using Include="NUnit.Framework" />
+    <Using Include="Nini.Config" />
   </ItemGroup>
 
 </Project>

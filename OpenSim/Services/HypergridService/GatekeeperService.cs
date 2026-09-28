@@ -473,9 +473,18 @@ namespace OpenSim.Services.HypergridService
                 {
                     if (!m_allowDuplicatePresences)
                     {
-                        if (guinfo.Online && !guinfo.LastRegionID.IsZero())
+                    if (guinfo.Online && !guinfo.LastRegionID.IsZero())
+                    {
+                        if (account is null && !ForeignSessionHomeMatches(guinfo, authURL))
                         {
-                            if (SendAgentGodKillToRegion(UUID.Zero, agentID, uui, guinfo))
+                            reason = "You appear to be already logged in on the destination grid";
+                            m_log.InfoFormat(
+                                "[GATEKEEPER SERVICE]: Refusing duplicate foreign login for {0}; stored home does not match claimed home {1}",
+                                aCircuit.AgentID, authURL);
+                            return false;
+                        }
+
+                        if (SendAgentGodKillToRegion(UUID.Zero, agentID, uui, guinfo))
                             {
                                 if (account is not null)
                                     m_log.InfoFormat(
@@ -611,6 +620,12 @@ namespace OpenSim.Services.HypergridService
             if (aCircuit.ServiceURLs.ContainsKey("HomeURI"))
                 userURL = aCircuit.ServiceURLs["HomeURI"].ToString();
 
+            if (!HypergridEgressPolicy.IsAllowedTarget(userURL, m_gatekeeperURL))
+            {
+                m_log.InfoFormat("[GATEKEEPER SERVICE]: Refusing verification callback to disallowed HomeURI {0}", userURL);
+                return false;
+            }
+
             OSHHTPHost userHomeHost = new(userURL, true);
             if(!userHomeHost.IsResolvedHost)
             {
@@ -666,6 +681,17 @@ namespace OpenSim.Services.HypergridService
 
 
         #region Misc
+
+        public static bool ForeignSessionHomeMatches(GridUserInfo existingSession, string claimedHomeURI)
+        {
+            if (existingSession == null || string.IsNullOrWhiteSpace(existingSession.UserID) || string.IsNullOrWhiteSpace(claimedHomeURI))
+                return false;
+
+            if (!Util.ParseUniversalUserIdentifier(existingSession.UserID, out UUID _, out string storedHomeURI))
+                return false;
+
+            return UserAgentService.IsLocalGridURI(storedHomeURI, claimedHomeURI);
+        }
 
         private bool IsException(AgentCircuitData aCircuit, List<string> exceptions)
         {

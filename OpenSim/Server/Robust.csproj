@@ -116,6 +116,9 @@
 	  <PackageReference Include="Mono.Addins.Setup" Version="1.4.1" />
     <PackageReference Include="Mono.Addins.CecilReflector" Version="1.4.1" />
   </ItemGroup>
+  <Target Name="CopyAppLocalOpenSslMsQuicToBuild" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <Copy SourceFiles="$(PkgMicrosoft_Native_Quic_MsQuic_OpenSSL)\build\native\bin\x64\msquic.dll" DestinationFolder="$(TargetDir)" />
+  </Target>
   <Target Name="CopyAppLocalOpenSslMsQuic" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' == 'win-x64'">
     <Copy SourceFiles="$(PkgMicrosoft_Native_Quic_MsQuic_OpenSSL)\build\native\bin\x64\msquic.dll" DestinationFolder="$(PublishDir)" />
   </Target>

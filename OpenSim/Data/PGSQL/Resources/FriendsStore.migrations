@@ -15,8 +15,16 @@ COMMIT;
 
 BEGIN TRANSACTION;
 
-INSERT INTO Friends ("PrincipalID", "Friend", "Flags", "Offered") 
-SELECT "ownerID", "friendID", "friendPerms", 0 FROM userfriends;
+DO $$
+BEGIN
+    IF to_regclass('public.userfriends') IS NOT NULL THEN
+        EXECUTE $sql$
+            INSERT INTO Friends ("PrincipalID", "Friend", "Flags", "Offered")
+            SELECT "ownerID", "friendID", "friendPerms", 0 FROM userfriends
+        $sql$;
+    END IF;
+END
+$$;
 
 COMMIT;
 

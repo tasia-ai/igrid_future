@@ -118,7 +118,8 @@
     GridServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:GridServiceConnector"
     GridInfoServerInConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:GridInfoServerInConnector"
     AuthenticationServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:AuthenticationServiceConnector"
-    OpenIdServerConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:OpenIdServerConnector"
+     ; OpenID is disabled by default. Enable it only when the endpoint is protected and intentionally deployed.
+     ; OpenIdServerConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:OpenIdServerConnector"
     AvatarServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:AvatarServiceConnector"
     LLLoginServiceInConnector = "${Const|PublicPort}/OpenSim.Server.Handlers.dll:LLLoginServiceInConnector"
     PresenceServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:PresenceServiceConnector"
@@ -150,7 +151,12 @@
 ; * server instance, if none is specified above
 ; *
 [Network]
-    port = ${Const|PrivatePort}
+     port = ${Const|PrivatePort}
+
+     ; Explicit source addresses allowed to call internal control-plane endpoints.
+     ; Keep this list narrow; loopback is always trusted. Do not add public clients or arbitrary grids.
+     ; ControlPlaneTrustedHosts = 127.0.0.1, 10.20.0.10
+
 
     ; HTTPS for "Out of band" management applications such as the remote admin
     ; module. May specify https_main = True to make the main http server

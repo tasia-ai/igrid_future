@@ -28,6 +28,7 @@
 using log4net;
 using MySqlConnector;
 using Nini.Config;
+using Npgsql;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
 using OpenSim.Framework;
@@ -758,8 +759,24 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             if (String.IsNullOrEmpty(connectionString))
                 return String.Empty;
 
+            // PGSQL: keep provider as-is, switch DB name manually (MySqlConnector builder parses MySQL only)
+            if (connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase) ||
+                connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+            {
+                // Npgsql style "Server=...;Database=...;" -> replace Database value with robust
+                return System.Text.RegularExpressions.Regex.Replace(
+                    connectionString, @"Database\s*=\s*[^;]+", "Database=robust",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            }
+
             MySqlConnectionStringBuilder builder = new(connectionString) { Database = "robust" };
             return builder.ConnectionString;
+        }
+
+        private bool maIsPgsqlConnection(string connectionString)
+        {
+            return connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase) ||
+                   connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase) && connectionString.Contains("Port=", StringComparison.OrdinalIgnoreCase);
         }
 
         public void maChangeGridProfile(string who, string aboutText, LSL_Key profileImage, string firstLifeText, LSL_Key firstLifeImage, string webUrl, string accountTitle, string bornOn)
@@ -791,32 +808,65 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
 
             try
             {
-                const string query = @"INSERT INTO TasiaVirtualAvatars
-                    (VirtualID, AvatarName, FirstName, LastName, OwnerID, AboutText, ProfileImage, FirstLifeImage, FirstLifeText, WebUrl, UserTitle, BornOn, Enabled, Created, Updated)
-                    VALUES (@VirtualID, @AvatarName, @FirstName, @LastName, @OwnerID, @AboutText, @ProfileImage, @FirstLifeImage, @FirstLifeText, @WebUrl, @UserTitle, @BornOn, 1, @Now, @Now)
-                    ON DUPLICATE KEY UPDATE AvatarName = VALUES(AvatarName), FirstName = VALUES(FirstName), LastName = VALUES(LastName), OwnerID = VALUES(OwnerID),
-                    AboutText = VALUES(AboutText), ProfileImage = VALUES(ProfileImage), FirstLifeImage = VALUES(FirstLifeImage),
-                    FirstLifeText = VALUES(FirstLifeText), WebUrl = VALUES(WebUrl), UserTitle = VALUES(UserTitle),
-                    BornOn = VALUES(BornOn), Enabled = 1, Updated = VALUES(Updated)";
-
                 int now = (int)Util.UnixTimeSinceEpoch();
-                using MySqlConnection connection = new(connectionString);
-                connection.Open();
-                using MySqlCommand command = new(query, connection);
-                command.Parameters.AddWithValue("@VirtualID", virtualID.ToString());
-                command.Parameters.AddWithValue("@AvatarName", avatarName);
-                command.Parameters.AddWithValue("@FirstName", firstName);
-                command.Parameters.AddWithValue("@LastName", lastName);
-                command.Parameters.AddWithValue("@OwnerID", m_host.OwnerID.ToString());
-                command.Parameters.AddWithValue("@AboutText", aboutText ?? String.Empty);
-                command.Parameters.AddWithValue("@ProfileImage", imageID.ToString());
-                command.Parameters.AddWithValue("@FirstLifeImage", firstLifeImageID.ToString());
-                command.Parameters.AddWithValue("@FirstLifeText", firstLifeText ?? String.Empty);
-                command.Parameters.AddWithValue("@WebUrl", webUrl ?? String.Empty);
-                command.Parameters.AddWithValue("@UserTitle", accountTitle ?? String.Empty);
-                command.Parameters.AddWithValue("@BornOn", bornOn ?? String.Empty);
-                command.Parameters.AddWithValue("@Now", now);
-                command.ExecuteNonQuery();
+                bool isPgsql = maIsPgsqlConnection(connectionString);
+
+                if (isPgsql)
+                {
+                    const string pgQuery = @"INSERT INTO ""TasiaVirtualAvatars""
+                        (""VirtualID"", ""AvatarName"", ""FirstName"", ""LastName"", ""DisplayName"", ""OwnerID"", ""AboutText"", ""ProfileImage"", ""FirstLifeImage"", ""FirstLifeText"", ""WebUrl"", ""UserTitle"", ""BornOn"", ""Enabled"", ""Created"", ""Updated"")
+                        VALUES (@VirtualID::uuid, @AvatarName, @FirstName, @LastName, @AvatarName, @OwnerID::uuid, @AboutText, @ProfileImage::uuid, @FirstLifeImage::uuid, @FirstLifeText, @WebUrl, @UserTitle, @BornOn, 1, @Now, @Now)
+                        ON CONFLICT (""VirtualID"") DO UPDATE SET ""AvatarName"" = EXCLUDED.""AvatarName"", ""FirstName"" = EXCLUDED.""FirstName"", ""LastName"" = EXCLUDED.""LastName"", ""DisplayName"" = EXCLUDED.""DisplayName"", ""OwnerID"" = EXCLUDED.""OwnerID"",
+                        ""AboutText"" = EXCLUDED.""AboutText"", ""ProfileImage"" = EXCLUDED.""ProfileImage"", ""FirstLifeImage"" = EXCLUDED.""FirstLifeImage"",
+                        ""FirstLifeText"" = EXCLUDED.""FirstLifeText"", ""WebUrl"" = EXCLUDED.""WebUrl"", ""UserTitle"" = EXCLUDED.""UserTitle"",
+                        ""BornOn"" = EXCLUDED.""BornOn"", ""Enabled"" = 1, ""Updated"" = EXCLUDED.""Updated""";
+
+                    using NpgsqlConnection pgCon = new(connectionString);
+                    pgCon.Open();
+                    using NpgsqlCommand pgCmd = new(pgQuery, pgCon);
+                    pgCmd.Parameters.AddWithValue("@VirtualID", virtualID.ToString());
+                    pgCmd.Parameters.AddWithValue("@AvatarName", avatarName);
+                    pgCmd.Parameters.AddWithValue("@FirstName", firstName);
+                    pgCmd.Parameters.AddWithValue("@LastName", lastName);
+                    pgCmd.Parameters.AddWithValue("@OwnerID", m_host.OwnerID.ToString());
+                    pgCmd.Parameters.AddWithValue("@AboutText", aboutText ?? String.Empty);
+                    pgCmd.Parameters.AddWithValue("@ProfileImage", imageID.ToString());
+                    pgCmd.Parameters.AddWithValue("@FirstLifeImage", firstLifeImageID.ToString());
+                    pgCmd.Parameters.AddWithValue("@FirstLifeText", firstLifeText ?? String.Empty);
+                    pgCmd.Parameters.AddWithValue("@WebUrl", webUrl ?? String.Empty);
+                    pgCmd.Parameters.AddWithValue("@UserTitle", accountTitle ?? String.Empty);
+                    pgCmd.Parameters.AddWithValue("@BornOn", bornOn ?? String.Empty);
+                    pgCmd.Parameters.AddWithValue("@Now", now);
+                    pgCmd.ExecuteNonQuery();
+                }
+                else
+                {
+                    const string query = @"INSERT INTO TasiaVirtualAvatars
+                        (VirtualID, AvatarName, FirstName, LastName, OwnerID, AboutText, ProfileImage, FirstLifeImage, FirstLifeText, WebUrl, UserTitle, BornOn, Enabled, Created, Updated)
+                        VALUES (@VirtualID, @AvatarName, @FirstName, @LastName, @OwnerID, @AboutText, @ProfileImage, @FirstLifeImage, @FirstLifeText, @WebUrl, @UserTitle, @BornOn, 1, @Now, @Now)
+                        ON DUPLICATE KEY UPDATE AvatarName = VALUES(AvatarName), FirstName = VALUES(FirstName), LastName = VALUES(LastName), OwnerID = VALUES(OwnerID),
+                        AboutText = VALUES(AboutText), ProfileImage = VALUES(ProfileImage), FirstLifeImage = VALUES(FirstLifeImage),
+                        FirstLifeText = VALUES(FirstLifeText), WebUrl = VALUES(WebUrl), UserTitle = VALUES(UserTitle),
+                        BornOn = VALUES(BornOn), Enabled = 1, Updated = VALUES(Updated)";
+
+                    using MySqlConnection connection = new(connectionString);
+                    connection.Open();
+                    using MySqlCommand command = new(query, connection);
+                    command.Parameters.AddWithValue("@VirtualID", virtualID.ToString());
+                    command.Parameters.AddWithValue("@AvatarName", avatarName);
+                    command.Parameters.AddWithValue("@FirstName", firstName);
+                    command.Parameters.AddWithValue("@LastName", lastName);
+                    command.Parameters.AddWithValue("@OwnerID", m_host.OwnerID.ToString());
+                    command.Parameters.AddWithValue("@AboutText", aboutText ?? String.Empty);
+                    command.Parameters.AddWithValue("@ProfileImage", imageID.ToString());
+                    command.Parameters.AddWithValue("@FirstLifeImage", firstLifeImageID.ToString());
+                    command.Parameters.AddWithValue("@FirstLifeText", firstLifeText ?? String.Empty);
+                    command.Parameters.AddWithValue("@WebUrl", webUrl ?? String.Empty);
+                    command.Parameters.AddWithValue("@UserTitle", accountTitle ?? String.Empty);
+                    command.Parameters.AddWithValue("@BornOn", bornOn ?? String.Empty);
+                    command.Parameters.AddWithValue("@Now", now);
+                    command.ExecuteNonQuery();
+                }
             }
             catch (Exception e)
             {

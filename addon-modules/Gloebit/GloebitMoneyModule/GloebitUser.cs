@@ -38,7 +38,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using log4net;
 using OpenMetaverse;
 
@@ -53,6 +56,7 @@ namespace Gloebit.GloebitMoneyModule {
         public string GloebitID;
         public string GloebitToken;
         public string LastSessionID;
+        public string PendingAuthState;
 
         // TODO - update userMap to be a proper LRU Cache
         private static Dictionary<string, GloebitUser> s_userMap = new Dictionary<string, GloebitUser>();
@@ -68,6 +72,7 @@ namespace Gloebit.GloebitMoneyModule {
             this.GloebitID = gloebitID;
             this.GloebitToken = token;
             this.LastSessionID = sessionID;
+            this.PendingAuthState = String.Empty;
         }
 
         private GloebitUser(GloebitUser copyFrom) {
@@ -76,12 +81,14 @@ namespace Gloebit.GloebitMoneyModule {
             this.GloebitID = copyFrom.GloebitID;
             this.GloebitToken = copyFrom.GloebitToken;
             this.LastSessionID = copyFrom.LastSessionID;
+            this.PendingAuthState = copyFrom.PendingAuthState ?? String.Empty;
         }
 
         private void UpdateFrom(GloebitUser updateFrom) {
             this.GloebitID = updateFrom.GloebitID;
             this.GloebitToken = updateFrom.GloebitToken;
             this.LastSessionID = updateFrom.LastSessionID;
+            this.PendingAuthState = updateFrom.PendingAuthState ?? String.Empty;
         }
 
         public static GloebitUser Get(UUID appKey, UUID agentID) {
@@ -99,9 +106,10 @@ namespace Gloebit.GloebitMoneyModule {
         public static GloebitUser Get(string appKeyStr, string agentIdStr) {
             m_log.Info("[GLOEBITMONEYMODULE] in GloebitUser.Get");
 
+            string cacheKey = GetCacheKey(appKeyStr, agentIdStr);
             GloebitUser u;
             lock(s_userMap) {
-                s_userMap.TryGetValue(agentIdStr, out u);
+                s_userMap.TryGetValue(cacheKey, out u);
             }
 
             if (u == null) {
@@ -133,9 +141,9 @@ namespace Gloebit.GloebitMoneyModule {
                 lock(s_userMap) {
                     // Make sure no one else has already loaded this user
                     GloebitUser alreadyLoadedUser;
-                    s_userMap.TryGetValue(agentIdStr, out alreadyLoadedUser);
+                    s_userMap.TryGetValue(cacheKey, out alreadyLoadedUser);
                     if (alreadyLoadedUser == null) {
-                        s_userMap[agentIdStr] = u;
+                        s_userMap[cacheKey] = u;
                     } else {
                         u = alreadyLoadedUser;
                     }
@@ -153,9 +161,15 @@ namespace Gloebit.GloebitMoneyModule {
 
         public static void InvalidateCache(UUID agentID) {
             m_log.InfoFormat("[GLOEBITMONEYMODULE] in GloebitUser.InvalidateCache");
-            string agentIdStr = agentID.ToString();
+            string principalId = agentID.ToString();
+            string suffix = "|" + principalId;
             lock(s_userMap) {
-                s_userMap.Remove(agentIdStr);
+                foreach (string cacheKey in s_userMap.Keys
+                    .Where(key => key.EndsWith(suffix, StringComparison.Ordinal))
+                    .ToArray())
+                {
+                    s_userMap.Remove(cacheKey);
+                }
             }
         }
 
@@ -181,7 +195,7 @@ namespace Gloebit.GloebitMoneyModule {
                 // Code to ensure we update user in cache
                 GloebitUser u;
                 lock (s_userMap) {
-                    s_userMap.TryGetValue(this.PrincipalID, out u);
+                    s_userMap.TryGetValue(GetCacheKey(this.AppKey, this.PrincipalID), out u);
                 }
                 if (u == null) {
                     m_log.DebugFormat("[GLOEBITMONEYMODULE] GloebitUser.IsNewSession() Did not find User in s_userMap to update.  User logged out.");
@@ -204,6 +218,57 @@ namespace Gloebit.GloebitMoneyModule {
             return !String.IsNullOrEmpty(this.GloebitToken);
         }
 
+        public string BeginAuthorization()
+        {
+            string state = UUID.Random().ToString();
+            GloebitUser cachedUser;
+            lock (s_userMap)
+                s_userMap.TryGetValue(GetCacheKey(AppKey, PrincipalID), out cachedUser);
+
+            GloebitUser user = cachedUser ?? this;
+            lock (user.userLock)
+            {
+                user.PendingAuthState = state;
+                if (!GloebitUserData.Instance.Store(user))
+                    throw new Exception(String.Format("[GLOEBITMONEYMODULE] GloebitUser.BeginAuthorization Failed to store user {0}", PrincipalID));
+
+                this.UpdateFrom(user);
+            }
+
+            return state;
+        }
+
+        public bool ConsumeAuthorizationState(string state)
+        {
+            if (String.IsNullOrEmpty(state) || !UUID.TryParse(state, out UUID parsedState) || parsedState.IsZero())
+                return false;
+
+            GloebitUser cachedUser;
+            lock (s_userMap)
+                s_userMap.TryGetValue(GetCacheKey(AppKey, PrincipalID), out cachedUser);
+
+            GloebitUser user = cachedUser ?? this;
+            lock (user.userLock)
+            {
+                if (String.IsNullOrEmpty(user.PendingAuthState) || !FixedTimeEquals(user.PendingAuthState, state))
+                    return false;
+
+                user.PendingAuthState = String.Empty;
+                if (!GloebitUserData.Instance.Store(user))
+                    throw new Exception(String.Format("[GLOEBITMONEYMODULE] GloebitUser.ConsumeAuthorizationState Failed to store user {0}", PrincipalID));
+
+                this.UpdateFrom(user);
+                return true;
+            }
+        }
+
+        private static bool FixedTimeEquals(string expected, string actual)
+        {
+            byte[] expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(expected ?? String.Empty));
+            byte[] actualHash = SHA256.HashData(Encoding.UTF8.GetBytes(actual ?? String.Empty));
+            return CryptographicOperations.FixedTimeEquals(expectedHash, actualHash);
+        }
+
         // TODO: Why is this static?
         public static GloebitUser Authorize(string appKeyStr, UUID agentId, string token, string gloebitID) {
             string agentIdStr = agentId.ToString();
@@ -213,7 +278,7 @@ namespace Gloebit.GloebitMoneyModule {
             GloebitUser localUser = GloebitUser.Get(appKeyStr, agentId);
             GloebitUser u;
             lock (s_userMap) {
-                s_userMap.TryGetValue(agentIdStr, out u);
+                s_userMap.TryGetValue(GetCacheKey(appKeyStr, agentIdStr), out u);
             }
             if (u == null) {
                 m_log.DebugFormat("[GLOEBITMONEYMODULE] GloebitUser.Authorize() Did not find User in s_userMap.  User logged out.");
@@ -238,7 +303,7 @@ namespace Gloebit.GloebitMoneyModule {
             if(!String.IsNullOrEmpty(GloebitToken)) {
                 GloebitUser u;
                 lock (s_userMap) {
-                    s_userMap.TryGetValue(PrincipalID, out u);
+                    s_userMap.TryGetValue(GetCacheKey(AppKey, PrincipalID), out u);
                 }
                 if (u == null) {
                     u = this;   // User logged out.  Still want to invalidate token.  Don't want to add back to map.
@@ -263,6 +328,11 @@ namespace Gloebit.GloebitMoneyModule {
 
         // TODO: do we need an Update function to update the local user from the one in the map?
         // Ideally, users are thrown away after use, but we should review.
+
+        private static string GetCacheKey(string appKey, string principalId)
+        {
+            return String.Concat(appKey ?? String.Empty, "|", principalId ?? String.Empty);
+        }
 
         public static void Cleanup(UUID agentId) {
             InvalidateCache(agentId);

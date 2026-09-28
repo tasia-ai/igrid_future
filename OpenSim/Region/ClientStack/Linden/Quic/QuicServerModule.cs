@@ -136,6 +136,28 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 return;
 
             m_scene = scene;
+
+            // Grid registration happens after AddRegion() but before RegionLoaded().
+            // When Port=0, acquire the Quick-G brain lease here so RegionInfo carries
+            // the actual assigned QUIC port into GridService.  If we wait until
+            // RegionLoaded(), Robust stores the literal config value (0) or a stale
+            // previous value and login/teleport responses advertise the wrong port.
+            m_simHost = scene.RegionInfo.ExternalHostName;
+            m_simPort = scene.RegionInfo.InternalEndPoint.Port;
+            m_regionId = scene.RegionInfo.RegionID.ToString();
+            m_regionName = scene.RegionInfo.RegionName;
+
+            if (m_config.Port == 0 && !m_brainLeaseHeld)
+            {
+                if (!AcquireBrainLease())
+                {
+                    m_log.Error($"[QuicServer] Quick-G brain could not assign a QUIC port for {m_regionName}; QUIC disabled for this region");
+                    m_enabled = false;
+                    return;
+                }
+            }
+
+            UpdateRegionInfoQuicEndpoint(scene);
         }
 
         public void RegionLoaded(Scene scene)
@@ -152,21 +174,10 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 return;
             }
 
-            // Determine this sim's hostname and LLUDP port for proxy registration.
-            m_simHost = scene.RegionInfo.ExternalHostName;
-            m_simPort = scene.RegionInfo.InternalEndPoint.Port;
-            m_regionId = scene.RegionInfo.RegionID.ToString();
-            m_regionName = scene.RegionInfo.RegionName;
-
-            if (m_config.Port == 0)
-            {
-                if (!AcquireBrainLease())
-                {
-                    m_log.Error($"[QuicServer] Quick-G brain could not assign a QUIC port for {m_regionName}; QUIC disabled for this region");
-                    m_enabled = false;
-                    return;
-                }
-            }
+            // AddRegion() initializes identity and, in brain mode, acquires the
+            // lease early enough for grid registration.  Keep RegionInfo in sync
+            // in case startup ordering changes or explicit-port config is used.
+            UpdateRegionInfoQuicEndpoint(scene);
 
             // Subscribe to circuit creation events for proxy registration
             m_udpServer.OnQuicCircuitCreated += OnQuicCircuitCreated;
@@ -219,6 +230,18 @@ namespace OpenSim.Region.ClientStack.LindenUDP
         private static string NormalizeQuicConfigString(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().Trim('"', '\'');
+        }
+
+        private void UpdateRegionInfoQuicEndpoint(Scene scene)
+        {
+            if (scene == null || m_config.Port <= 0)
+                return;
+
+            scene.RegionInfo.QuicHost = string.IsNullOrWhiteSpace(scene.RegionInfo.QuicHost)
+                ? m_simHost
+                : scene.RegionInfo.QuicHost;
+            scene.RegionInfo.QuicPort = (uint)m_config.Port;
+            m_log.Info($"[QuicServer] RegionInfo QUIC endpoint set for {m_regionName}: {scene.RegionInfo.QuicHost}:{scene.RegionInfo.QuicPort}");
         }
 
         #region Quick-G Brain
@@ -384,15 +407,20 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
         /// <summary>
         /// Called when a plain-LLUDP UseCircuitCode arrives from loopback
-        /// (Quick-G bridged viewer traffic) while this region runs in
-        /// Quick-G brain mode. Sends the quicready handshake so the Tasia
+        /// (Quick-G bridged viewer traffic: the bridge relays viewer QUIC as
+        /// local UDP, also when Pangolin/newt masks the remote viewer as
+        /// 127.0.0.1). Sends the quicready handshake so the Tasia
         /// Viewer unblocks its queued session packets. Without this the
         /// viewer stalls after UseCircuitCode and cleanly closes the QUIC
-        /// connection.
+        /// connection (~30s), after which the sim kills the starved child
+        /// agent at the 60s LLUDP timeout.
+        /// NOTE: must NOT require a brain lease — grids using explicit QUIC
+        /// ports never hold one, which silently disabled quicready for every
+        /// bridged (child) circuit.
         /// </summary>
         private void OnLoopbackCircuitCreated(uint circuitCode, UUID agentId, IPEndPoint endPoint)
         {
-            if (!m_brainLeaseHeld || m_scene == null)
+            if (m_scene == null)
                 return;
 
             try
@@ -400,17 +428,50 @@ namespace OpenSim.Region.ClientStack.LindenUDP
                 ScenePresence presence = m_scene.GetScenePresence(agentId);
                 if (presence?.ControllingClient == null)
                 {
-                    m_log.Debug($"[QuicServer] Loopback circuit {circuitCode} for agent {agentId}: no scene presence yet, quicready deferred");
+                    // Child agents usually arrive BEFORE the sim-to-sim
+                    // handshake creates their presence. Retry instead of
+                    // dropping quicready forever.
+                    m_log.Debug($"[QuicServer] Loopback circuit {circuitCode} for agent {agentId}: no scene presence yet, quicready will retry");
+                    _ = SendQuicReadyWhenReadyAsync(circuitCode, agentId, endPoint);
                     return;
                 }
 
-                presence.ControllingClient.SendGenericMessage("quicready", UUID.Zero, new List<string>());
-                m_log.Info($"[QuicServer] Sent quicready for bridged circuit {circuitCode} agent {agentId} via {endPoint}");
+                // LLUDPServer already sends quicready directly for loopback
+                // bridged circuits before invoking this event, so sending it
+                // again here would duplicate the message (harmless to the
+                // viewer but noisy). Nothing further to do when the presence
+                // already exists — the direct send covered the handshake.
             }
             catch (Exception ex)
             {
                 m_log.Warn($"[QuicServer] Failed to send quicready for circuit {circuitCode}: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Delayed quicready for bridged circuits whose presence did not
+        /// exist yet at UseCircuitCode time. Gives up after ~10s.
+        /// </summary>
+        private async Task SendQuicReadyWhenReadyAsync(uint circuitCode, UUID agentId, IPEndPoint endPoint)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                await Task.Delay(1000);
+                try
+                {
+                    if (m_scene == null)
+                        return;
+                    ScenePresence presence = m_scene.GetScenePresence(agentId);
+                    if (presence?.ControllingClient != null)
+                    {
+                        presence.ControllingClient.SendGenericMessage("quicready", UUID.Zero, new List<string>());
+                        m_log.Info($"[QuicServer] Sent delayed quicready for bridged circuit {circuitCode} agent {agentId} via {endPoint} (attempt {i + 1})");
+                        return;
+                    }
+                }
+                catch { }
+            }
+            m_log.Warn($"[QuicServer] Giving up delayed quicready for bridged circuit {circuitCode} agent {agentId}: presence never appeared");
         }
 
         /// <summary>
@@ -494,7 +555,7 @@ namespace OpenSim.Region.ClientStack.LindenUDP
 
                 if (!m_brainLeaseHeld)
                 {
-                    payload["quicHost"] = OSD.FromString("127.0.0.1");
+                    payload["quicHost"] = OSD.FromString(m_simHost);
                     payload["quicPort"] = OSD.FromInteger(m_config.Port);
                 }
 

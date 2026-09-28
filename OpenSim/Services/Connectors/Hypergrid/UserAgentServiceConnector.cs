@@ -300,6 +300,12 @@ namespace OpenSim.Services.Connectors.Hypergrid
             return GetBoolResponse(request, out reason);
         }
 
+        public bool IsKnownTravelingAgent(UUID userID, UUID sessionID)
+        {
+            // A connector has no local travel database; the trusted home service performs this check.
+            return false;
+        }
+
         public void LogoutAgent(UUID userID, UUID sessionID)
         {
             Hashtable hash = new Hashtable();

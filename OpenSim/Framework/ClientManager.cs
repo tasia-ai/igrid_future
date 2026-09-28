@@ -142,6 +142,26 @@ namespace OpenSim.Framework
         }
 
         /// <summary>
+        /// Re-keys a client from its old endpoint to a new one (tunnel relay
+        /// re-socketing). Does not touch value.RemoteEndPoint itself; the
+        /// caller updates that field.
+        /// </summary>
+        /// <param name="value">Reference to the client object</param>
+        /// <param name="oldEndPoint">Endpoint the client was previously keyed on</param>
+        /// <param name="newEndPoint">Endpoint to key the client on now</param>
+        public bool UpdateEndPoint(IClientAPI value, IPEndPoint oldEndPoint, IPEndPoint newEndPoint)
+        {
+            lock (m_syncRoot)
+            {
+                if (oldEndPoint != null && !oldEndPoint.Equals(newEndPoint))
+                    m_dictbyIPe.Remove(oldEndPoint);
+                m_dictbyIPe[newEndPoint] = value;
+                m_array = null;
+                return true;
+            }
+        }
+
+        /// <summary>
         /// Attempts to fetch a value out of the collection
         /// </summary>
         /// <param name="key">UUID of the client to retrieve</param>

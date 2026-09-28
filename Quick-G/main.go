@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	quic "github.com/quic-go/quic-go"
@@ -95,6 +96,21 @@ type brainState struct {
 	excluded   map[int]bool
 }
 
+type quickGConfig struct {
+	ParentPid         int
+	ListenPort        int
+	ControlPort       int
+	BrainBind         string
+	BrainPort         int
+	RegionPortStart   int
+	RegionPortEnd     int
+	RegionPortExclude string
+	BrainLeaseSeconds int
+	CertPath          string
+	KeyPath           string
+	ALPN              string
+}
+
 var routes = struct {
 	sync.RWMutex
 	m map[uint32]routeTarget
@@ -115,84 +131,104 @@ func main() {
 	alpn := flag.String("alpn", "opensim-ll/1", "QUIC ALPN")
 	flag.Parse()
 
-	if *port <= 0 || *port > 65535 {
-		log.Fatalf("invalid --listen-port %d", *port)
+	cfg := quickGConfig{
+		ParentPid:         *parent,
+		ListenPort:        *port,
+		ControlPort:       *control,
+		BrainBind:         *brainBind,
+		BrainPort:         *brainPort,
+		RegionPortStart:   *regionPortStart,
+		RegionPortEnd:     *regionPortEnd,
+		RegionPortExclude: *regionPortExclude,
+		BrainLeaseSeconds: *leaseSeconds,
+		CertPath:          *cert,
+		KeyPath:           *key,
+		ALPN:              *alpn,
 	}
-	if *control <= 0 || *control > 65535 {
-		log.Fatalf("invalid --control-port %d", *control)
+	if err := runQuickG(context.Background(), cfg); err != nil {
+		log.Fatal(err)
 	}
-	if *brainPort < 0 || *brainPort > 65535 {
-		log.Fatalf("invalid --brain-port %d", *brainPort)
+}
+
+func runQuickG(parentCtx context.Context, cfg quickGConfig) error {
+	if cfg.ListenPort <= 0 || cfg.ListenPort > 65535 {
+		return fmt.Errorf("invalid listen port %d", cfg.ListenPort)
 	}
-	if *brainPort != 0 && *brainPort == *control {
-		log.Fatal("--brain-port and --control-port must be different")
+	if cfg.ControlPort <= 0 || cfg.ControlPort > 65535 {
+		return fmt.Errorf("invalid control port %d", cfg.ControlPort)
 	}
-	if *regionPortStart <= 0 || *regionPortEnd > 65535 || *regionPortStart > *regionPortEnd {
-		log.Fatalf("invalid region port range %d-%d", *regionPortStart, *regionPortEnd)
+	if cfg.BrainPort < 0 || cfg.BrainPort > 65535 {
+		return fmt.Errorf("invalid brain port %d", cfg.BrainPort)
 	}
-	if *leaseSeconds < 15 {
-		*leaseSeconds = 15
+	if cfg.BrainPort != 0 && cfg.BrainPort == cfg.ControlPort {
+		return errors.New("brain port and control port must be different")
+	}
+	if cfg.RegionPortStart <= 0 || cfg.RegionPortEnd > 65535 || cfg.RegionPortStart > cfg.RegionPortEnd {
+		return fmt.Errorf("invalid region port range %d-%d", cfg.RegionPortStart, cfg.RegionPortEnd)
+	}
+	if cfg.BrainLeaseSeconds < 15 {
+		cfg.BrainLeaseSeconds = 15
 	}
 
-	excluded, err := parseExcludedPorts(*regionPortExclude)
+	excluded, err := parseExcludedPorts(cfg.RegionPortExclude)
 	if err != nil {
-		log.Fatalf("invalid --region-port-exclude: %v", err)
+		return fmt.Errorf("invalid region port exclude: %w", err)
 	}
 	brain := &brainState{
 		leases:     make(map[string]*regionLease),
 		ports:      make(map[int]string),
-		portStart:  *regionPortStart,
-		portEnd:    *regionPortEnd,
-		publicPort: *port,
-		ttl:        time.Duration(*leaseSeconds) * time.Second,
+		portStart:  cfg.RegionPortStart,
+		portEnd:    cfg.RegionPortEnd,
+		publicPort: cfg.ListenPort,
+		ttl:        time.Duration(cfg.BrainLeaseSeconds) * time.Second,
 		excluded:   excluded,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
-	if *parent > 0 {
-		go monitorParent(ctx, *parent, cancel)
+	if cfg.ParentPid > 0 {
+		go monitorParent(ctx, cfg.ParentPid, cancel)
 	} else {
 		log.Printf("Quick-G manual mode: no ROBUST parent supplied; waiting for ROBUST control/shutdown")
 	}
 
-	pair, err := tls.LoadX509KeyPair(*cert, *key)
+	pair, err := tls.LoadX509KeyPair(cfg.CertPath, cfg.KeyPath)
 	if err != nil {
-		log.Fatalf("load TLS key pair: %v", err)
+		return fmt.Errorf("load TLS key pair: %w", err)
 	}
-	listener, err := quic.ListenAddr(fmt.Sprintf(":%d", *port), &tls.Config{Certificates: []tls.Certificate{pair}, NextProtos: []string{*alpn}}, &quic.Config{KeepAlivePeriod: 20 * time.Second, MaxIdleTimeout: 60 * time.Second})
+	listener, err := quic.ListenAddr(fmt.Sprintf(":%d", cfg.ListenPort), &tls.Config{Certificates: []tls.Certificate{pair}, NextProtos: []string{cfg.ALPN}}, &quic.Config{KeepAlivePeriod: 20 * time.Second, MaxIdleTimeout: 60 * time.Second})
 	if err != nil {
-		log.Fatalf("listen: %v", err)
+		return fmt.Errorf("listen: %w", err)
 	}
 	defer listener.Close()
 
-	go serveControl(ctx, *control, *brainPort, cancel, *port, *regionPortStart, *regionPortEnd, excluded)
-	if *brainPort != 0 {
-		go serveBrain(ctx, *brainBind, *brainPort, brain)
+	go serveControl(ctx, cfg.ControlPort, cfg.BrainPort, cancel, cfg.ListenPort, cfg.RegionPortStart, cfg.RegionPortEnd, excluded)
+	if cfg.BrainPort != 0 {
+		go serveBrain(ctx, cfg.BrainBind, cfg.BrainPort, brain)
 		go brain.reaper(ctx)
 	}
 	go func() { <-ctx.Done(); listener.Close() }()
 	go routeSweeper(ctx)
 
-	if *parent > 0 {
-		log.Printf("Quick-G listening on UDP %d (parent %d)", *port, *parent)
+	if cfg.ParentPid > 0 {
+		log.Printf("Quick-G listening on UDP %d (parent %d)", cfg.ListenPort, cfg.ParentPid)
 	} else {
-		log.Printf("Quick-G listening on UDP %d (manual mode)", *port)
+		log.Printf("Quick-G listening on UDP %d (manual mode)", cfg.ListenPort)
 	}
-	if *brainPort != 0 {
-		log.Printf("Quick-G brain listening on %s:%d, region QUIC pool %d-%d", *brainBind, *brainPort, *regionPortStart, *regionPortEnd)
+	if cfg.BrainPort != 0 {
+		log.Printf("Quick-G brain listening on %s:%d, region QUIC pool %d-%d", cfg.BrainBind, cfg.BrainPort, cfg.RegionPortStart, cfg.RegionPortEnd)
 	}
 
 	for {
 		conn, err := listener.Accept(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
-				return
+				return nil
 			}
 			log.Printf("accept: %v", err)
 			continue
 		}
-		go bridge(ctx, conn, *alpn)
+		go bridge(ctx, conn, cfg.ALPN)
 	}
 }
 
@@ -590,19 +626,24 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func bridge(ctx context.Context, viewer quic.Connection, alpn string) {
 	defer viewer.CloseWithError(0, "closed")
+	log.Printf("QuickGBridge new viewer connection from %s", viewer.RemoteAddr())
 	stream, err := viewer.AcceptStream(ctx)
 	if err != nil {
+		log.Printf("QuickGBridge accept stream failed: %v", err)
 		return
 	}
 	first, err := readFrame(stream)
 	if err != nil {
+		log.Printf("QuickGBridge read first frame failed: %v", err)
 		return
 	}
+	log.Printf("QuickGBridge first frame len=%d head=%s", len(first), packetHead(first, 16))
 	circuit, target := findRoute(first)
 	if target.Address == "" {
-		log.Printf("no registered route in first packet len=%d head=%s", len(first), packetHead(first, 16))
+		log.Printf("QuickGBridge no registered route in first packet len=%d head=%s", len(first), packetHead(first, 16))
 		return
 	}
+	log.Printf("QuickGBridge circuit %d route=%s %s", circuit, target.Network, target.Address)
 	if target.Network == "udp" {
 		bridgeUDP(ctx, circuit, stream, first, target.Address)
 		return
@@ -611,17 +652,20 @@ func bridge(ctx context.Context, viewer quic.Connection, alpn string) {
 }
 
 func bridgeQUIC(ctx context.Context, circuit uint32, stream quic.Stream, first []byte, target string, alpn string) {
+	log.Printf("QuickGBridge circuit %d bridgeQUIC start target=%s", circuit, target)
 	sim, err := quic.DialAddr(ctx, target, &tls.Config{InsecureSkipVerify: true, NextProtos: []string{alpn}}, &quic.Config{KeepAlivePeriod: 20 * time.Second, MaxIdleTimeout: 60 * time.Second})
 	if err != nil {
-		log.Printf("circuit %d dial %s: %v", circuit, target, err)
+		log.Printf("QuickGBridge circuit %d dial %s: %v", circuit, target, err)
 		return
 	}
 	defer sim.CloseWithError(0, "closed")
 	simStream, err := sim.OpenStreamSync(ctx)
 	if err != nil {
+		log.Printf("QuickGBridge circuit %d open sim stream %s: %v", circuit, target, err)
 		return
 	}
 	if err = writeFrame(simStream, first); err != nil {
+		log.Printf("QuickGBridge circuit %d write first to sim %s: %v", circuit, target, err)
 		return
 	}
 	done := make(chan struct{}, 2)
@@ -631,35 +675,43 @@ func bridgeQUIC(ctx context.Context, circuit uint32, stream quic.Stream, first [
 	case <-ctx.Done():
 	case <-done:
 	}
+	log.Printf("QuickGBridge circuit %d bridgeQUIC closed", circuit)
 }
 
 func bridgeUDP(ctx context.Context, circuit uint32, stream quic.Stream, first []byte, target string) {
 	udpAddr, err := net.ResolveUDPAddr("udp", target)
 	if err != nil {
-		log.Printf("circuit %d resolve udp %s: %v", circuit, target, err)
+		log.Printf("QuickGBridge circuit %d resolve udp %s: %v", circuit, target, err)
 		return
 	}
 	udp, err := net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
-		log.Printf("circuit %d dial udp %s: %v", circuit, target, err)
+		log.Printf("QuickGBridge circuit %d dial udp %s: %v", circuit, target, err)
 		return
 	}
 	defer udp.Close()
 	if _, err = udp.Write(first); err != nil {
-		log.Printf("circuit %d udp write first %s: %v", circuit, target, err)
+		log.Printf("QuickGBridge circuit %d udp write first %s: %v", circuit, target, err)
 		return
 	}
+	log.Printf("QuickGBridge circuit %d bridged viewer->udp %s local=%s first=%d bytes", circuit, target, udp.LocalAddr(), len(first))
+	var viewerToSim, simToViewer atomic.Uint64
 	done := make(chan struct{}, 2)
 	go func() {
 		defer func() { done <- struct{}{} }()
 		for {
 			packet, err := readFrame(stream)
 			if err != nil {
+				log.Printf("QuickGBridge circuit %d viewer->sim readFrame ended: %v (after %d frames)", circuit, err, viewerToSim.Load())
 				return
 			}
 			if _, err = udp.Write(packet); err != nil {
-				log.Printf("circuit %d udp write %s: %v", circuit, target, err)
+				log.Printf("QuickGBridge circuit %d viewer->sim udp write %s: %v (after %d frames)", circuit, target, err, viewerToSim.Load())
 				return
+			}
+			count := viewerToSim.Add(1)
+			if count <= 20 || count%100 == 0 {
+				log.Printf("QuickGBridge circuit %d viewer->sim frame #%d len=%d head=%s", circuit, count, len(packet), packetHead(packet, 8))
 			}
 		}
 	}()
@@ -673,21 +725,30 @@ func bridgeUDP(ctx context.Context, circuit uint32, stream quic.Stream, first []
 				if ne, ok := err.(net.Error); ok && ne.Timeout() {
 					select {
 					case <-ctx.Done():
+						log.Printf("QuickGBridge circuit %d sim->viewer ending on ctx done (after %d packets)", circuit, simToViewer.Load())
 						return
 					default:
 						continue
 					}
 				}
+				log.Printf("QuickGBridge circuit %d sim->viewer udp read ended: %v (after %d packets)", circuit, err, simToViewer.Load())
 				return
 			}
 			if err = writeFrame(stream, buf[:n]); err != nil {
+				log.Printf("QuickGBridge circuit %d sim->viewer writeFrame failed: %v (after %d packets)", circuit, err, simToViewer.Load())
 				return
+			}
+			count := simToViewer.Add(1)
+			if count <= 20 || count%100 == 0 {
+				log.Printf("QuickGBridge circuit %d sim->viewer packet #%d len=%d head=%s", circuit, count, n, packetHead(buf[:n], 8))
 			}
 		}
 	}()
 	select {
 	case <-ctx.Done():
+		log.Printf("QuickGBridge circuit %d bridge closing on ctx done (v2s=%d s2v=%d)", circuit, viewerToSim.Load(), simToViewer.Load())
 	case <-done:
+		log.Printf("QuickGBridge circuit %d bridge closing after goroutine exit (v2s=%d s2v=%d)", circuit, viewerToSim.Load(), simToViewer.Load())
 	}
 }
 

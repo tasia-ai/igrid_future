@@ -407,75 +407,69 @@ namespace OpenSim.Data.MySQL
 
             #region Prim Inventory Loading
 
-            // Instead of attempting to LoadItems on every prim,
-            // most of which probably have no items... get a
-            // list from DB of all prims which have items and
-            // LoadItems only on those
-            List<SceneObjectPart> primsWithInventory = new List<SceneObjectPart>();
-            lock (m_dbLock)
-            {
-                using (MySqlConnection dbcon = new MySqlConnection(m_connectionString))
-                {
-                    dbcon.Open();
-
-                    using (MySqlCommand itemCmd = dbcon.CreateCommand())
-                    {
-                        itemCmd.CommandText = "SELECT DISTINCT primID FROM primitems";
-                        using (IDataReader itemReader = ExecuteReader(itemCmd))
-                        {
-                            while (itemReader.Read())
-                            {
-                                if (!(itemReader["primID"] is DBNull))
-                                {
-                                    UUID primID = DBGuid.FromDB(itemReader["primID"].ToString());
-                                    if (prims.ContainsKey(primID))
-                                        primsWithInventory.Add(prims[primID]);
-                                }
-                            }
-                        }
-                    }
-                    dbcon.Close();
-                }
-            }
-
-            foreach (SceneObjectPart prim in primsWithInventory)
-            {
-                LoadItems(prim);
-            }
+            int primsWithInventory = LoadItems(regionID, prims);
 
             #endregion Prim Inventory Loading
 
-            m_log.DebugFormat("[REGION DB]: Loaded inventory from {0} objects", primsWithInventory.Count);
+            m_log.DebugFormat("[REGION DB]: Loaded inventory from {0} objects", primsWithInventory);
 
             return new List<SceneObjectGroup>(objects.Values);
         }
 
         /// <summary>
-        /// Load in a prim's persisted inventory.
+        /// Batch-load persisted prim inventory for one region.
         /// </summary>
-        /// <param name="prim">The prim</param>
-        private void LoadItems(SceneObjectPart prim)
+        /// <remarks>
+        /// The previous implementation first scanned all primitems globally and
+        /// then ran one SELECT per inventory-bearing prim.  Large regions spent
+        /// tens of minutes in startup doing thousands of small locked queries.
+        /// This keeps the same restore behaviour but reads the region's task
+        /// inventory in one indexed join through the prims table.
+        /// </remarks>
+        private int LoadItems(UUID regionID, Dictionary<UUID, SceneObjectPart> prims)
         {
+            Dictionary<UUID, List<TaskInventoryItem>> inventoryByPrim = new Dictionary<UUID, List<TaskInventoryItem>>();
+
             lock (m_dbLock)
             {
-                List<TaskInventoryItem> inventory = new List<TaskInventoryItem>();
-
                 using (MySqlConnection dbcon = new MySqlConnection(m_connectionString))
                 {
                     dbcon.Open();
 
                     using (MySqlCommand cmd = dbcon.CreateCommand())
                     {
-                        cmd.CommandText = "select * from primitems where PrimID = ?PrimID";
-                        cmd.Parameters.AddWithValue("PrimID", prim.UUID.ToString());
+                        cmd.CommandText =
+                            "select " +
+                            "pi.invType, pi.assetType, pi.name, pi.description, pi.creationDate, " +
+                            "pi.nextPermissions, pi.currentPermissions, pi.basePermissions, " +
+                            "pi.everyonePermissions, pi.groupPermissions, pi.flags, " +
+                            "pi.itemID, pi.primID, pi.assetID, pi.parentFolderID, " +
+                            "pi.CreatorID as creatorID, pi.ownerID, pi.groupID, pi.lastOwnerID " +
+                            "from prims p straight_join primitems pi on pi.primID = p.UUID " +
+                            "where p.RegionUUID = ?RegionUUID";
+                        cmd.Parameters.AddWithValue("RegionUUID", regionID.ToString());
+                        cmd.CommandTimeout = 3600;
 
                         using (IDataReader reader = ExecuteReader(cmd))
                         {
                             while (reader.Read())
                             {
-                                TaskInventoryItem item = BuildItem(reader);
+                                if (reader["primID"] is DBNull)
+                                    continue;
 
+                                UUID primID = DBGuid.FromDB(reader["primID"]);
+                                if (!prims.TryGetValue(primID, out SceneObjectPart prim))
+                                    continue;
+
+                                TaskInventoryItem item = BuildItem(reader);
                                 item.ParentID = prim.UUID; // Values in database are often wrong
+
+                                if (!inventoryByPrim.TryGetValue(prim.UUID, out List<TaskInventoryItem> inventory))
+                                {
+                                    inventory = new List<TaskInventoryItem>();
+                                    inventoryByPrim[prim.UUID] = inventory;
+                                }
+
                                 inventory.Add(item);
                             }
                         }
@@ -483,8 +477,11 @@ namespace OpenSim.Data.MySQL
                     dbcon.Close();
                 }
 
-                prim.Inventory.RestoreInventoryItems(inventory);
+                foreach (KeyValuePair<UUID, List<TaskInventoryItem>> kvp in inventoryByPrim)
+                    prims[kvp.Key].Inventory.RestoreInventoryItems(kvp.Value);
             }
+
+            return inventoryByPrim.Count;
         }
 
         // Legacy entry point for when terrain was always a 256x256 hieghtmap
@@ -1137,7 +1134,7 @@ namespace OpenSim.Data.MySQL
                     );
             }
 
-            if (row["DynAttrs"] is not System.DBNull)
+            if (row["DynAttrs"] is not System.DBNull && (string)row["DynAttrs"] != "")
                 prim.DynAttrs = DAMap.FromXml((string)row["DynAttrs"]);
             else
                 prim.DynAttrs = null;

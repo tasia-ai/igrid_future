@@ -50,6 +50,8 @@ namespace OpenSim.Data.PGSQL
 
         public bool Delete(UUID agentID, UUID muteID, string muteName)
         {
+            // Column names are case-sensitive in PostgreSQL when quoted. The MuteData
+            // field is MuteID, so the column must be spelled "MuteID" here, not "MuteId".
             var query = $"DELETE FROM MuteList WHERE \"AgentID\" = :AgentID and " +
                         $"\"MuteID\" = :MuteID and " +
                         $"\"MuteName\" = :MuteName";

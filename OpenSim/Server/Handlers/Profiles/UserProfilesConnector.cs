@@ -84,7 +84,7 @@ namespace OpenSim.Server.Handlers.Profiles
             Object[] args = new Object[] { config, ConfigName };
             ServiceModule = ServerUtils.LoadPlugin<IUserProfilesService>(service, args);
 
-            JsonRpcProfileHandlers handler = new JsonRpcProfileHandlers(ServiceModule);
+            JsonRpcProfileHandlers handler = new JsonRpcProfileHandlers(ServiceModule, new ControlPlaneAccess(config));
 
             Server.AddJsonRPCHandler("avatarclassifiedsrequest", handler.AvatarClassifiedsRequest);
             Server.AddJsonRPCHandler("classified_update", handler.ClassifiedUpdate);

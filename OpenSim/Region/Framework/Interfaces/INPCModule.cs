@@ -63,6 +63,15 @@ namespace OpenSim.Region.Framework.Interfaces
         string Born { get; set; }
     }
 
+    /// <summary>
+    /// Optional profile metadata for NPCs whose displayed membership label is
+    /// managed by a region module or script.
+    /// </summary>
+    public interface INPCProfileMembership
+    {
+        string ProfileMembership { get; set; }
+    }
+
     public interface INPCModule
     {
         bool DefaultAutoAnimationEnabled { get; }

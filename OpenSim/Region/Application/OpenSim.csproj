@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
+    <GenerateDependencyFile>true</GenerateDependencyFile>
     <OutputType>Exe</OutputType>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <AssemblyTitle>OpenSim</AssemblyTitle>
@@ -12,27 +13,27 @@
   <ItemGroup>
     <Reference Include="NDesk.Options">
       <HintPath>..\..\..\bin\NDesk.Options.dll</HintPath>
-      <Private>False</Private>
+      <Private>True</Private>
     </Reference>
     <Reference Include="Nini">
       <HintPath>..\..\..\bin\Nini.dll</HintPath>
-      <Private>False</Private>
+      <Private>True</Private>
     </Reference>
     <Reference Include="OpenMetaverse">
       <HintPath>..\..\..\bin\OpenMetaverse.dll</HintPath>
-      <Private>False</Private>
+      <Private>True</Private>
     </Reference>
     <Reference Include="OpenMetaverse.StructuredData">
       <HintPath>..\..\..\bin\OpenMetaverse.StructuredData.dll</HintPath>
-      <Private>False</Private>
+      <Private>True</Private>
     </Reference>
     <Reference Include="OpenMetaverseTypes">
       <HintPath>..\..\..\bin\OpenMetaverseTypes.dll</HintPath>
-      <Private>False</Private>
+      <Private>True</Private>
     </Reference>
     <Reference Include="XMLRPC">
       <HintPath>..\..\..\bin\XMLRPC.dll</HintPath>
-      <Private>False</Private>
+      <Private>True</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -49,9 +50,26 @@
     <ProjectReference Include="..\..\Services\Base\OpenSim.Services.Base.csproj" />
     <ProjectReference Include="..\..\Services\Interfaces\OpenSim.Services.Interfaces.csproj" />
     <ProjectReference Include="..\..\Services\UserAccountService\OpenSim.Services.UserAccountService.csproj" />
+    <ProjectReference Include="..\..\Services\SimulationService\OpenSim.Services.SimulationService.csproj" />
+    <ProjectReference Include="..\..\Services\GridService\OpenSim.Services.GridService.csproj" />
+    <ProjectReference Include="..\..\Services\Connectors\OpenSim.Services.Connectors.csproj" />
+    <ProjectReference Include="..\..\Services\InventoryService\OpenSim.Services.InventoryService.csproj" />
+    <ProjectReference Include="..\..\Services\HypergridService\OpenSim.Services.HypergridService.csproj" />
+    <ProjectReference Include="..\..\Services\EstateService\OpenSim.Services.EstateService.csproj" />
+    <ProjectReference Include="..\..\Data\MySQL\OpenSim.Data.MySQL.csproj" />
+    <ProjectReference Include="..\OptionalModules\OpenSim.Region.OptionalModules.csproj" />
+    <ProjectReference Include="..\..\Framework\AssetLoader\Filesystem\OpenSim.Framework.AssetLoader.Filesystem.csproj" />
+    <ProjectReference Include="..\PhysicsModules\BulletS\OpenSim.Region.PhysicsModule.BulletS.csproj" />
+    <ProjectReference Include="..\OptionalModules\AI\OpenSim.Region.OptionalModules.AI.csproj" />
   </ItemGroup>
+  <PropertyGroup>
+    <!-- Deployment assets are copied into the publish, but managed OpenSim
+         assemblies are overlaid from the current source build below. -->
+    <DeploymentBinRoot Condition="'$(DeploymentBinRoot)' == ''">$(SolutionDir)\bin</DeploymentBinRoot>
+  </PropertyGroup>
   <ItemGroup>
-    <Content Include="$(SolutionDir)\bin\**">
+    <Content Include="$(DeploymentBinRoot)\**"
+             Exclude="$(DeploymentBinRoot)\OpenSim*.dll;$(DeploymentBinRoot)\OpenSim*.exe;$(DeploymentBinRoot)\OpenSim.runtimeconfig.json;$(DeploymentBinRoot)\OpenSim.deps.json;$(DeploymentBinRoot)\Npgsql.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -68,7 +86,26 @@
     <PackageReference Include="Mono.Addins.Setup" Version="1.4.1" />
     <PackageReference Include="Mono.Addins.CecilReflector" Version="1.4.1" />
   </ItemGroup>
+  <Target Name="CopyAppLocalOpenSslMsQuicToBuild" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <Copy SourceFiles="$(PkgMicrosoft_Native_Quic_MsQuic_OpenSSL)\build\native\bin\x64\msquic.dll" DestinationFolder="$(TargetDir)" />
+  </Target>
   <Target Name="CopyAppLocalOpenSslMsQuic" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' == 'win-x64'">
     <Copy SourceFiles="$(PkgMicrosoft_Native_Quic_MsQuic_OpenSSL)\build\native\bin\x64\msquic.dll" DestinationFolder="$(PublishDir)" />
   </Target>
+  <Target Name="OverlayFreshSourceAssembliesOnPublish" AfterTargets="Publish" Condition="'$(PublishDir)' != '' and '$(RuntimeIdentifier)' == 'win-x64'">
+    <ItemGroup>
+      <!-- Keep the separately-built live AI addon from DeploymentBinRoot;
+           overlay every other current-source OpenSim assembly after the
+           deployment content copy so stale bin files cannot win. Never copy
+           the non-self-contained build apphost over the publish apphost. -->
+      <FreshSourceAssembly Include="$(SolutionDir)build\Release\OpenSim*.dll" Exclude="$(SolutionDir)build\Release\OpenSim.Region.OptionalModules.AI.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FreshSourceAssembly)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="false" />
+  </Target>
+  <Target Name="CopySmartNpcaiMetadataOnPublish" AfterTargets="Publish" Condition="'$(PublishDir)' != '' and '$(RuntimeIdentifier)' == 'win-x64'">
+    <Copy SourceFiles="$(SolutionDir)OpenSim\Region\OptionalModules\AI\Resources\OpenSimAIModule.addin.xml"
+          DestinationFiles="$(PublishDir)OpenSim.Region.OptionalModules.AI.addin.xml"
+          SkipUnchangedFiles="false" />
+  </Target>
 </Project>
+

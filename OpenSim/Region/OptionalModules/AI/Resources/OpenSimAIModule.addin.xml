@@ -1,0 +1,8 @@
+<Addin id="OpenSimAIModule" name="Tasia OpenSim AI" version="1.0">
+  <Runtime>
+    <Import assembly="OpenSim.Region.OptionalModules.AI.dll" />
+  </Runtime>
+  <Extension path="/OpenSim/RegionModules">
+    <Type type="OpenSim.Region.OptionalModules.AI.OpenSimAIModule" />
+  </Extension>
+</Addin>

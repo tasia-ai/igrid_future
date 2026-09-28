@@ -62,6 +62,8 @@ namespace OpenSim.Services.Interfaces
 
         void LogoutAgent(UUID userID, UUID sessionID);
 
+        bool IsKnownTravelingAgent(UUID userID, UUID sessionID);
+
         /// <summary>
         /// Returns the home region of a remote user.
         /// </summary>

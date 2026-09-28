@@ -155,26 +155,53 @@ namespace Gloebit.GloebitMoneyModule {
         /// </summary>
         /// <param name="requestData">response data from GloebitAPI.Authorize</param>
         public Hashtable authComplete_func(Hashtable requestData) {
-            m_log.InfoFormat("[GLOEBITMONEYMODULE] authComplete_func");
-            foreach(DictionaryEntry e in requestData) { m_log.DebugFormat("{0}: {1}", e.Key, e.Value); }
+            m_log.Info("[GLOEBITMONEYMODULE] authComplete_func");
 
-            string agentId = requestData["agentId"] as string;
-            string code = requestData["code"] as string;
+            string agentId = GetRequestString(requestData, "agentId");
+            string code = GetRequestString(requestData, "code");
+            string state = GetRequestString(requestData, "state");
 
-            UUID parsedAgentId = UUID.Parse(agentId);
+            if (String.IsNullOrEmpty(agentId) || String.IsNullOrEmpty(code) || String.IsNullOrEmpty(state) ||
+                !UUID.TryParse(agentId, out UUID parsedAgentId) || parsedAgentId.IsZero())
+            {
+                m_log.Warn("[GLOEBITMONEYMODULE] authComplete_func rejected malformed callback");
+                return BuildAuthorizationFailureResponse();
+            }
+
             GloebitUser u = GloebitUser.Get(m_key, parsedAgentId);
+            if (!u.ConsumeAuthorizationState(state))
+            {
+                m_log.WarnFormat("[GLOEBITMONEYMODULE] authComplete_func rejected OAuth state for agent {0}", parsedAgentId);
+                return BuildAuthorizationFailureResponse();
+            }
 
-            // Start async flow to exchange the code for a permanent token
+            // Start async flow to exchange the code for a permanent token.
             m_api.ExchangeAccessToken(u, code, m_platformAccessors.GetBaseURI());
-            m_log.InfoFormat("[GLOEBITMONEYMODULE] authComplete_func started ExchangeAccessToken");
+            m_log.InfoFormat("[GLOEBITMONEYMODULE] authComplete_func started ExchangeAccessToken for agent {0}", parsedAgentId);
 
-            // TODO: create interface function to build this response
             Uri url = BuildPurchaseURI(m_platformAccessors.GetBaseURI(), u);
             Hashtable response = new Hashtable();
             response["int_response_code"] = 200;
             response["str_response_string"] = String.Format("<html><head><title>Gloebit authorized</title></head><body><h2>Gloebit authorized</h2>Thank you for authorizing Gloebit.  You may now close this window and return to OpenSim.<br /><br /><br />You'll now be able spend gloebits from your Gloebit account as the agent you authorized on this OpenSim Grid.<br /><br />If you need gloebits, you can <a href=\"{0}\">purchase them here</a>.</body></html>", url);
             response["content_type"] = "text/html";
 
+            return response;
+        }
+
+        private static string GetRequestString(Hashtable requestData, string key)
+        {
+            if (requestData == null || !requestData.ContainsKey(key))
+                return null;
+
+            return requestData[key] as string;
+        }
+
+        private static Hashtable BuildAuthorizationFailureResponse()
+        {
+            Hashtable response = new Hashtable();
+            response["int_response_code"] = 403;
+            response["str_response_string"] = "<html><head><title>Gloebit authorization failed</title></head><body><h2>Gloebit authorization failed</h2></body></html>";
+            response["content_type"] = "text/html";
             return response;
         }
             
@@ -712,34 +739,32 @@ namespace Gloebit.GloebitMoneyModule {
         /// --- All other reasons are considered permanent failure.
         /// </returns>
         public Hashtable transactionState_func(Hashtable requestData) {
-            m_log.DebugFormat("[GLOEBITMONEYMODULE] transactionState_func **************** Got Callback");
-            foreach(DictionaryEntry e in requestData) { m_log.DebugFormat("{0}: {1}", e.Key, e.Value); }
+            m_log.Debug("[GLOEBITMONEYMODULE] transactionState_func received callback");
 
-            // TODO: check that these exist in requestData.  If not, signal error and send response with false.
-            string transactionIDstr = requestData["id"] as string;
-            string stateRequested = requestData["state"] as string;
-            string returnMsg = "";
+            string transactionIDstr = GetRequestString(requestData, "id");
+            string stateRequested = GetRequestString(requestData, "state");
+            string callbackKey = GetRequestString(requestData, "key");
+            string returnMsg;
 
-            bool success = GloebitTransaction.ProcessStateRequest(transactionIDstr, stateRequested, m_assetCallbacks, m_transactionAlerts, out returnMsg);
-
-            //JsonValue[] result;
-            //JsonValue[0] = JsonValue.CreateBooleanValue(success);
-            //JsonValue[1] = JsonValue.CreateStringValue("blah");
-            // JsonValue jv = JsonValue.Parse("[true, \"blah\"]")
-            //JsonArray ja = new JsonArray();
-            //ja.Add(JsonValue.CreateBooleanValue(success));
-            //ja.Add(JsonValue.CreateStringValue("blah"));
+            bool success = false;
+            if (String.IsNullOrEmpty(transactionIDstr) || String.IsNullOrEmpty(stateRequested) || String.IsNullOrEmpty(callbackKey))
+                returnMsg = "Missing transaction callback parameters.";
+            else
+                success = GloebitTransaction.ProcessStateRequest(
+                    transactionIDstr,
+                    stateRequested,
+                    callbackKey,
+                    m_assetCallbacks,
+                    m_transactionAlerts,
+                    out returnMsg);
 
             OSDArray paramArray = new OSDArray();
             paramArray.Add(success);
-            if (!success) {
+            if (!success)
                 paramArray.Add(returnMsg);
-            }
 
-            // TODO: build proper response with json
             Hashtable response = new Hashtable();
             response["int_response_code"] = 200;
-            //response["str_response_string"] = ja.ToString();
             response["str_response_string"] = OSDParser.SerializeJsonString(paramArray);
             response["content_type"] = "application/json";
             m_log.InfoFormat("[GLOEBITMONEYMODULE].transactionState_func response:{0}", OSDParser.SerializeJsonString(paramArray));

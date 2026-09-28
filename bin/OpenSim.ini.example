@@ -612,6 +612,10 @@
     ; SMTP_VerifyCertNames = true
 
 [Network]
+    ;# {ControlPlaneTrustedHosts} {} {Explicit source addresses allowed to call internal control-plane endpoints} {}
+    ;; Keep this list narrow. Loopback is always trusted. Do not add public clients or arbitrary grids.
+    ; ControlPlaneTrustedHosts = 127.0.0.1, 10.20.0.10
+
     ;# {ConsoleUser} {} {User name for console account} {}
     ;; Configure the remote console user here. This will not actually be used
     ;; unless you use -console=rest at startup.

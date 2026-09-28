@@ -37,6 +37,7 @@ using OpenSim.Services.Interfaces;
 using GridRegion = OpenSim.Services.Interfaces.GridRegion;
 using OpenSim.Framework;
 using OpenSim.Framework.Servers.HttpServer;
+using OpenSim.Server.Handlers.Base;
 
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
@@ -206,11 +207,13 @@ namespace OpenSim.Server.Handlers.Simulation
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private ISimulationService m_SimulationService;
+        private readonly ControlPlaneAccess m_ControlPlaneAccess;
         protected bool m_Proxy = false;
 
-        public AgentSimpleHandler(ISimulationService service) : base("/agent")
+        public AgentSimpleHandler(ISimulationService service, ControlPlaneAccess controlPlaneAccess) : base("/agent")
         {
             m_SimulationService = service;
+            m_ControlPlaneAccess = controlPlaneAccess;
         }
 
         protected override void ProcessRequest(IOSHttpRequest httpRequest, IOSHttpResponse httpResponse)
@@ -269,6 +272,9 @@ namespace OpenSim.Server.Handlers.Simulation
                 }
                 case "POST":
                 {
+                    if (!m_ControlPlaneAccess.Authorize(httpRequest, httpResponse))
+                        return;
+
                     if (agentID.IsZero())
                     {
                         httpResponse.StatusCode = (int)HttpStatusCode.BadRequest;

@@ -32,6 +32,7 @@ using OpenMetaverse.StructuredData;
 using log4net;
 using OpenSim.Services.Interfaces;
 using OpenSim.Framework.Servers.HttpServer;
+using OpenSim.Server.Handlers.Base;
 using OpenSim.Framework;
 
 namespace OpenSim.Server.Handlers
@@ -54,9 +55,12 @@ namespace OpenSim.Server.Handlers
             get; private set;
         }
 
-        public JsonRpcProfileHandlers(IUserProfilesService service)
+        private readonly ControlPlaneAccess m_ControlPlaneAccess;
+
+        public JsonRpcProfileHandlers(IUserProfilesService service, ControlPlaneAccess controlPlaneAccess)
         {
             Service = service;
+            m_ControlPlaneAccess = controlPlaneAccess;
         }
 
         #region Classifieds
@@ -93,6 +97,9 @@ namespace OpenSim.Server.Handlers
 
         public bool ClassifiedUpdate(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             OSD tmpParams;
             if(!json.TryGetValue("params", out tmpParams) || !(tmpParams is OSDMap))
             {
@@ -125,6 +132,9 @@ namespace OpenSim.Server.Handlers
 
         public bool ClassifiedDelete(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             if(!json.ContainsKey("params"))
             {
                 response.Error.Code = ErrorCode.ParseError;
@@ -223,6 +233,9 @@ namespace OpenSim.Server.Handlers
 
         public bool PicksUpdate(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             OSD tmpParams;
             if (!json.TryGetValue("params", out tmpParams) || !(tmpParams is OSDMap))
             {
@@ -250,6 +263,9 @@ namespace OpenSim.Server.Handlers
 
         public bool PicksDelete(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             OSD tmpParams;
             if (!json.TryGetValue("params", out tmpParams) || !(tmpParams is OSDMap))
             {
@@ -272,6 +288,9 @@ namespace OpenSim.Server.Handlers
         #region Notes
         public bool AvatarNotesRequest(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             OSD tmpParams;
             if (!json.TryGetValue("params", out tmpParams) || !(tmpParams is OSDMap))
             {
@@ -297,6 +316,9 @@ namespace OpenSim.Server.Handlers
 
         public bool NotesUpdate(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             OSD tmpParams;
             if (!json.TryGetValue("params", out tmpParams) || !(tmpParams is OSDMap))
             {
@@ -347,6 +369,9 @@ namespace OpenSim.Server.Handlers
 
         public bool AvatarPropertiesUpdate(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             if(!json.ContainsKey("params"))
             {
                 response.Error.Code = ErrorCode.ParseError;
@@ -374,6 +399,9 @@ namespace OpenSim.Server.Handlers
         #region Interests
         public bool AvatarInterestsUpdate(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             if(!json.ContainsKey("params"))
             {
                 response.Error.Code = ErrorCode.ParseError;
@@ -401,6 +429,9 @@ namespace OpenSim.Server.Handlers
         #region User Preferences
         public bool UserPreferencesRequest(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             if(!json.ContainsKey("params"))
             {
                 response.Error.Code = ErrorCode.ParseError;
@@ -426,6 +457,9 @@ namespace OpenSim.Server.Handlers
 
         public bool UserPreferenecesUpdate(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             if(!json.ContainsKey("params"))
             {
                 response.Error.Code = ErrorCode.ParseError;
@@ -504,6 +538,9 @@ namespace OpenSim.Server.Handlers
 
         public bool UpdateUserAppData(OSDMap json, ref JsonRpcResponse response)
         {
+            if (!m_ControlPlaneAccess.AuthorizeJsonRpc(json, ref response))
+                return false;
+
             if(!json.ContainsKey("params"))
             {
                 response.Error.Code = ErrorCode.ParseError;

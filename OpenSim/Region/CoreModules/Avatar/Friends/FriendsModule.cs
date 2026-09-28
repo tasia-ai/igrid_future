@@ -40,6 +40,7 @@ using OpenSim.Region.Framework.Scenes;
 using OpenSim.Services.Interfaces;
 using OpenSim.Services.Connectors.Friends;
 using OpenSim.Server.Base;
+using OpenSim.Server.Handlers.Base;
 using FriendInfo = OpenSim.Services.Interfaces.FriendInfo;
 using PresenceInfo = OpenSim.Services.Interfaces.PresenceInfo;
 using GridRegion = OpenSim.Services.Interfaces.GridRegion;
@@ -183,8 +184,9 @@ namespace OpenSim.Region.CoreModules.Avatar.Friends
 
                 // Instantiate the request handler
                 IHttpServer server = MainServer.GetHttpServer((uint)mPort);
+                var controlPlaneAccess = new ControlPlaneAccess(config);
 
-                server?.AddSimpleStreamHandler(new FriendsSimpleRequestHandler(this));
+                server?.AddSimpleStreamHandler(new FriendsSimpleRequestHandler(this, controlPlaneAccess));
             }
 
             if (m_FriendsService is null)

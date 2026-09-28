@@ -137,6 +137,7 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
         private string m_quicProxyRegistrationUrl = string.Empty;
         private string m_quicAdvertiseHost = string.Empty;
         private int m_quicAdvertisePort;
+        private bool m_quickGBridgeMode;
 
         private static readonly HttpClient s_quicProxyHttpClient = new()
         {
@@ -319,6 +320,17 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 m_quicProxyRegistrationUrl = NormalizeQuicConfigString(quicConfig.GetString("ProxyRegistrationURL", string.Empty));
                 if (string.IsNullOrWhiteSpace(m_quicProxyRegistrationUrl))
                     m_quicProxyRegistrationUrl = "http://localhost:8003/admin/quic/circuit";
+            }
+
+            IConfig quickGConfig = source.Configs["QuickG"];
+            if (quickGConfig != null)
+            {
+                // Quick-G bridge mode has no native per-sim QUIC listener behind
+                // the proxy. Avoid forwarding stale GridRegion.QuicPort as a
+                // backend route; the proxy should bridge viewer QUIC to LLUDP.
+                bool quickGEnabled = quickGConfig.GetBoolean("Enabled", false);
+                bool quickGUseDll = quickGConfig.GetBoolean("UseDll", false);
+                m_quickGBridgeMode = quickGEnabled && quickGUseDll;
             }
 
             IConfig welcomeConfig = source.Configs["NGC.Welcome"];
@@ -1001,7 +1013,9 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 return;
             }
 
-            PreRegisterQuicCircuitWithProxy(agentCircuit, finalDestination, "teleport-v1");
+            bool quicRouteReady = PreRegisterQuicCircuitWithProxy(agentCircuit, finalDestination, "teleport-v1", 2);
+            string teleportQuicHost = quicRouteReady ? finalDestination.QuicHost : null;
+            uint teleportQuicPort = quicRouteReady ? finalDestination.QuicPort : 0;
 
             // Past this point we have to attempt clean up if the teleport fails, so update transfer state.
             m_entityTransferStateMachine.UpdateInTransit(spUUID, AgentTransferState.Transferring);
@@ -1018,7 +1032,7 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                     // correct circuit code.
                     m_eqModule.EnableSimulator(destinationHandle, endPoint, spUUID,
                                         finalDestination.RegionSizeX, finalDestination.RegionSizeY,
-                                        finalDestination.QuicHost, finalDestination.QuicPort);
+                                        teleportQuicHost, teleportQuicPort);
                     m_log.DebugFormat("{0} Sent EnableSimulator. regName={1}, size=<{2},{3}>", LogHeader,
                         finalDestination.RegionName, finalDestination.RegionSizeX, finalDestination.RegionSizeY);
 
@@ -1264,7 +1278,9 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 return;
             }
 
-            PreRegisterQuicCircuitWithProxy(agentCircuit, finalDestination, "teleport-v2");
+            bool quicRouteReady = PreRegisterQuicCircuitWithProxy(agentCircuit, finalDestination, "teleport-v2", 2);
+            string teleportQuicHost = quicRouteReady ? finalDestination.QuicHost : null;
+            uint teleportQuicPort = quicRouteReady ? finalDestination.QuicPort : 0;
 
             // Past this point we have to attempt clean up if the teleport fails, so update transfer state.
             m_entityTransferStateMachine.UpdateInTransit(spUUID, AgentTransferState.Transferring);
@@ -1280,7 +1296,7 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
             if (m_eqModule != null)
                 m_eqModule.TeleportFinishEvent(destinationHandle, 13, endPoint, 0, teleportFlags, capsPath, sp.UUID,
                                     finalDestination.RegionSizeX, finalDestination.RegionSizeY,
-                                    finalDestination.QuicHost, finalDestination.QuicPort);
+                                    teleportQuicHost, teleportQuicPort);
             else
                 sp.ControllingClient.SendRegionTeleport(destinationHandle, 13, endPoint, 4,
                                                             teleportFlags, capsPath);
@@ -1443,16 +1459,16 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
             sp.Scene.EventManager.TriggerTeleportFail(sp.ControllingClient, logout);
         }
 
-        private void PreRegisterQuicCircuitWithProxy(AgentCircuitData agentCircuit, GridRegion destination, string context)
+        private bool PreRegisterQuicCircuitWithProxy(AgentCircuitData agentCircuit, GridRegion destination, string context, int attempts = 1)
         {
             if (agentCircuit == null || destination == null || string.IsNullOrWhiteSpace(m_quicProxyRegistrationUrl))
-                return;
+                return true;
 
             try
             {
                 IPEndPoint simEndpoint = destination.ExternalEndPoint;
                 if (simEndpoint == null || simEndpoint.Port <= 0)
-                    return;
+                    return true;
 
                 // Outgoing HG teleport shadowing fix: never pre-register a
                 // FOREIGN destination's route locally. It would shadow the
@@ -1463,14 +1479,16 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 {
                     m_log.InfoFormat("{0} Skipping QUIC proxy pre-registration for foreign destination {1} ({2}) during {3} (foreign grid, root flip would shadow viewer's direct route)",
                         LogHeader, destination.RegionName, destination.ServerURI, context);
-                    return;
+                    return true;
                 }
 
                 // Teleport contexts move the root agent: bridges must accept
                 // the route flip. Neighbour/far-child contexts only set up a
                 // child agent sharing the root circuit code: bridges must keep
                 // the existing root route.
-                string agentType = context != null && context.StartsWith("teleport", StringComparison.Ordinal)
+                string agentType = context != null &&
+                    (context.StartsWith("teleport", StringComparison.Ordinal) ||
+                     context.StartsWith("crossing", StringComparison.Ordinal))
                     ? "root" : "child";
 
                 // Only an explicitly configured per-region QUIC port is ever
@@ -1507,25 +1525,43 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 }
 
                 string json = OMVOSDParser.SerializeJsonString(payload);
-                using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                HttpResponseMessage response = s_quicProxyHttpClient.PostAsync(url, content)
-                    .GetAwaiter().GetResult();
 
-                if (response.IsSuccessStatusCode)
+                int maxAttempts = Math.Max(1, attempts);
+                for (int attempt = 1; attempt <= maxAttempts; attempt++)
                 {
-                    m_log.DebugFormat("{0} Pre-registered QUIC route for circuit {1} to {2} LLUDP={3} QUIC={4} during {5}",
-                        LogHeader, agentCircuit.circuitcode, destination.RegionName, simEndpoint.Port, quicPort, context);
+                    try
+                    {
+                        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                        using HttpResponseMessage response = s_quicProxyHttpClient.PostAsync(url, content)
+                            .GetAwaiter().GetResult();
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            m_log.DebugFormat("{0} Pre-registered QUIC route for circuit {1} to {2} LLUDP={3} QUIC={4} during {5}",
+                                LogHeader, agentCircuit.circuitcode, destination.RegionName, simEndpoint.Port, quicPort, context);
+                            return true;
+                        }
+
+                        m_log.WarnFormat("{0} QUIC proxy registration returned {1} for circuit {2} to {3} during {4} (attempt {5}/{6})",
+                            LogHeader, response.StatusCode, agentCircuit.circuitcode, destination.RegionName, context, attempt, maxAttempts);
+                    }
+                    catch (Exception ex)
+                    {
+                        m_log.WarnFormat("{0} Failed to pre-register QUIC route for circuit {1} to {2} during {3} (attempt {4}/{5}): {6}",
+                            LogHeader, agentCircuit.circuitcode, destination.RegionName, context, attempt, maxAttempts, ex.Message);
+                    }
+
+                    if (attempt < maxAttempts)
+                        Thread.Sleep(250 * attempt);
                 }
-                else
-                {
-                    m_log.WarnFormat("{0} QUIC proxy registration returned {1} for circuit {2} to {3} during {4}",
-                        LogHeader, response.StatusCode, agentCircuit.circuitcode, destination.RegionName, context);
-                }
+
+                return false;
             }
             catch (Exception ex)
             {
                 m_log.WarnFormat("{0} Failed to pre-register QUIC route for circuit {1} to {2} during {3}: {4}",
                     LogHeader, agentCircuit.circuitcode, destination.RegionName, context, ex.Message);
+                return false;
             }
         }
 
@@ -1536,6 +1572,9 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
 
         private int GetSimulatorQuicPort(GridRegion destination, IPEndPoint simEndpoint)
         {
+            if (m_quickGBridgeMode)
+                return 0;
+
             if (destination != null && destination.QuicPort > 0 &&
                 (m_quicAdvertisePort <= 0 || destination.QuicPort != (uint)m_quicAdvertisePort))
             {
@@ -1559,25 +1598,12 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
 
             try
             {
-                // Primary predicate: compare destination ServerURI against the
-                // local grid's GatekeeperURI/HomeURI via GridInfo.IsLocalGrid.
-                // HGEntityTransferModule uses the same IsLocalGrid / RegionFlags
-                // Hyperlink checks to decide foreign vs local; we mirror that
-                // here so the decision is consistent across the transfer stack.
-                if (m_thisGridInfo != null && !string.IsNullOrWhiteSpace(destination.ServerURI))
-                {
-                    int isLocal = m_thisGridInfo.IsLocalGrid(destination.ServerURI);
-                    if (isLocal == 0)
-                        return true; // foreign grid
-                    if (isLocal == 1)
-                        return false; // local grid
-                    // -1 bad url, -2 dns failed => fall through to flags check
-                }
-
-                // Fallback/Secondary: GridService RegionFlags.Hyperlink or
-                // missing region (-1) indicates a hyperlink/foreign region.
-                // This matches HGEntityTransferModule.GetFinalDestination /
-                // NeedsClosing which treat flags==-1 or Hyperlink as HG.
+                // Primary predicate: the grid service knows concrete local
+                // regions better than ServerURI host comparisons. Same-grid
+                // simulators often expose a simulator URI here, not the local
+                // gatekeeper URI, so IsLocalGrid(ServerURI)==0 alone used to
+                // misclassify local neighbours as foreign and skip QUIC route
+                // pre-registration.
                 if (m_scene != null && m_scene.GridService != null && m_sceneRegionInfo != null)
                 {
                     int flags = m_scene.GridService.GetRegionFlags(m_sceneRegionInfo.ScopeID, destination.RegionID);
@@ -1585,18 +1611,18 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                         return true;
                     if ((flags & (int)OpenSim.Framework.RegionFlags.Hyperlink) != 0)
                         return true;
+                    return false;
                 }
 
-                // Tertiary: explicit ExternalHostName comparison against
-                // GatekeeperURI host when ServerURI is empty/unparsable.
-                if (m_thisGridInfo != null && !string.IsNullOrWhiteSpace(destination.ExternalHostName))
+                // Secondary predicate: GridInfo is trusted only as positive
+                // local proof. A return value of 0 can be a simulator host that
+                // is not listed as a Gatekeeper/Home URI alias, so it is not
+                // sufficient proof of foreignness by itself.
+                if (m_thisGridInfo != null && !string.IsNullOrWhiteSpace(destination.ServerURI))
                 {
-                    string gatekeeperHost = string.Empty;
-                    try { gatekeeperHost = new Uri(m_thisGridInfo.GateKeeperURL).Host; } catch { }
-                    if (!string.IsNullOrWhiteSpace(gatekeeperHost) &&
-                        !string.Equals(destination.ExternalHostName, gatekeeperHost, StringComparison.OrdinalIgnoreCase) &&
-                        m_thisGridInfo.IsLocalGrid("http://" + destination.ExternalHostName + "/") == 0)
-                        return true;
+                    int isLocal = m_thisGridInfo.IsLocalGrid(destination.ServerURI);
+                    if (isLocal == 1)
+                        return false;
                 }
             }
             catch
@@ -2087,9 +2113,9 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                     source.RegionName, agent.Name,
                     neighbourRegion.RegionName, neighbourRegion.RegionLocX, neighbourRegion.RegionLocY, newSizeX, newSizeY , capsPath);
 
-                m_eqModule.EnableSimulator(regionhandler,
+m_eqModule.EnableSimulator(regionhandler,
                         endPoint, agent.UUID, newSizeX, newSizeY,
-                        neighbourRegion.QuicHost, neighbourRegion.QuicPort);
+                        neighbourRegion.QuicHost, neighbourRegion.QuicPort, true);
                 m_eqModule.EstablishAgentCommunication(agent.UUID, endPoint, capsPath,
                     regionhandler, newSizeX, newSizeY);
             }
@@ -2171,6 +2197,15 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 if (isFlying)
                     cAgent.ControlFlags |= (uint)AgentManager.ControlFlags.AGENT_CONTROL_FLY;
 
+                // Border crossings need the same destination-side confirmation
+                // semantics as teleports.  Without this, UpdateAgent can return
+                // before the destination child presence becomes root; the source
+                // then completes cleanup while the viewer/destination handoff is
+                // still fragile, producing pushback/disconnects on slower or busy
+                // crossings.  Scene.IncomingUpdateChildAgent contains the bounded
+                // wait/recovery path for this flag.
+                cAgent.SenderWantsToWaitForRoot = true;
+
                 // We don't need the callback anymnore
                 cAgent.CallbackURI = String.Empty;
 
@@ -2222,6 +2257,15 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
 
             // No turning back
 
+// A border crossing advertises the destination's native QUIC
+            // endpoint.  The destination sim runs its own QuicServer listener
+            // (per-region explicit ports), so the viewer opens a direct QUIC
+            // child circuit to it — no bridge route involved, no single-route
+            // flip to worry about.  The old comment about deliberately keeping
+            // crossings LLUDP applied to the bridge-only deployment where the
+            // bridge could not hold more than one route per circuit; with
+            // native per-region listeners that constraint is gone.
+
             agent.IsChildAgent = true;
 
             string capsPath = neighbourRegion.ServerURI + CapsUtil.GetCapsSeedPath(agentcaps);
@@ -2234,7 +2278,7 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
 
             if (m_eqModule != null)
             {
-                m_eqModule.CrossRegion(
+m_eqModule.CrossRegion(
                     neighbourRegion.RegionHandle, pos, vel2 /* agent.Velocity */,
                     endpoint, capsPath, agentUUID, agent.ControllingClient.SessionId,
                     neighbourRegion.RegionSizeX, neighbourRegion.RegionSizeY,
@@ -2911,8 +2955,8 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                             scene.RegionInfo.RegionName, sp.Name,
                             reg.RegionName, reg.RegionLocX, reg.RegionLocY, reg.RegionSizeX, reg.RegionSizeY, capsPath);
 
-                        m_eqModule.EnableSimulator(reg.RegionHandle, endPoint, sp.UUID, reg.RegionSizeX, reg.RegionSizeY,
-                                                    reg.QuicHost, reg.QuicPort);
+m_eqModule.EnableSimulator(reg.RegionHandle, endPoint, sp.UUID, reg.RegionSizeX, reg.RegionSizeY,
+                                                    reg.QuicHost, reg.QuicPort, true);
                         m_eqModule.EstablishAgentCommunication(sp.UUID, endPoint, capsPath, reg.RegionHandle, reg.RegionSizeX, reg.RegionSizeY);
                     }
                     else

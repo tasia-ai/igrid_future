@@ -1,0 +1,13 @@
+<Addins>
+  <Addin id="OpenSim.Region.OptionalModules.AI" version="1.0">
+    <Runtime>
+      <Import assembly="OpenSim.Region.OptionalModules.AI.dll" />
+    </Runtime>
+    <Dependencies>
+      <Addin id="OpenSim.Region.Framework" version="0.5" />
+    </Dependencies>
+    <Extension path="/OpenSim/RegionModules">
+      <RegionModule id="OpenSimAIModule" class="OpenSim.Region.OptionalModules.AI.OpenSimAIModule" />
+    </Extension>
+  </Addin>
+</Addins>

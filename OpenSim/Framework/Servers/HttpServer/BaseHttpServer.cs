@@ -1645,6 +1645,10 @@ namespace OpenSim.Framework.Servers.HttpServer
                     jsonRpcResponse.JsonRpc = "2.0";
 
                     string methodname = jsonRpcRequest["method"];
+                    // These fields are server-populated and cannot be supplied by the caller.
+                    // ControlPlaneAccess uses them for sensitive JSON-RPC methods.
+                    jsonRpcRequest["__opensim_remote_address"] = OSD.FromString(request.RemoteIPEndPoint.Address.ToString());
+                    jsonRpcRequest["__opensim_llhttprequest"] = OSD.FromBoolean(request.Headers["X-SecondLife-Shard"] != null);
                     if (!string.IsNullOrWhiteSpace(methodname) && jsonRpcHandlers.TryGetValue(methodname, out JsonRPCMethod method))
                     {
                         try

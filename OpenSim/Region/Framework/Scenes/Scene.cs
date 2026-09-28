@@ -3153,6 +3153,17 @@ namespace OpenSim.Region.Framework.Scenes
             // each other.  In practice, this does not currently occur in the code.
             AgentCircuitData aCircuit = m_authenticateHandler.GetAgentCircuitData(client.CircuitCode);
 
+            // Teleport UpdateAgent can deliver UseCircuitCode after the auth
+            // circuit data expired; LLUDPServer keeps the existing child for
+            // that case.  Never lock(null) here — return the existing presence
+            // (if any) instead of crashing the sim.
+            if (aCircuit == null)
+            {
+                m_log.Warn($"[SCENE]: AddNewAgent for {client.Name} {client.AgentId} circuit {client.CircuitCode}: no circuit data, keeping existing presence");
+                StatsReporter.UpdateUsersLoggingIn(false);
+                return GetScenePresence(client.AgentId);
+            }
+
             // We lock here on AgentCircuitData to prevent a race condition between the thread adding a new connection
             // and a simultaneous one that removes it (as can happen if the client is closed at a particular point
             // whilst connecting).
@@ -4659,9 +4670,47 @@ Label_GroupsDone:
 
                 sp.UpdateChildAgent(cAgentData);
 
-                int ntimes = 100;
                 if (cAgentData.SenderWantsToWaitForRoot)
                 {
+                    // Normally TeleportFinish/CrossRegion makes the viewer send
+                    // CompleteAgentMovement, which calls ScenePresence.CompleteMovement()
+                    // and promotes this presence from child to root.  In practice the
+                    // packet can be delayed/lost during fragile handoff (LLUDP/QUIC
+                    // bridge, crossings, or overloaded sims).  Without a recovery path
+                    // the sender waits the full 25s below, returns "agent update failed",
+                    // and the viewer is bounced/disconnected even though the destination
+                    // already has a valid child agent update.
+                    //
+                    // For border crossings the source region has not sent CrossRegion to
+                    // the viewer yet because it is still inside this UpdateAgent call.
+                    // Therefore waiting for viewer CompleteAgentMovement here creates an
+                    // artificial crossing stall (very visible in vehicles).  Teleports are
+                    // different: TeleportFinish is sent before UpdateAgent, so keep a small
+                    // grace window for their normal viewer-driven promotion.
+                    bool isBorderCrossing = sp.TeleportFlags == TPFlags.Default;
+                    int grace = isBorderCrossing ? 0 : 8;
+                    while (sp.IsChildAgent && grace-- > 0)
+                        Thread.Sleep(250);
+
+                    if (sp.IsChildAgent && sp.ControllingClient != null)
+                    {
+                        m_log.WarnFormat(
+                            "[SCENE]: Presence {0} {1} still child in {2} after update; forcing CompleteMovement recovery",
+                            sp.Name, sp.UUID, Name);
+
+                        try
+                        {
+                            sp.CompleteMovement(sp.ControllingClient, true);
+                        }
+                        catch (Exception e)
+                        {
+                            m_log.WarnFormat(
+                                "[SCENE]: CompleteMovement recovery for {0} {1} in {2} failed: {3}",
+                                sp.Name, sp.UUID, Name, e.Message);
+                        }
+                    }
+
+                    int ntimes = isBorderCrossing ? 12 : 92;
                     while (sp.IsChildAgent && ntimes-- > 0)
                         Thread.Sleep(250);
 
@@ -5495,6 +5544,16 @@ Label_GroupsDone:
         public bool TryGetClient(System.Net.IPEndPoint remoteEndPoint, out IClientAPI client)
         {
             return m_clientManager.TryGetValue(remoteEndPoint, out client);
+        }
+
+        /// <summary>
+        /// Re-keys a client from its old endpoint to a new one (tunnel relay
+        /// re-socketing). Does not touch client.RemoteEndPoint itself; the
+        /// caller updates that field.
+        /// </summary>
+        public void UpdateClientEndPoint(IClientAPI client, System.Net.IPEndPoint oldEndPoint, System.Net.IPEndPoint newEndPoint)
+        {
+            m_clientManager.UpdateEndPoint(client, oldEndPoint, newEndPoint);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

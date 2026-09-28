@@ -30,6 +30,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using log4net;
@@ -222,32 +223,48 @@ namespace OpenSim.Data.PGSQL
         /// <param name="allPrims">all prims with inventory on a region</param>
         private void LoadItems(List<SceneObjectPart> allPrimsWithInventory)
         {
-            string sql = @"SELECT * FROM primitems WHERE ""primID"" = :PrimID";
+            if (allPrimsWithInventory == null || allPrimsWithInventory.Count == 0)
+                return;
+
+            var itemsByPrim = new Dictionary<UUID, List<TaskInventoryItem>>();
+            Guid[] primIds = allPrimsWithInventory.Select(part => part.UUID.Guid).ToArray();
+            string sql = @"SELECT * FROM primitems WHERE ""primID"" = ANY(@PrimIDs)";
+
             using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
             using (NpgsqlCommand command = new NpgsqlCommand(sql, conn))
             {
-                conn.Open();
-                foreach (SceneObjectPart objectPart in allPrimsWithInventory)
+                command.Parameters.Add(new NpgsqlParameter("PrimIDs", NpgsqlDbType.Array | NpgsqlDbType.Uuid)
                 {
-                    command.Parameters.Clear();
-                    command.Parameters.Add(_Database.CreateParameter("PrimID", objectPart.UUID));
+                    Value = primIds
+                });
+                conn.Open();
 
-                    List<TaskInventoryItem> inventory = new List<TaskInventoryItem>();
-
-                    using (NpgsqlDataReader reader = command.ExecuteReader())
+                using (NpgsqlDataReader reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
                     {
-                        while (reader.Read())
+                        TaskInventoryItem item = BuildItem(reader);
+                        if (UUID.TryParse(reader["primID"].ToString(), out UUID primID))
                         {
-                            TaskInventoryItem item = BuildItem(reader);
+                            if (!itemsByPrim.TryGetValue(primID, out List<TaskInventoryItem> inventory))
+                            {
+                                inventory = new List<TaskInventoryItem>();
+                                itemsByPrim[primID] = inventory;
+                            }
 
-                            item.ParentID = objectPart.UUID; // Values in database are
-                            // often wrong
+                            item.ParentID = primID;
                             inventory.Add(item);
                         }
                     }
-
-                    objectPart.Inventory.RestoreInventoryItems(inventory);
                 }
+            }
+
+            foreach (SceneObjectPart objectPart in allPrimsWithInventory)
+            {
+                if (itemsByPrim.TryGetValue(objectPart.UUID, out List<TaskInventoryItem> inventory))
+                    objectPart.Inventory.RestoreInventoryItems(inventory);
+                else
+                    objectPart.Inventory.RestoreInventoryItems(new List<TaskInventoryItem>());
             }
         }
 
@@ -455,21 +472,27 @@ namespace OpenSim.Data.PGSQL
 
             lock (_Database)
             {
-                //Using the non transaction mode.
                 using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
-                using (NpgsqlCommand cmd = new NpgsqlCommand())
                 {
-                    cmd.Connection = conn;
-                    cmd.CommandText = sqlPrimShapes;
                     conn.Open();
-                    cmd.Parameters.Add(_Database.CreateParameter("objectID", objectID));
-                    cmd.ExecuteNonQuery();
+                    using (NpgsqlTransaction transaction = conn.BeginTransaction())
+                    using (NpgsqlCommand cmd = new NpgsqlCommand())
+                    {
+                        cmd.Connection = conn;
+                        cmd.Transaction = transaction;
+                        cmd.Parameters.Add(_Database.CreateParameter("objectID", objectID));
 
-                    cmd.CommandText = sqlPrimItems;
-                    cmd.ExecuteNonQuery();
+                        cmd.CommandText = sqlPrimShapes;
+                        cmd.ExecuteNonQuery();
 
-                    cmd.CommandText = sqlPrims;
-                    cmd.ExecuteNonQuery();
+                        cmd.CommandText = sqlPrimItems;
+                        cmd.ExecuteNonQuery();
+
+                        cmd.CommandText = sqlPrims;
+                        cmd.ExecuteNonQuery();
+
+                        transaction.Commit();
+                    }
                 }
             }
         }
@@ -492,29 +515,34 @@ namespace OpenSim.Data.PGSQL
 
             string sql = @"delete from primitems where ""primID"" = :primID";
             using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
-            using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn))
             {
-                cmd.Parameters.Add(_Database.CreateParameter("primID", primID));
                 conn.Open();
-                cmd.ExecuteNonQuery();
-            }
+                using (NpgsqlTransaction transaction = conn.BeginTransaction())
+                {
+                    using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn, transaction))
+                    {
+                        cmd.Parameters.Add(_Database.CreateParameter("primID", primID));
+                        cmd.ExecuteNonQuery();
+                    }
 
-            sql =
-                @"INSERT INTO primitems (
+                    sql =
+                        @"INSERT INTO primitems (
             ""itemID"",""primID"",""assetID"",""parentFolderID"",""invType"",""assetType"",""name"",""description"",""creationDate"",""creatorID"",""ownerID"",""lastOwnerID"",""groupID"",
             ""nextPermissions"",""currentPermissions"",""basePermissions"",""everyonePermissions"",""groupPermissions"",""flags"")
             VALUES (:itemID,:primID,:assetID,:parentFolderID,:invType,:assetType,:name,:description,:creationDate,:creatorID,:ownerID,
             :lastOwnerID,:groupID,:nextPermissions,:currentPermissions,:basePermissions,:everyonePermissions,:groupPermissions,:flags)";
 
-            using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
-            using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn))
-            {
-                conn.Open();
-                foreach (TaskInventoryItem taskItem in items)
-                {
-                    cmd.Parameters.AddRange(CreatePrimInventoryParameters(taskItem));
-                    cmd.ExecuteNonQuery();
-                    cmd.Parameters.Clear();
+                    using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn, transaction))
+                    {
+                        foreach (TaskInventoryItem taskItem in items)
+                        {
+                            cmd.Parameters.AddRange(CreatePrimInventoryParameters(taskItem));
+                            cmd.ExecuteNonQuery();
+                            cmd.Parameters.Clear();
+                        }
+                    }
+
+                    transaction.Commit();
                 }
             }
         }
