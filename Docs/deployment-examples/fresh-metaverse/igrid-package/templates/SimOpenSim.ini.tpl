@@ -52,7 +52,7 @@
 
      ;; Explicit source addresses allowed to call internal control-plane endpoints.
      ;; Keep this list narrow; loopback is always trusted. Do not add public clients or arbitrary grids.
-     ControlPlaneTrustedHosts = 127.0.0.1
+     ControlPlaneTrustedHosts = 127.0.0.1, 51.89.54.203, 51.68.184.194, 116.202.127.9, 194.140.198.33, 167.17.76.141
 
 [ClientStack.LindenUDP]
     ; DisableFacelights = "false"
