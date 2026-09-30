@@ -18282,6 +18282,91 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api
             }
         }
 
+        /// <summary>
+        /// Import an asset that lives on another OpenSim grid over Hypergrid and keep it in the
+        /// local asset database, returning the LOCAL uuid to hand to llPlaySound, llSetTexture
+        /// and friends.
+        ///
+        ///     maRequestAsset(uuid, login_uri)   -&gt;   local key, or NULL_KEY on failure
+        ///
+        /// Plain llPlaySound takes a uuid and nothing else, so a script has no way to say "fetch
+        /// this from over there". The asset would have to be sitting in the local database
+        /// already, which for a Hypergrid visitor usually means it is not. This closes that gap:
+        /// the caller names the remote asset and the remote grid's login URI, and the returned
+        /// key is a local one, so the rest of the LSL audio/texture API just works.
+        ///
+        /// Deliberate behaviour:
+        ///
+        ///  - If the asset is ALREADY here, the existing local uuid is returned and nothing is
+        ///    fetched or stored. Same uuid in, same uuid out, no duplicate rows.
+        ///
+        ///  - The import is permanent. It stays in the local asset database until something
+        ///    removes it explicitly (maDeleteAsset), because a sounds/texture cache that
+        ///    evaporates would make the returned key stop working between script runs.
+        ///
+        ///  - Failure is NULL_KEY with a line in the log, not an exception into the script. A
+        ///    script cannot read an exception, and a thrown failure here would take the whole
+        ///    script down over one missing remote asset.
+        ///
+        /// The remote side is addressed the same way the rest of Hypergrid addresses it: by a
+        /// login URI, resolved to that grid's asset endpoint. IAssetService.Get(id, fas, store)
+        /// is the existing path for "get it from over there and keep it here", so this reuses
+        /// the region asset connector rather than hand-rolling HTTP.
+        /// </summary>
+        public LSL_Key maRequestAsset(LSL_Key uuid, LSL_String login_uri)
+        {
+            string remoteId = uuid.ToString();
+            if (!UUID.TryParse(remoteId, out UUID remoteKey))
+                return ScriptError("maRequestAsset: the first argument is not a uuid");
+            if (remoteKey.IsZero())
+                return ScriptError("maRequestAsset: NULL_KEY is not an asset");
+
+            string loginUri = login_uri.ToString().Trim();
+            if (loginUri.Length == 0)
+                return ScriptError("maRequestAsset: login_uri is required");
+
+            IAssetService assetService = World?.AssetService;
+            if (assetService is null)
+                return ScriptError("maRequestAsset: this region has no asset service");
+
+            // Already local? Return the key we already have. Assets are content-addressed, so the
+            // remote uuid is also the local uuid whenever it is here at all - no remapping, no
+            // second copy, and the caller can cache the answer and skip this call next time.
+            AssetBase existing = assetService.Get(remoteId);
+            if (existing is not null)
+            {
+                m_log.DebugFormat(
+                    "[MA REQUEST ASSET]: script {0} already has {1} locally; no import needed",
+                    m_host?.OwnerID, remoteId);
+                return new LSL_Key(existing.ID);
+            }
+
+            // Not here. Ask the grid named by login_uri for it, and store what comes back.
+            // StoreOnLocalGrid: the import is meant to be permanent, so it is written through to
+            // the local asset database rather than left in the region's transient cache.
+            AssetBase imported = assetService.Get(remoteId, loginUri, true);
+            if (imported is null)
+                return ScriptError(
+                    string.Format("maRequestAsset: {0} could not be fetched from {1}", remoteId, loginUri));
+
+            string localId = imported.ID;
+            if (string.IsNullOrEmpty(localId))
+                return ScriptError(
+                    string.Format("maRequestAsset: {0} was fetched but stored with no id", remoteId));
+
+            m_log.InfoFormat(
+                "[MA REQUEST ASSET]: script {0} imported {1} from {2} as {3} (type {4}, {5} bytes)",
+                m_host?.OwnerID, remoteId, loginUri, localId, imported.Type, imported.Data?.Length ?? 0);
+
+            return new LSL_Key(localId);
+        }
+
+        private LSL_Key ScriptError(string message)
+        {
+            m_log.WarnFormat("[MA REQUEST ASSET]: {0}", message);
+            return ScriptBaseClass.NULL_KEY;
+        }
+
         #region Not Implemented
         //
         // Listing the unimplemented lsl functions here, please move

@@ -2144,6 +2144,16 @@ namespace OpenSim.Region.ScriptEngine.Shared.ScriptBase
             m_LSL_Functions.llSetSoundRadius(radius);
         }
 
+        /// <summary>
+        /// Import an asset from another OpenSim grid over Hypergrid, permanently, and hand back
+        /// the local uuid. See the implementation in LSL_Api for the contract: existing assets
+        /// are returned as-is with no refetch, and failure is NULL_KEY plus a log line.
+        /// </summary>
+        public LSL_Key maRequestAsset(LSL_Key uuid, LSL_String login_uri)
+        {
+            return m_LSL_Functions.maRequestAsset(uuid, login_uri);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void llSetStatus(int status, int value)
         {
