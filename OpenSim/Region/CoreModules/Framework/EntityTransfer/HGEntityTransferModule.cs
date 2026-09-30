@@ -327,6 +327,16 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                     if (success)
                         m_scene.EventManager.TriggerTeleportStart(sp.ControllingClient, reg, finalDestination, teleportFlags, logout);
 
+                    // HG TRAVEL TOKEN: the home grid rotated ServiceSessionID for this hop. Store it
+                    // on the circuit this scene holds, or the NEXT hop - including the trip home -
+                    // presents the previous token and is refused.
+                    if (success && !string.IsNullOrEmpty(agentCircuit.ServiceSessionID))
+                    {
+                        AgentCircuitData live = sp.Scene.AuthenticateHandler?.GetAgentCircuitData(sp.ControllingClient.CircuitCode);
+                        if (live is not null)
+                            live.ServiceSessionID = agentCircuit.ServiceSessionID;
+                    }
+
                     return success;
                 }
                 else

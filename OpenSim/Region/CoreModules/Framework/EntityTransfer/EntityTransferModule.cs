@@ -921,6 +921,11 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 agentCircuit.Channel = currentAgentCircuit.Channel;
                 agentCircuit.Mac = currentAgentCircuit.Mac;
                 agentCircuit.Id0 = currentAgentCircuit.Id0;
+                // The home grid authorises every hypergrid hop against the ServiceSessionID it
+                // issued and rotates it on each hop. This circuit comes from RequestClientInfo(),
+                // which does not carry it, so without this line an outbound hop presents an EMPTY
+                // token and the traveller's home grid refuses it - including the trip home.
+                agentCircuit.ServiceSessionID = currentAgentCircuit.ServiceSessionID;
             }
 
             Util.RegionHandleToRegionLoc(destinationHandle, out uint newRegionX, out uint newRegionY);
@@ -2083,6 +2088,11 @@ namespace OpenSim.Region.CoreModules.Framework.EntityTransfer
                 agentCircuit.Channel = currentAgentCircuit.Channel;
                 agentCircuit.Mac = currentAgentCircuit.Mac;
                 agentCircuit.Id0 = currentAgentCircuit.Id0;
+                // The home grid authorises every hypergrid hop against the ServiceSessionID it
+                // issued and rotates it on each hop. This circuit comes from RequestClientInfo(),
+                // which does not carry it, so without this line an outbound hop presents an EMPTY
+                // token and the traveller's home grid refuses it - including the trip home.
+                agentCircuit.ServiceSessionID = currentAgentCircuit.ServiceSessionID;
             }
 
             agentCircuit.CapsPath = CapsUtil.GetRandomCapsObjectPath();
