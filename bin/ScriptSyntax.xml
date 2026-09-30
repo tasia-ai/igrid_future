@@ -10006,5 +10006,14 @@
   <key>arguments</key><undef/>
   <key>tooltip</key><string>Returns the name of the currently enabled wind plugin.</string>
  </map>
+ <key>maRequestAsset</key>
+ <map>
+  <key>arguments</key><array>
+   <map><key>uuid</key><map><key>type</key><string>key</string></map></map>
+   <map><key>login_uri</key><map><key>type</key><string>string</string></map></map>
+  </array>
+  <key>return</key><string>key</string>
+  <key>tooltip</key><string>Imports an asset from another OpenSim grid over Hypergrid into the local grid, permanently, and returns the LOCAL asset uuid to pass to llPlaySound, llSetTexture and the rest of the audio/texture API. Returns NULL_KEY if the remote asset cannot be fetched. If the asset is already local, the existing uuid is returned with no refetch and no duplicate.</string>
+ </map>
 </map>
 </map></llsd>
