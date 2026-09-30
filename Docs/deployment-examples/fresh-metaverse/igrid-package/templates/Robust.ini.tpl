@@ -64,6 +64,7 @@
     ExternalHostName = "${Const|BaseHostname}"
     ;; Per-process cute 404 page — file at 404/robust.html relative to Robust CWD
      http_404 = "404/robust.html"
+     HttpBodyMaxLenMAX = 5242880
      AllowllHTTPRequestIn = false
 
      ;; Explicit source addresses allowed to call internal control-plane endpoints.
