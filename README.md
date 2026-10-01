@@ -20,6 +20,8 @@ All addons are built-in and ready to use:
 - **ChatAudit** - Full chat/IM logging
 - **MACAudit** - Hardware audit logging
 - **RemoteSound** - Play remote audio URLs via script
+- **SmartNPC** - Script-driven NPCs with an `expertise`, plus `osAI` for one-shot model calls
+- **QUIC** - `TasiaAddons.Quic`, QUIC transport for viewers via a Quick-G bridge, on by default
 - **Marketplace** - Prim delivery API
 - **WoWonder** - Social network integration
 - **AlertNotifications** - Push notifications
@@ -28,7 +30,59 @@ All addons are built-in and ready to use:
 - **./web** - wordpress and standalone addons including auth system, admin panel and complex hg auth.
 For detailed addon documentation, see **[ADDONS.md](./md/addons.md)**
 changes history: **[ADDONS.md](./md/History.md)**
+
+### Script functions
+
+Beyond the addons above, the script engine exposes functions that scripts call directly.
+Permissions live in `osslEnable.ini` (`[OSSL]` section, `Allow_<name>`), and the editor's
+autocomplete list is `bin/ScriptSyntax.xml` — a function needs an entry in both to be
+visible and callable.
+
+| Function | Purpose |
+| --- | --- |
+| `maRequestAsset(uuid, login_uri)` | Import an asset from another OpenSim grid over Hypergrid, keep it in the local asset database permanently, and return the **local** uuid for use with `llPlaySound`, `llSetTexture` and the rest of the audio/texture API. Returns `NULL_KEY` if the remote asset cannot be fetched. If the asset is already local, the existing uuid comes back with no refetch. |
+| `osAI(systemPrompt, userPrompt, maxTokens, temperature)` | Send a prompt to the configured language model, returns the reply as a string. |
+| `osCreateSmartNPC(firstName, lastName, position, notecardName, expertise)` | Spawn a smart NPC with a name, an optional notecard, and an `expertise` that steers its conversation. |
+| `osSetSmartNPC(npcKey, expertise)` | Replace the expertise of an existing smart NPC. |
+| `osNpcInstantMessage(npcKey, destination, message)` | Instant message to an avatar or NPC, from a smart NPC's point of view. |
+| `ngcPlaySoundURL(url, volume, ...)` | Play audio fetched from a URL rather than a stored asset. |
+
+```lsl
+string local = maRequestAsset("e0c2a9de-0f1a-4b3c-8d7e-9a1b2c3d4e5f",
+                             "http://example-grid.org:8002/");
+if (local != NULL_KEY)
+    llPlaySound(local, 1.0);
+else
+    llSay("could not fetch that asset");
+```
+
+### QUIC transport
+
+`TasiaAddons.Quic` puts a QUIC listener in front of the LLUDP stack. Robust owns the
+public viewer-facing port and the `QuicProxyConnector` service; regions do not expose a
+per-region QUIC port of their own. Routes are registered through the Quick-G bridge, so
+**Quick-G is required** — `AllowNativeQuicFallback = false` means Robust pauses QUIC
+startup rather than silently downgrading if it fails.
+
+Relevant sections in `Robust.ini`:
+
+| Section | Purpose |
+| --- | --- |
+| `[ClientStack.Quic]` | Native listener settings, PKCS#12 certificate path. |
+| `[QuicProxy]` | The `QuicProxyConnector` service, PEM certificate and key, and the `QuicPoolStart`/`QuicPoolEnd` range valid for per-region port allocation. Ports outside the pool are treated as stale. |
+| `[QuickG]` | Bridge executable, public and private ports, region brain, and certificate paths. The private control port must never be exposed publicly. |
+
+Certificate and key files are read from `SSL/quic/` — `quic-cert.pem`, `quic-key.pem`,
+and `quic-cert.p12` for the native listener. Export the key in a format the MsQuic build
+on the host can load, and set the PKCS#12 password if the file is protected.
+
+Note on known limitations: the concurrent-write path in the QUIC client can raise
+"This method may not be called when another write operation is pending" under load, and
+`QuicClientConnection`/`QuicServerConfig` still sit in core because `LLUDPServer` is typed
+to their concrete classes, so the region side is not yet fully plugin-extracted.
+
 ---
+
 
 ## Overview
 
