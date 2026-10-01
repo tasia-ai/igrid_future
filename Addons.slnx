@@ -1,0 +1,67 @@
+﻿<Solution>
+  <Folder Name="/Addons/">
+    <Project Path="Addons/Gloebit.GloebitMoneyModule/Gloebit.GloebitMoneyModule.csproj" />
+    <Project Path="Addons/OpenSim.Addons.Groups/OpenSim.Addons.Groups.csproj" />
+    <Project Path="Addons/OpenSim.Addons.OfflineIM/OpenSim.Addons.OfflineIM.csproj" />
+    <Project Path="Addons/TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
+    <Project Path="Addons/TasiaAddons.AbuseReports/TasiaAddons.AbuseReports.csproj" />
+    <Project Path="Addons/TasiaAddons.AccessLogger/TasiaAddons.AccessLogger.csproj" />
+    <Project Path="Addons/TasiaAddons.AlertNotifications/TasiaAddons.AlertNotifications.csproj" />
+    <Project Path="Addons/TasiaAddons.ChatAudit/TasiaAddons.ChatAudit.csproj" />
+    <Project Path="Addons/TasiaAddons.DisplayNameCaps/TasiaAddons.DisplayNameCaps.csproj" />
+    <Project Path="Addons/TasiaAddons.FriendConference/TasiaAddons.FriendConference.csproj" />
+    <Project Path="Addons/TasiaAddons.JoinApi/TasiaAddons.JoinApi.csproj" />
+    <Project Path="Addons/TasiaAddons.LoginSecurity/TasiaAddons.LoginSecurity.csproj" />
+    <Project Path="Addons/TasiaAddons.MACAudit/TasiaAddons.MACAudit.csproj" />
+    <Project Path="Addons/TasiaAddons.Marketplace/TasiaAddons.Marketplace.csproj" />
+    <Project Path="Addons/TasiaAddons.MetricsConnector/TasiaAddons.MetricsConnector.csproj" />
+    <Project Path="Addons/TasiaAddons.RemoteSound/TasiaAddons.RemoteSound.csproj" />
+    <Project Path="Addons/TasiaAddons.RestartModule/TasiaAddons.RestartModule.csproj" />
+    <Project Path="Addons/TasiaAddons.SharedInventory/TasiaAddons.SharedInventory.csproj" />
+    <Project Path="Addons/TasiaAddons.WoWonder/TasiaAddons.WoWonder.csproj" />
+  </Folder>
+  <Folder Name="/Addons/OpenSimMutelist/">
+    <Project Path="Addons/OpenSimMutelist/OpenSimMutelist.Modules.csproj" />
+  </Folder>
+  <Folder Name="/Addons/OpenSimSearch/">
+    <Project Path="Addons/OpenSimSearch/OpenSimSearch.Modules.csproj" />
+  </Folder>
+  <Folder Name="/Addons/os-webrtc-janus/">
+    <Project Path="Addons/os-webrtc-janus/WebRtcVoice/WebRtcVoice.csproj" />
+    <Project Path="Addons/os-webrtc-janus/WebRtcVoiceRegionModule/WebRtcVoiceRegionModule.csproj" />
+    <Project Path="Addons/os-webrtc-janus/WebRtcVoiceServiceModule/WebRtcVoiceServiceModule.csproj" />
+  </Folder>
+  <Folder Name="/Addons/os-webrtc-janus/Janus/">
+    <Project Path="Addons/os-webrtc-janus/Janus/WebRtcJanusService.csproj" />
+  </Folder>
+  <Folder Name="/Source/">
+    <Project Path="Source/OpenSim.Capabilities/OpenSim.Capabilities.csproj" />
+    <Project Path="Source/OpenSim.Data.MySQL.MoneyData/OpenSim.Data.MySQL.MoneyData.csproj" />
+    <Project Path="Source/OpenSim.Data.MySQL/OpenSim.Data.MySQL.csproj" />
+    <Project Path="Source/OpenSim.Data.PGSQL/OpenSim.Data.PGSQL.csproj" />
+    <Project Path="Source/OpenSim.Data.SQLite/OpenSim.Data.SQLite.csproj" />
+    <Project Path="Source/OpenSim.Data/OpenSim.Data.csproj" />
+    <Project Path="Source/OpenSim.Framework.Console/OpenSim.Framework.Console.csproj" />
+    <Project Path="Source/OpenSim.Framework.Monitoring/OpenSim.Framework.Monitoring.csproj" />
+    <Project Path="Source/OpenSim.Framework.Serialization/OpenSim.Framework.Serialization.csproj" />
+    <Project Path="Source/OpenSim.Framework.Servers.HttpServer/OpenSim.Framework.Servers.HttpServer.csproj" />
+    <Project Path="Source/OpenSim.Framework.Servers/OpenSim.Framework.Servers.csproj" />
+    <Project Path="Source/OpenSim.Framework/OpenSim.Framework.csproj" />
+    <Project Path="Source/OpenSim.Region.ClientStack.LindenUDP/OpenSim.Region.ClientStack.LindenUDP.csproj" />
+    <Project Path="Source/OpenSim.Region.CoreModules/OpenSim.Region.CoreModules.csproj" />
+    <Project Path="Source/OpenSim.Region.Framework/OpenSim.Region.Framework.csproj" />
+    <Project Path="Source/OpenSim.Region.OptionalModules/OpenSim.Region.OptionalModules.csproj" />
+    <Project Path="Source/OpenSim.Region.PhysicsModules.SharedBase/OpenSim.Region.PhysicsModules.SharedBase.csproj" />
+    <Project Path="Source/OpenSim.Region.ScriptEngine.Shared/OpenSim.Region.ScriptEngine.Shared.csproj" />
+    <Project Path="Source/OpenSim.Server.Base/OpenSim.Server.Base.csproj" />
+    <Project Path="Source/OpenSim.Server.Handlers/OpenSim.Server.Handlers.csproj" />
+    <Project Path="Source/OpenSim.Services.Base/OpenSim.Services.Base.csproj" />
+    <Project Path="Source/OpenSim.Services.Connectors/OpenSim.Services.Connectors.csproj" />
+    <Project Path="Source/OpenSim.Services.Interfaces/OpenSim.Services.Interfaces.csproj" />
+    <Project Path="Source/OpenSim.Services.LLLoginService/OpenSim.Services.LLLoginService.csproj" />
+    <Project Path="Source/OpenSim.Services.UserAccountService/OpenSim.Services.UserAccountService.csproj" />
+    <Project Path="Source/OpenSimNGC.Appearance.Baking/OpenSimNGC.Appearance.Baking.csproj" />
+    <Project Path="Source/Tasia.Extensions.SDK/Tasia.Extensions.SDK.csproj" />
+    <Project Path="Source/Warp3D/Warp3D.csproj" />
+  </Folder>
+</Solution>
