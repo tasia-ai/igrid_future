@@ -75,13 +75,31 @@ to `<Compile Include>`, so the addon is self-contained on that point.
 `System.Net.Quic` is present in the .NET 10 runtime; `QuicConnection.IsConnected`
 still does not exist, which the code already works around with a manual flag.
 
+## BinaryFormatter — already resolved upstream, nothing to do
+
+An earlier draft of this file claimed `BinaryFormatter` was still present and
+that OAR/IAR loading was broken on .NET 10. **That was wrong**, and worth
+recording so nobody re-chases it. Tranquillity has no `BinaryFormatter` usage:
+
+- No `new BinaryFormatter()` anywhere in the tree.
+- No `EnableUnsafeBinaryFormatterSerialization` in any `.csproj`/`.props`/`.targets`.
+- A full `Tranquillity.sln` Release build produces zero `SYSLIB0011` warnings.
+
+All three places that used to hold it were rewritten upstream:
+
+| File | Replacement |
+|---|---|
+| `FlotsamAssetCache.cs` | `XmlSerializer(typeof(AssetBase))`, with a `format2` subdirectory so legacy binary cache files are never read |
+| `KeyframeMotion.cs` | an explicit length-prefixed binary "KFM1" format; the legacy path is refused as a graceful degradation |
+| `XMRInstAbstract.cs` | explicit per-type opcodes. `SYSERIAL`/`THROWNEX` remain only as enum values for wire compatibility with old saved state, and `SYSUNSUP` marks a type that cannot be serialized — all three **throw on read**, caught by `LoadScriptState`, which resets the script and re-fires `state_entry` |
+
+So the Linux failure
+`BinaryFormatter serialization and deserialization have been removed` does not
+come from Tranquillity's code. It is the i-Grid fork at
+`H:\grid\work\fixtest` that still carries it — see `FlotsamAssetCache.cs`
+around lines 529 and 1015 there. Porting *to* Tranquillity is what removes it.
+
 ## Not touched
 
-- **`BinaryFormatter`** is still in `origin/develop` in
-  `FlotsamAssetCache.cs`, `KeyframeMotion.cs` and `XMRInstAbstract.cs`.
-  This is the same failure that shows on Linux:
-  `BinaryFormatter serialization and deserialization have been removed`.
-  `XMRInstAbstract` handles OAR/IAR, so **OAR loading is broken on .NET 10 until
-  this is replaced.** Migrating to Tranquillity does not fix it; it is separate work.
 - The 18th directory, `addon-modules/TasiaAddons/`, is a container with no
   csproj of its own.
