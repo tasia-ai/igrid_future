@@ -1,0 +1,9 @@
+{
+  "Name": "TasiaAddons.AccessLogger",
+  "Version": "1.0.0",
+  "Description": "Logs all login attempts to access.log with UUID, IP, MAC, hardware ID, and grid URI",
+  "Author": "Tasia",
+  "Target": "Sim",
+  "EntryPoint": "TasiaAddons.AccessLogger.AccessLoggerLoginService",
+  "Enabled": true
+}

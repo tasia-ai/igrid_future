@@ -1,0 +1,9 @@
+{
+  "Name": "TasiaAddons.RestartModule",
+  "Version": "1.0.0",
+  "Description": "Region restart with countdown dialogs",
+  "Author": "Tasia",
+  "Target": "Sim",
+  "EntryPoint": "TasiaAddons.RestartModule.RestartModule",
+  "Enabled": true
+}

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
+        h1 { color: #e94560; }
+        .tos-box { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 30px; margin: 20px 0; }
+        .tos-content { max-height: 400px; overflow-y: auto; padding: 15px; background: #0f3460; border-radius: 4px; margin-bottom: 20px; }
+        .btn { background: #e94560; color: white; border: none; padding: 12px 30px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        .btn:hover { background: #c73650; }
+        .btn:disabled { background: #555; cursor: not-allowed; }
+        .success { color: #4ecca3; font-size: 18px; }
+        .error { color: #e94560; }
+        #result { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Terms of Service</h1>
+    <div class="tos-box">
+        <div class="tos-content">
+            <h2>Grid Terms of Service</h2>
+            <p>By entering this virtual world, you agree to the following terms:</p>
+            <ol>
+                <li>You will treat all residents with respect.</li>
+                <li>You will not engage in harassment, bullying, or hate speech.</li>
+                <li>You will not create or distribute harmful, illegal, or offensive content.</li>
+                <li>You will not attempt to exploit, hack, or disrupt grid operations.</li>
+                <li>You understand that your account may be suspended for violations.</li>
+                <li>You respect the intellectual property rights of others.</li>
+                <li>You understand that this is a virtual world and actions here have no real-world legal standing beyond grid rules.</li>
+            </ol>
+            <p><em>Version 1.0 — Last updated: July 2026</em></p>
+        </div>
+
+        <div>
+            <label>
+                <input type="checkbox" id="agreeCheck" onchange="document.getElementById('acceptBtn').disabled = !this.checked">
+                I have read and agree to the Terms of Service
+            </label>
+        </div>
+        <br>
+        <button class="btn" id="acceptBtn" disabled onclick="acceptToS()">I Agree</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Get user ID from URL parameter: ?user=<uuid>
+        const params = new URLSearchParams(window.location.search);
+        const userId = params.get('user');
+        const tosVersion = params.get('version') || '1';
+
+        if (!userId) {
+            document.getElementById('result').innerHTML = '<p class="error">Missing user ID. Access this page from your viewer login.</p>';
+            document.getElementById('acceptBtn').disabled = true;
+        }
+
+        async function acceptToS() {
+            const btn = document.getElementById('acceptBtn');
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            try {
+                const response = await fetch('/tos/accept', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, tos_version: parseInt(tosVersion) })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('result').innerHTML =
+                        '<p class="success">Thank you! You have accepted the Terms of Service (v' + tosVersion + ').</p>' +
+                        '<p>You can now close this page and log in to the grid.</p>';
+                } else {
+                    document.getElementById('result').innerHTML = '<p class="error">Error: ' + (data.error || 'Unknown error') + '</p>';
+                    btn.disabled = false;
+                    btn.textContent = 'I Agree';
+                }
+            } catch (err) {
+                document.getElementById('result').innerHTML = '<p class="error">Connection error: ' + err.message + '</p>';
+                btn.disabled = false;
+                btn.textContent = 'I Agree';
+            }
+        }
+    </script>
+</body>
+</html>

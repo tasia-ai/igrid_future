@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>TasiaAddons.Abstractions</AssemblyName>
+    <RootNamespace>TasiaAddons.Abstractions</RootNamespace>
+    <Company>Tasia Extensions</Company>
+    <Product>Tasia Addons - Abstractions</Product>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="xmlrpc" HintPath="..\..\Library\xmlrpc.dll" />
+  </ItemGroup>
+</Project>

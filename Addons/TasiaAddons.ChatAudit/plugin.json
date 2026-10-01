@@ -1,0 +1,9 @@
+{
+  "Name": "TasiaAddons.ChatAudit",
+  "Version": "1.0.0",
+  "Description": "Chat and IM audit logging",
+  "Author": "Tasia",
+  "Target": "Sim",
+  "EntryPoint": "TasiaAddons.ChatAudit.ChatAuditModule",
+  "Enabled": true
+}

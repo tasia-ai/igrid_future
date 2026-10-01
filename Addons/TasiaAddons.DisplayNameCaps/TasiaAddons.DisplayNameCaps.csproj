@@ -1,0 +1,68 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>TasiaAddons.DisplayNameCaps</AssemblyName>
+    <RootNamespace>TasiaAddons.DisplayNameCaps</RootNamespace>
+    <Company>Tasia Extensions</Company>
+    <Product>Tasia Addons - DisplayNameCaps</Product>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="log4net">
+      <HintPath>$(SolutionDir)/bin/log4net.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Framework">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Framework.Servers">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.Servers.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Framework.Servers.HttpServer">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.Servers.HttpServer.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Region.Framework">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Region.Framework.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Capabilities">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Capabilities.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="OpenSim.Services.Interfaces">
+      <HintPath>$(SolutionDir)/bin/OpenSim.Services.Interfaces.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="XMLRPC">
+      <HintPath>$(SolutionDir)/bin/XMLRPC.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <ProjectReference Include="$(SolutionDir)/Addons/TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="xmlrpc" HintPath="..\..\Library\xmlrpc.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\OpenSim.Capabilities\OpenSim.Capabilities.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\OpenSim.Framework\OpenSim.Framework.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\OpenSim.Framework.Servers\OpenSim.Framework.Servers.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\OpenSim.Framework.Servers.HttpServer\OpenSim.Framework.Servers.HttpServer.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\OpenSim.Region.Framework\OpenSim.Region.Framework.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\OpenSim.Services.Interfaces\OpenSim.Services.Interfaces.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="log4net" Version="3.3.2" />
+  </ItemGroup>
+</Project>

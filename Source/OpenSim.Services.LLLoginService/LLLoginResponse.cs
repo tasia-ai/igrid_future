@@ -155,9 +155,17 @@ public class LLLoginResponse : OpenSim.Services.Interfaces.LoginResponse
     private string gendered;
     private string everLoggedIn;
     private string login;
-    private uint simPort;
-    private uint simHttpPort;
-    private string simAddress;
+private uint simPort;
+private uint simHttpPort;
+private string simAddress;
+
+// QUIC viewer transport. Carried over from the Amber/i-Grid fork so that
+// consumers compiled against it (TasiaAddons.MACAudit) keep working, and so the
+// QUIC server module has somewhere to publish its endpoint when it is ported.
+// Nothing populates these while QUIC is disabled: SimQuicHost stays null and
+// SimQuicPort stays 0, which is how callers detect "no QUIC on this sim".
+private string simQuicHost;
+private uint simQuicPort;
     private string agentAccess;
     private string agentAccessMax;
     private Int32 circuitCode;
@@ -902,6 +910,18 @@ public class LLLoginResponse : OpenSim.Services.Interfaces.LoginResponse
     {
         get { return simAddress; }
         set { simAddress = value; }
+    }
+
+    public string SimQuicHost
+    {
+        get { return simQuicHost; }
+        set { simQuicHost = value; }
+    }
+
+    public uint SimQuicPort
+    {
+        get { return simQuicPort; }
+        set { simQuicPort = value; }
     }
 
     public UUID AgentID
