@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 using Nini.Config;
 using OpenMetaverse;
@@ -9,15 +9,7 @@ using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 using OpenSim.Region.Framework.Scenes.Serialization;
 using OpenSim.Services.Interfaces;
-using Mono.Addins;
-
-[assembly: Addin("TasiaAddons.Marketplace", "1.0.0")]
-[assembly: AddinDescription("Marketplace send endpoint module")]
-[assembly: AddinDependency("OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]
-
 namespace TasiaAddons.Marketplace;
-
-[Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "MarketplaceRegionModule")]
 public class MarketplaceRegionModule : INonSharedRegionModule
 {
     private Scene m_scene;

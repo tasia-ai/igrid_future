@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -12,18 +12,10 @@ using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
-using Mono.Addins;
 using Caps = OpenSim.Framework.Capabilities.Caps;
 using OSDArray = OpenMetaverse.StructuredData.OSDArray;
 using OSDMap = OpenMetaverse.StructuredData.OSDMap;
-
-[assembly: Addin("TasiaAddons.FriendConference", "1.0.0")]
-[assembly: AddinDescription("Ad-hoc friend conference IM module")]
-[assembly: AddinDependency("OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]
-
 namespace TasiaAddons.FriendConference;
-
-[Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "FriendConferenceModule")]
 public class FriendConferenceModule : ISharedRegionModule
 {
     private sealed class SessionInfo

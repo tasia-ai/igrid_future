@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>TasiaAddons.ChatAudit</AssemblyName>
     <RootNamespace>TasiaAddons.ChatAudit</RootNamespace>
@@ -35,9 +35,7 @@
   <ItemGroup>
     <ProjectReference Include="$(SolutionDir)/Addons/TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Mono.Addins" Version="1.4.1" />
-  </ItemGroup>
+
   <ItemGroup>
     <Reference Include="xmlrpc" HintPath="..\..\Library\xmlrpc.dll" />
   </ItemGroup>

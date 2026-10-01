@@ -1,10 +1,10 @@
 using System.Reflection;
 using OpenSim.Framework;
 
-namespace TasiaAddons.Quic;
+namespace TasiaAddons.RemoteSound;
 
 /// <summary>
-/// Registers QuicServerModule as a region module.
+/// Registers RemoteSoundModule as a region module.
 ///
 /// i-Grid declared this with Mono.Addins [Extension]/[assembly: Addin]
 /// attributes. Tranquillity retired Mono.Addins outright - PluginManager is a
@@ -18,7 +18,7 @@ public class PluginRegistration : IPluginRegistryProvider
 {
     public void RegisterPlugins(PluginRegistry registry)
     {
-        RegisterByName(registry, "/OpenSim/RegionModules", "QuicServerModule", "TasiaAddons.Quic.QuicServerModule", "QuicServerModule", "0.9");
+        RegisterByName(registry, "/OpenSim/RegionModules", "RemoteSoundModule", "TasiaAddons.RemoteSound.RemoteSoundModule", "RemoteSoundModule", "0.9");
     }
 
     private static void RegisterByName(PluginRegistry registry, string extensionPath, string id, string typeName, string displayName, string version)

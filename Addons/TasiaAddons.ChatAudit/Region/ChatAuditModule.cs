@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -17,15 +17,8 @@ using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 using TasiaAddons.Abstractions;
-using Mono.Addins;
-
-[assembly: Addin("TasiaAddons.ChatAudit", "1.0.0")]
-[assembly: AddinDescription("Chat audit region module")]
-[assembly: AddinDependency("OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]
-
 namespace TasiaAddons.ChatAudit
 {
-    [Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "ChatAuditModule")]
     public class ChatAuditModule : ISharedRegionModule, ITasiaAddonsFeature
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(ChatAuditModule));

@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 
 using System;
 using System.Collections.Concurrent;
@@ -13,14 +13,7 @@ using OpenSim.Framework;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 using TasiaAddons.Abstractions;
-using Mono.Addins;
-
-[assembly: Addin("TasiaAddons.MACAudit", "1.0.0")]
-[assembly: AddinDependency("OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]
-
 namespace TasiaAddons.MACAudit;
-
-[Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "MacAuditRegionModule")]
 public class MacAuditRegionModule : ISharedRegionModule, ITasiaAddonsAuditService, ITasiaAddonsFeature
 {
     private static readonly ILog Log = LogManager.GetLogger(typeof(MacAuditRegionModule));

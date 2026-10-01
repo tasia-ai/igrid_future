@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -13,15 +13,7 @@ using OpenSim.Framework;
 using OpenSim.Framework.Console;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
-using Mono.Addins;
-
-[assembly: Addin("TasiaAddons.SharedInventory", "1.2.0")]
-[assembly: AddinDescription("Shared RW inventory synchronizer with moderation")]
-[assembly: AddinDependency("OpenSim.Region.Framework", OpenSim.VersionInfo.VersionNumber)]
-
 namespace TasiaAddons.SharedInventory;
-
-[Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule", Id = "SharedInventoryModule")]
 public class SharedInventoryModule : ISharedRegionModule
 {
     private static readonly ILog Log = LogManager.GetLogger(MethodBase.GetCurrentMethod()?.DeclaringType);

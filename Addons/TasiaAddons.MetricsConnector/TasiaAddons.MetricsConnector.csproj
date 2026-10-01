@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>TasiaAddons.MetricsConnector</AssemblyName>
     <RootNamespace>TasiaAddons.MetricsConnector</RootNamespace>
@@ -66,7 +66,5 @@
   <ItemGroup>
     <PackageReference Include="log4net" Version="3.3.2" />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Mono.Addins" Version="1.4.1" />
-  </ItemGroup>
+
 </Project>

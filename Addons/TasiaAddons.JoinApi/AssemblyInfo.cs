@@ -1,4 +1,4 @@
-﻿// Assembly metadata for TasiaAddons.JoinApi.
+// Assembly metadata for TasiaAddons.JoinApi.
 //
 // NOTE: there is deliberately NO [assembly: Addin] attribute here.
 // This is a Robust IServiceConnector, not an OpenSim application plugin.
