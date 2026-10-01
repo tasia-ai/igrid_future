@@ -413,7 +413,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.Interfaces
               void llSetText(string text, LSL_Vector color, double alpha);
               void llSetTexture(string texture, int face);
               void llSetTextureAnim(int mode, int face, int sizex, int sizey, double start, double length, double rate);
-              void llSetTimerEvent(double sec);
+               void llSetTimerEvent(double sec);
+              LSL_Key maRequestAsset(LSL_Key uuid, LSL_String login_uri);
               void llSetTorque(LSL_Vector torque, int local);
               void llSetTouchText(string text);
               void llSetVehicleFlags(int flags);

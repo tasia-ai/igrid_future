@@ -315,6 +315,67 @@ namespace OpenSim.Services.HypergridService
                 RegionLocY = finalDestination.RegionLocY
             };
 
+            // SECURITY - HomeLaunchAuthorization (DHPG plan hg_homeagent_session_bind, item 1).
+            //
+            // Only a password login may launch an agent from nothing. A password login reaches
+            // this method in-process with fromLogin: true. EVERY other caller arrives over HTTP
+            // at /homeagent, and before this check a bare local UUID was enough: the handler
+            // invented a ServiceSessionID, wrote a travel row and seated the agent - no password,
+            // no prior trip, no matching token.
+            //
+            // So a non-login launch must be authorised by a travel session that already exists:
+            // same session, same user, and the token WE last issued. Note the presented token is
+            // read here, before the rotation below overwrites it.
+            if (!fromLogin)
+            {
+                string presentedToken = agentCircuit.ServiceSessionID;
+                // DEPENDENCY: a local login leaves a row in hg_traveling_data naming THIS grid,
+                // with a token. That row is what authorises a resident's FIRST hypergrid hop out
+                // of home - without it the check below refuses with RefuseNoSession and nobody can
+                // leave the grid at all.
+                HGTravelingData hgt = m_Database.Get(agentCircuit.SessionID);
+                TravelingAgentInfo existingTravel = hgt is null ? null : new TravelingAgentInfo(hgt);
+
+                HomeLaunchDecision decision = HomeLaunchAuthorization.Decide(
+                        fromLogin: false,
+                        travelSessionExists: existingTravel is not null,
+                        travelUserID: existingTravel is null ? UUID.Zero : existingTravel.UserID,
+                        agentID: agentCircuit.AgentID,
+                        storedToken: existingTravel?.ServiceToken,
+                        presentedToken: presentedToken,
+                        travelGridExternalName: existingTravel?.GridExternalName,
+                        homeGridName: m_GridName,
+                        targetGridName: gridName);
+
+                if (decision != HomeLaunchDecision.Allow)
+                {
+                    switch (decision)
+                    {
+                        case HomeLaunchDecision.RefuseNoSession:
+                            m_log.WarnFormat("[USER AGENT SERVICE]: RefuseNoSession: no travel session for {0} ({1} {2})",
+                                agentCircuit.SessionID, agentCircuit.firstname, agentCircuit.lastname);
+                            break;
+                        case HomeLaunchDecision.RefuseUserMismatch:
+                            m_log.WarnFormat("[USER AGENT SERVICE]: RefuseUserMismatch: session {0} belongs to {1}, not {2}",
+                                agentCircuit.SessionID, existingTravel.UserID, agentCircuit.AgentID);
+                            break;
+                        case HomeLaunchDecision.RefuseWrongToken:
+                            m_log.WarnFormat("[USER AGENT SERVICE]: RefuseWrongToken: session {0} presented {1}, stored token was issued for {2}",
+                                agentCircuit.SessionID,
+                                HomeLaunchAuthorization.TokenProblem(presentedToken),
+                                existingTravel.GridExternalName);
+                            break;
+                        case HomeLaunchDecision.RefuseAlreadyHome:
+                            m_log.WarnFormat("[USER AGENT SERVICE]: RefuseAlreadyHome: session {0} is already on this grid",
+                                agentCircuit.SessionID);
+                            break;
+                    }
+
+                    reason = HomeLaunchAuthorization.ReasonFor(decision);
+                    return false;
+                }
+            }
+
             // Generate a new service session
             agentCircuit.ServiceSessionID = region.ServerURI + ";" + UUID.Random();
             TravelingAgentInfo travel = CreateTravelInfo(agentCircuit, region, fromLogin, out TravelingAgentInfo old);
@@ -442,6 +503,41 @@ namespace OpenSim.Services.HypergridService
             return htgGrid.Equals(thisGridExternalName, StringComparison.InvariantCultureIgnoreCase);
         }
 
+        // SECURITY (DHPG plan hg_homeagent_session_bind, item 2): user-aware variants.
+        // The session-only checks answer "is SOME agent on this session coming home" and
+        // "does this session hold this token". Neither asks WHO. A caller holding a live
+        // session id could therefore be treated as a different user returning home. The
+        // local gatekeeper uses these overloads so the agent id must match the travel row.
+        public bool IsAgentComingHome(UUID sessionID, UUID agentID, string thisGridExternalName)
+        {
+            HGTravelingData hgt = m_Database.Get(sessionID);
+            if (hgt is null || hgt.Data is null)
+                return false;
+
+            if (new UUID(hgt.UserID) != agentID)
+            {
+                m_log.WarnFormat("[USER AGENT SERVICE]: RefuseUserMismatch: session {0} is not agent {1}", sessionID, agentID);
+                return false;
+            }
+
+            return IsAgentComingHome(sessionID, thisGridExternalName);
+        }
+
+        public bool VerifyAgent(UUID sessionID, UUID agentID, string token)
+        {
+            HGTravelingData hgt = m_Database.Get(sessionID);
+            if (hgt is null)
+                return false;
+
+            if (new UUID(hgt.UserID) != agentID)
+            {
+                m_log.WarnFormat("[USER AGENT SERVICE]: RefuseUserMismatch: token presented for session {0} by agent {1}", sessionID, agentID);
+                return false;
+            }
+
+            return VerifyAgent(sessionID, token);
+        }
+
         public bool VerifyClient(UUID sessionID, string reportedIP)
         {
             if (m_BypassClientVerification)
@@ -455,6 +551,16 @@ namespace OpenSim.Services.HypergridService
                 return false;
 
             TravelingAgentInfo travel = new(hgt);
+
+            // SECURITY: fail closed when no client IP was ever recorded for this session.
+            // ClientIPAddress is only filled on a login-originated trip; a travel row created by
+            // any other path has it empty, and comparing empty to empty passed every check.
+            // DHPG security plan hg_homeagent_session_bind, item 4.
+            if (string.IsNullOrEmpty(travel.ClientIPAddress))
+            {
+                m_log.WarnFormat("[USER AGENT SERVICE]: Refusing client verification for session {0}: no client IP recorded", sessionID);
+                return false;
+            }
 
             bool result = travel.ClientIPAddress == reportedIP;
             if(!result && !string.IsNullOrEmpty(m_MyExternalIP))

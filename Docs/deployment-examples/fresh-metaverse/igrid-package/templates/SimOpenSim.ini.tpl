@@ -35,7 +35,7 @@
 ;; ---------------------------------------------------------------------------
 ;;  Estate
 ;;  In grid mode the owner account must already exist at the grid (Robust).
-;;  The manager creates it on first run (see regions.yaml → estate.owner).
+;;  The manager creates it on first run (see regions.yaml â†’ estate.owner).
 ;; ---------------------------------------------------------------------------
 
 [Estates]
@@ -46,13 +46,14 @@
     InternalPort = {{PORT}}
     http_listener_port = {{SIM_HTTP_PORT}}
     ExternalHostName = "{{REGION_HOST}}"
-    ;; Cute per-region 404 page — file is at 404/{{NAME}}.html relative to sim CWD
+    ;; Cute per-region 404 page â€” file is at 404/{{NAME}}.html relative to sim CWD
      http_404 = "404/{{NAME}}.html"
      MaxAgentConnections = 100
 
      ;; Explicit source addresses allowed to call internal control-plane endpoints.
      ;; Keep this list narrow; loopback is always trusted. Do not add public clients or arbitrary grids.
-     ControlPlaneTrustedHosts = 127.0.0.1
+     ControlPlaneTrustedHosts = 127.0.0.1, 51.89.54.203, 51.68.184.194, 116.202.127.9, 194.140.198.33, 167.17.76.141
+HttpBodyMaxLenMAX = 5242880
 
 [ClientStack.LindenUDP]
     ; DisableFacelights = "false"
@@ -111,7 +112,7 @@
 ;; ---------------------------------------------------------------------------
 
 [Modules]
-    ;; Grid services — remote Robust
+    ;; Grid services â€” remote Robust
     GridServices            = RegionGridServicesConnector
     AvatarServices          = RemoteAvatarServicesConnector
     SimulationServices      = RemoteSimulationConnectorModule
@@ -276,7 +277,7 @@
 ;; ---------------------------------------------------------------------------
 ;;  QUIC transport per-region (fixed native listener port per region)
 ;;  AdvertiseHost + Port feed RegionInfo.QuicHost/QuicPort, which the grid
-;;  database stores at sim startup — that is what login/teleport/neighbour
+;;  database stores at sim startup â€” that is what login/teleport/neighbour
 ;;  events advertise to viewers for direct native connections. Keep them
 ;;  accurate; never derive ports with arithmetic here.
 ;; ---------------------------------------------------------------------------
@@ -295,7 +296,7 @@
     AllowLegacyLLUDP = true
 
 ;; ---------------------------------------------------------------------------
-;;  HG authorization — local Python auth endpoint
+;;  HG authorization â€” local Python auth endpoint
 ;; ---------------------------------------------------------------------------
 
 [AuthorizationService]
@@ -303,7 +304,7 @@
     ResponseOnFailure = false
 
 ;; ---------------------------------------------------------------------------
-;;  HG inventory access — allow hypergrid visitors full inventory
+;;  HG inventory access â€” allow hypergrid visitors full inventory
 ;; ---------------------------------------------------------------------------
 
 [HGInventoryAccessModule]
@@ -331,7 +332,7 @@
     MinCacheFiles = 0
 
 ;; ---------------------------------------------------------------------------
-;;  Estate data — local (per-sim)
+;;  Estate data â€” local (per-sim)
 ;; ---------------------------------------------------------------------------
 
 [EstateDataStore]
@@ -352,7 +353,7 @@
     AvatarTerminationTime = 10
 
 [BulletSim]
-    ;; Placeholder section — filled with parameters when physics=BulletSim.
+    ;; Placeholder section â€” filled with parameters when physics=BulletSim.
 [Map]
     GenerateMaptiles = true
     MapImageModule = "MapImageModule"

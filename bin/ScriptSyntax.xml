@@ -10006,5 +10006,54 @@
   <key>arguments</key><undef/>
   <key>tooltip</key><string>Returns the name of the currently enabled wind plugin.</string>
  </map>
+ <key>maRequestAsset</key>
+ <map>
+  <key>arguments</key><array>
+   <map><key>uuid</key><map><key>type</key><string>key</string></map></map>
+   <map><key>login_uri</key><map><key>type</key><string>string</string></map></map>
+  </array>
+  <key>return</key><string>key</string>
+  <key>tooltip</key><string>Imports an asset from another OpenSim grid over Hypergrid into the local grid, permanently, and returns the LOCAL asset uuid to pass to llPlaySound, llSetTexture and the rest of the audio/texture API. Returns NULL_KEY if the remote asset cannot be fetched. If the asset is already local, the existing uuid is returned with no refetch and no duplicate.</string>
+ </map>
+ <key>osAI</key>
+ <map>
+  <key>return</key><string>string</string>
+  <key>arguments</key><array>
+   <map><key>systemPrompt</key><map><key>type</key><string>string</string></map></map>
+   <map><key>userPrompt</key><map><key>type</key><string>string</string></map></map>
+   <map><key>maxTokens</key><map><key>type</key><string>integer</string></map></map>
+   <map><key>temperature</key><map><key>type</key><string>float</string></map></map>
+  </array>
+  <key>tooltip</key><string>Sends a prompt to the configured language model and returns its reply. Requires a working model backend; falls back to an error string when none is reachable.</string>
+ </map>
+ <key>osCreateSmartNPC</key>
+ <map>
+  <key>return</key><string>string</string>
+  <key>arguments</key><array>
+   <map><key>firstName</key><map><key>type</key><string>string</string></map></map>
+   <map><key>lastName</key><map><key>type</key><string>string</string></map></map>
+   <map><key>position</key><map><key>type</key><string>vector</string></map></map>
+   <map><key>notecardName</key><map><key>type</key><string>string</string></map></map>
+   <map><key>expertise</key><map><key>type</key><string>string</string></map></map>
+  </array>
+  <key>tooltip</key><string>Spawns a smart NPC at a position with a name, an optional notecard to wear or use as a starting profile, and an expertise string that steers its conversation.</string>
+ </map>
+ <key>osSetSmartNPC</key>
+ <map>
+  <key>arguments</key><array>
+   <map><key>npcKey</key><map><key>type</key><string>key</string></map></map>
+   <map><key>expertise</key><map><key>type</key><string>string</string></map></map>
+  </array>
+  <key>tooltip</key><string>Sets the expertise of an existing smart NPC, replacing the one it was created with.</string>
+ </map>
+ <key>osNpcInstantMessage</key>
+ <map>
+  <key>arguments</key><array>
+   <map><key>npcKey</key><map><key>type</key><string>key</string></map></map>
+   <map><key>destination</key><map><key>type</key><string>key</string></map></map>
+   <map><key>message</key><map><key>type</key><string>string</string></map></map>
+  </array>
+  <key>tooltip</key><string>Sends an instant message to an avatar or NPC, from the point of view of a smart NPC.</string>
+ </map>
 </map>
 </map></llsd>
