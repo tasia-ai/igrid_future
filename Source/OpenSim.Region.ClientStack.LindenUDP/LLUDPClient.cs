@@ -254,6 +254,17 @@ public sealed class LLUDPClient
     public void Shutdown()
     {
         IsConnected = false;
+
+        // Release a non-UDP transport and drop the reference. Closing unsubscribes
+        // the transport from its connection's packet event; without this the
+        // connection keeps the transport alive and every later send sees a dead
+        // transport it has to notice for itself.
+        if (Transport != null)
+        {
+            Transport.Close("client shutdown");
+            Transport = null;
+        }
+
         for (int i = 0; i < THROTTLE_CATEGORY_COUNT; i++)
         {
             m_packetOutboxes[i].Clear();

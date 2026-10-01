@@ -1,6 +1,4 @@
-using OpenSim.Framework.Console;
-using OpenSim.Region.Framework.Interfaces;
-using OpenSim.Region.Framework.Services;
+using OpenSim.Framework;
 
 namespace TasiaAddons.Quic;
 
@@ -9,12 +7,15 @@ namespace TasiaAddons.Quic;
 ///
 /// Tranquillity does not load region modules from Mono.Addins [Extension]
 /// attributes; the [Extension] that i-Grid relied on would compile here and
-/// then silently never fire. This provider is the Tranquillity mechanism, the
+/// then silently never fire. This provider is the Tranquillity mechanism - the
 /// same one Addons/Gloebit.GloebitMoneyModule uses.
+///
+/// Note the member name is RegisterPlugins, not Register: that is what
+/// IPluginRegistryProvider actually declares.
 /// </summary>
 public class PluginRegistration : IPluginRegistryProvider
 {
-    public void Register(IPluginRegistry registry)
+    public void RegisterPlugins(PluginRegistry registry)
     {
         registry.Register("/OpenSim/RegionModules",
             new PluginDescriptor("QuicServerModule", typeof(QuicServerModule),

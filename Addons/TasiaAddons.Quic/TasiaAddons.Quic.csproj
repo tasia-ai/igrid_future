@@ -9,12 +9,16 @@
   <ItemGroup>
     <!-- Robust side: the QUIC proxy ServiceConnector, moved out of OpenSim.Server.Handlers.dll -->
     <Compile Include="QuicProxyConnector.cs" />
-      <Compile Include="QuicViewerTransport.cs" />
-      <Compile Include="PacketFraming.cs" />
-      <Compile Include="QuicServerConfig.cs" />
-      <Compile Include="QuicClientConnection.cs" />
-
     <Compile Include="QuicServerModule.cs" />
+    <Compile Include="QuicViewerTransport.cs" />
+    <Compile Include="PacketFraming.cs" />
+    <Compile Include="QuicServerConfig.cs" />
+    <Compile Include="QuicClientConnection.cs" />
+    <!-- Tranquillity discovers region modules through IPluginRegistryProvider,
+         not Mono.Addins [Extension]. Must be listed explicitly: this project sets
+         EnableDefaultCompileItems=false, so an unlisted file is never compiled and
+         its errors never surface. -->
+    <Compile Include="PluginRegistration.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -87,8 +91,5 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="log4net" Version="3.3.2" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Mono.Addins" Version="1.4.1" />
   </ItemGroup>
 </Project>

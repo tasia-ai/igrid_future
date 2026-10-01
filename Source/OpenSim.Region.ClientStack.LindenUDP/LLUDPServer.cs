@@ -1148,12 +1148,25 @@ public class LLUDPServer : OpenSimUDPBase
         // above, so these bytes are exactly what UDP would have carried; they just
         // leave by another route and skip LLUDP resend tracking entirely, because
         // QUIC already guarantees ordered reliable delivery.
-        if (udpClient.Transport != null && udpClient.Transport.IsConnected)
+        if (udpClient.Transport is { } transport)
         {
-            byte[] sendData = new byte[dataLength];
-            Buffer.BlockCopy(buffer.Data, 0, sendData, 0, dataLength);
-            udpClient.Transport.SendPacket(sendData, isReliable);
+            if (transport.IsConnected)
+            {
+                byte[] sendData = new byte[dataLength];
+                Buffer.BlockCopy(buffer.Data, 0, sendData, 0, dataLength);
+                transport.SendPacket(sendData, isReliable);
+                FreeUDPBuffer(buffer);
+                return;
+            }
+
+            // The transport died but udpClient.RemoteEndPoint still points at the
+            // QUIC endpoint, so falling through to SyncSend would push LLUDP
+            // datagrams at a port that discards them - and it would start tracking
+            // the packet in NeedAcks, which nothing can ever acknowledge, jamming
+            // DequeueOutgoing on its >50 unacked guard. Drop the transport instead
+            // so the no-receive timeout can retire the client cleanly.
             FreeUDPBuffer(buffer);
+            udpClient.Transport = null;
             return;
         }
 
@@ -1280,7 +1293,13 @@ public class LLUDPServer : OpenSimUDPBase
             // Route UseCircuitCode through dedicated handler that associates the transport
             if (packet.Type == PacketType.UseCircuitCode)
             {
-                HandleQuicUseCircuitCode(endPoint, (UseCircuitCodePacket)packet, transport);
+                    // Get client creation off this thread, exactly as the UDP path does.
+                // AddClient does auth, DB lookups and lock(this); running it inline
+                // would head-of-line block every later frame on the same connection,
+                // and any throw would tear the whole QUIC connection down.
+                Util.FireAndForget(
+                    o => HandleQuicUseCircuitCode(endPoint, (UseCircuitCodePacket)packet, transport),
+                    null, "LLUDPServer.HandleQuicUseCircuitCode");
                 if (packet.Header.Reliable)
                     SendAckImmediate(transport, packet.Header.Sequence);
                 return;
@@ -1289,6 +1308,18 @@ public class LLUDPServer : OpenSimUDPBase
             // For all other packets, synthesize a UDPPacketBuffer and route through
             // the standard PacketReceived dispatch path.
             UDPPacketBuffer buffer = GetNewUDPBuffer(endPoint);
+
+            // A UDP receive can never overrun buf.Data, because the kernel hands
+            // back at most one datagram. A QUIC frame is length-prefixed by the
+            // peer, so that invariant no longer holds - bound it before copying or
+            // BlockCopy throws and takes the connection down with it.
+            if (payload.Length > buffer.Data.Length)
+            {
+                RecordMalformedInboundPacket(endPoint);
+                FreeUDPBuffer(buffer);
+                return;
+            }
+
             Buffer.BlockCopy(payload, 0, buffer.Data, 0, payload.Length);
             buffer.DataLength = payload.Length;
             PacketReceived(buffer);
@@ -1395,8 +1426,8 @@ public class LLUDPServer : OpenSimUDPBase
                     }
                 }
 
-                if (aCircuit.teleportFlags <= 0)
-                    client.SendRegionHandshake();
+            if (aCircuit != null && aCircuit.teleportFlags <= 0)
+                client.SendRegionHandshake();
             }
             else
             {

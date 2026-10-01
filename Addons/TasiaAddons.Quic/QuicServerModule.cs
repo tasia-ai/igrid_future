@@ -47,7 +47,6 @@ using OpenSim.Region.Framework.Scenes;
 
 
 using OpenSim.Region.ClientStack.LindenUDP;
-using Mono.Addins;
 namespace TasiaAddons.Quic
 {
     /// <summary>

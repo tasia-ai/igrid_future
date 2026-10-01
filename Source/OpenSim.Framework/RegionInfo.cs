@@ -1010,11 +1010,12 @@ public class RegionInfo
             UInt32.TryParse(args["remoting_port"].AsString(), out m_remotingPort);
         if (args["proxy_url"] != null)
             proxyUrl = args["proxy_url"].AsString();
-        if (args["region_type"] != null)
         if (args["quic_host"] != null)
             QuicHost = args["quic_host"].AsString();
         if (args["quic_port"] != null && uint.TryParse(args["quic_port"].AsString(), out uint quicPort))
-            QuicPort = quicPort;            m_regionType = args["region_type"].AsString();
+            QuicPort = quicPort;
+        if (args["region_type"] != null)
+            m_regionType = args["region_type"].AsString();
     }
 
     public static RegionInfo Create(

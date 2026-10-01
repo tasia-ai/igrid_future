@@ -1,9 +1,9 @@
 {
-  "Name": "TasiaAddons.MACAudit",
+  "Name": "TasiaAddons.Quic",
   "Version": "1.0.0",
-  "Description": "MAC address audit logging",
+  "Description": "QUIC viewer transport: carries LL packets to and from a viewer over QUIC instead of UDP, with the central circuit proxy for teleport-aware routing",
   "Author": "Tasia",
   "Target": "Sim",
-  "EntryPoint": "TasiaAddons.MACAudit.MacAuditRegionModule",
+  "EntryPoint": "TasiaAddons.Quic.QuicServerModule",
   "Enabled": true
 }
