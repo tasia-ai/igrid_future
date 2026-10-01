@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) Contributors, http://opensimulator.org/
  * See CONTRIBUTORS.TXT for a full list of copyright holders.
  *
@@ -62,9 +62,6 @@ namespace TasiaAddons.Quic
     ///
     /// Configuration: [ClientStack.Quic] section in OpenSimDefaults.ini
     /// </summary>
-    [Extension(Path = "/OpenSim/RegionModules",
-               NodeName = "RegionModule",
-               Id = "QuicServerModule")]
     public class QuicServerModule : INonSharedRegionModule
     {
         private static readonly ILog m_log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
@@ -257,7 +254,7 @@ namespace TasiaAddons.Quic
         /// viewer stalls after UseCircuitCode and cleanly closes the QUIC
         /// connection (~30s), after which the sim kills the starved child
         /// agent at the 60s LLUDP timeout.
-        /// NOTE: must NOT require a brain lease â€” grids using explicit QUIC
+        /// NOTE: must NOT require a brain lease — grids using explicit QUIC
         /// ports never hold one, which silently disabled quicready for every
         /// bridged (child) circuit.
         /// </summary>
@@ -283,7 +280,7 @@ namespace TasiaAddons.Quic
                 // bridged circuits before invoking this event, so sending it
                 // again here would duplicate the message (harmless to the
                 // viewer but noisy). Nothing further to do when the presence
-                // already exists â€” the direct send covered the handshake.
+                // already exists — the direct send covered the handshake.
             }
             catch (Exception ex)
             {

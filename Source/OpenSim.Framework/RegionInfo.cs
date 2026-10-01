@@ -39,6 +39,10 @@ namespace OpenSim.Framework;
 public class RegionInfo
 {
     private static readonly ILogger m_log = LoggerProvider.CreateLogger(MethodBase.GetCurrentMethod().DeclaringType);
+    private static string NormalizeQuicConfigString(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().Trim('"', '\'');
+    }
     private static readonly string LogHeader = "[REGION INFO]";
 
     public bool commFailTF = false;
@@ -75,6 +79,10 @@ public class RegionInfo
     protected IPEndPoint m_internalEndPoint;
     protected uint m_remotingPort;
 
+    /// <summary>QUIC host to advertise for this region. Empty means QUIC is not offered.</summary>
+    public string QuicHost { get; set; } = string.Empty;
+    /// <summary>QUIC listener port to advertise. 0 means QUIC is not offered.</summary>
+    public uint QuicPort { get; set; } = 0;
     private float m_nonphysPrimMin = 0;
     private int m_nonphysPrimMax = 0;
     private float m_physPrimMin = 0;
@@ -140,7 +148,7 @@ public class RegionInfo
             if (!File.Exists(filename)) // New region config request
             {
                 IniConfigSource newFile = new IniConfigSource();
-                ReadNiniConfig(newFile, configName);
+                ReadNiniConfig(newFile, configName, configSource);
 
                 newFile.Save(filename);
 
@@ -155,7 +163,7 @@ public class RegionInfo
             if (source.Configs[configName] == null)
                 saveFile = true;
 
-            ReadNiniConfig(source, configName);
+            ReadNiniConfig(source, configName, configSource);
 
             if (configName != String.Empty && saveFile)
                 source.Save(filename);
@@ -170,7 +178,7 @@ public class RegionInfo
             //
             IConfigSource xmlsource = new XmlConfigSource(filename);
 
-            ReadNiniConfig(xmlsource, configName);
+            ReadNiniConfig(xmlsource, configName, configSource);
 
             RegionFile = filename;
 
@@ -189,7 +197,7 @@ public class RegionInfo
         string name = elem.GetAttribute("Name");
         string xmlstr = "<Nini>" + xmlNode.OuterXml + "</Nini>";
         XmlConfigSource source = new XmlConfigSource(XmlReader.Create(new StringReader(xmlstr)));
-        ReadNiniConfig(source, name);
+        ReadNiniConfig(source, name, configSource);
 
         m_serverURI = string.Empty;
     }
@@ -446,7 +454,7 @@ public class RegionInfo
         m_extraSettings[keylower] = value;
     }
 
-    private void ReadNiniConfig(IConfigSource source, string name)
+    private void ReadNiniConfig(IConfigSource source, string name, IConfigSource globalSource = null)
     {
         bool creatingNew = false;
 
@@ -697,6 +705,20 @@ public class RegionInfo
         ScopeID = new UUID(config.GetString("ScopeID", UUID.Zero.ToString()));
         allKeys.Remove("ScopeID");
 
+        // QUIC transport - from the [ClientStack.Quic] section. A regions/*.ini
+        // never carries it; it lives in the global OpenSim.ini, which arrives as
+        // globalSource. Fall back to it so a sim can auto-report its QUIC
+        // endpoint to Robust GridService without extra config generation.
+        IConfig quicCfg = source.Configs["ClientStack.Quic"];
+        if (quicCfg == null && globalSource != null)
+            quicCfg = globalSource.Configs["ClientStack.Quic"];
+        if (quicCfg != null)
+        {
+            QuicHost = NormalizeQuicConfigString(quicCfg.GetString("AdvertiseHost", string.Empty));
+            // The advertised port is this sim's own listener port, not the
+            // viewer-facing proxy's AdvertisePort.
+            QuicPort = (uint)quicCfg.GetInt("Port", 0);
+        }
         foreach (String s in allKeys)
         {
             SetExtraSetting(s, config.GetString(s));
@@ -932,6 +954,10 @@ public class RegionInfo
         if (RegionType != String.Empty)
             args["region_type"] = OSD.FromString(RegionType);
 
+        if (!string.IsNullOrWhiteSpace(QuicHost))
+            args["quic_host"] = OSD.FromString(QuicHost);
+        if (QuicPort > 0)
+            args["quic_port"] = OSD.FromString(QuicPort.ToString());
         return args;
     }
 
@@ -985,7 +1011,10 @@ public class RegionInfo
         if (args["proxy_url"] != null)
             proxyUrl = args["proxy_url"].AsString();
         if (args["region_type"] != null)
-            m_regionType = args["region_type"].AsString();
+        if (args["quic_host"] != null)
+            QuicHost = args["quic_host"].AsString();
+        if (args["quic_port"] != null && uint.TryParse(args["quic_port"].AsString(), out uint quicPort))
+            QuicPort = quicPort;            m_regionType = args["region_type"].AsString();
     }
 
     public static RegionInfo Create(
@@ -1032,6 +1061,10 @@ public class RegionInfo
         kvp["alternate_ports"] = "False";
         kvp["server_uri"] = ServerURI;
 
+        if (!string.IsNullOrWhiteSpace(QuicHost))
+            kvp["quicHost"] = QuicHost;
+        if (QuicPort > 0)
+            kvp["quicPort"] = QuicPort.ToString();
         return kvp;
     }
 }

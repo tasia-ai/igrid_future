@@ -48,6 +48,10 @@ namespace OpenSim.Region.ClientStack.LindenUDP;
 public class LLUDPServerShim : INonSharedRegionModule
 {
     protected IConfigSource m_Config;
+    /// <summary>
+    /// Exposes the LLUDPServer for other modules (e.g. QuicServerModule) to use.
+    /// </summary>
+    public LLUDPServer UdpServer => m_udpServer;
     protected LLUDPServer m_udpServer;
 
     #region INonSharedRegionModule
@@ -78,10 +82,16 @@ public class LLUDPServerShim : INonSharedRegionModule
         m_udpServer = new LLUDPServer(listenIP, port, scene.RegionInfo.ProxyOffset, m_Config, scene.AuthenticateHandler);
         scene.RegionInfo.InternalEndPoint.Port = m_udpServer.Port;
         AddScene(scene);
+
+        // TasiaAddons.Quic needs to reach the live LLUDPServer to bind a QUIC
+        // circuit to it. Registration happens in AddRegion (not RegionLoaded)
+        // because the module looks this up as soon as its scene is initialised.
+        scene.RegisterModuleInterface<LLUDPServerShim>(this);
     }
 
     public virtual void RemoveRegion(Scene scene)
     {
+        scene.UnregisterModuleInterface<LLUDPServerShim>(this);
         Stop();
     }
 
@@ -1133,6 +1143,20 @@ public class LLUDPServer : OpenSimUDPBase
         Interlocked.Increment(ref udpClient.PacketsSent);
         PacketsSentCount++;
 
+        // Route via transport (QUIC) if this client has a non-null transport.
+        // ACKs have already been appended and the sequence number already assigned
+        // above, so these bytes are exactly what UDP would have carried; they just
+        // leave by another route and skip LLUDP resend tracking entirely, because
+        // QUIC already guarantees ordered reliable delivery.
+        if (udpClient.Transport != null && udpClient.Transport.IsConnected)
+        {
+            byte[] sendData = new byte[dataLength];
+            Buffer.BlockCopy(buffer.Data, 0, sendData, 0, dataLength);
+            udpClient.Transport.SendPacket(sendData, isReliable);
+            FreeUDPBuffer(buffer);
+            return;
+        }
+
         SyncSend(buffer);
 
         // Keep track of when this packet was sent out (right now)
@@ -1151,6 +1175,238 @@ public class LLUDPServer : OpenSimUDPBase
                 $"[LLUDPSERVER]: Sending packet #{outgoingPacket.SequenceNumber} (rel: {isReliable}, res: {isResend}) to {udpClient.AgentID} from {Scene.Name}");
     }
 
+        #region QUIC Transport Support
+
+        /// <summary>
+        /// Fired when a QUIC circuit is fully established (client created and transport associated).
+        /// The callback receives (circuitCode, agentId, transport).
+        /// Used by QuicServerModule to register the circuit with the QUIC proxy.
+        /// </summary>
+        public event Action<uint, UUID, IViewerTransport> OnQuicCircuitCreated;
+
+        /// <summary>
+        /// Fired when a plain-LLUDP UseCircuitCode arrives from a loopback
+        /// endpoint (bridged viewer traffic from Quick-G on the same host).
+        /// The callback receives (circuitCode, agentId, endPoint).
+        /// Used by QuicServerModule in Quick-G brain mode to complete the
+        /// viewer QUIC handshake (quicready) for circuits that never touch
+        /// a native QUIC listener.
+        /// </summary>
+        public event Action<uint, UUID, IPEndPoint> OnLoopbackCircuitCreated;
+
+        /// <summary>
+        /// Process an incoming packet that arrived via QUIC transport.
+        /// For UseCircuitCode, creates the client and associates the transport.
+        /// For other packets, synthesizes a UDPPacketBuffer and routes through
+        /// the normal PacketReceived dispatch path.
+        /// </summary>
+        /// <param name="payload">Raw LL packet bytes (after QUIC framing stripped).</param>
+        /// <param name="transport">The QUIC transport the packet arrived on.</param>
+        public void ProcessIncomingQuicPacket(byte[] payload, IViewerTransport transport)
+        {
+            IPEndPoint endPoint = transport.RemoteEndPoint;
+
+            // Parse and validate packet (mirrors initial portion of PacketReceived)
+            Packet packet = null;
+            int bufferLen = payload.Length;
+
+            if (bufferLen < 7)
+            {
+                RecordMalformedInboundPacket(endPoint);
+                return;
+            }
+
+            int bufferDataptr = payload[5] + 6;
+            int headerLen = 7;
+            if (bufferDataptr >= bufferLen)
+            {
+                RecordMalformedInboundPacket(endPoint);
+                return;
+            }
+
+            if (payload[bufferDataptr] == 0xFF)
+            {
+                if (bufferDataptr + 1 >= bufferLen)
+                {
+                    RecordMalformedInboundPacket(endPoint);
+                    return;
+                }
+
+                if (payload[bufferDataptr + 1] == 0xFF)
+                    headerLen = 10;
+                else
+                    headerLen = 8;
+            }
+            headerLen += payload[5];
+            if (bufferLen < headerLen)
+            {
+                RecordMalformedInboundPacket(endPoint);
+                return;
+            }
+
+            try
+            {
+                byte[] zerodecodebuffer = null;
+                UDPPacketBuffer decodeBuf = null;
+                if ((payload[0] & Helpers.MSG_ZEROCODED) != 0)
+                {
+                    decodeBuf = GetNewUDPBuffer(null);
+                    zerodecodebuffer = decodeBuf.Data;
+                }
+
+                packet = Packet.BuildPacket(payload, ref bufferLen, zerodecodebuffer);
+
+                if (decodeBuf != null)
+                    FreeUDPBuffer(decodeBuf);
+            }
+            catch (Exception e)
+            {
+                if (IncomingMalformedPacketCount < 100)
+                    m_log.LogDebug("[LLUDPSERVER]: Dropped malformed QUIC packet: " + e.ToString());
+            }
+
+            if (packet == null)
+            {
+                if (IncomingMalformedPacketCount < 100)
+                {
+                    m_log.LogWarning("[LLUDPSERVER]: Malformed data, cannot parse {0} byte QUIC packet from {1}, data {2}:",
+                        payload.Length, transport.RemoteEndPoint,
+                        Utils.BytesToHexString(payload, payload.Length, null));
+                }
+                RecordMalformedInboundPacket(endPoint);
+                return;
+            }
+
+            // Route UseCircuitCode through dedicated handler that associates the transport
+            if (packet.Type == PacketType.UseCircuitCode)
+            {
+                HandleQuicUseCircuitCode(endPoint, (UseCircuitCodePacket)packet, transport);
+                if (packet.Header.Reliable)
+                    SendAckImmediate(transport, packet.Header.Sequence);
+                return;
+            }
+
+            // For all other packets, synthesize a UDPPacketBuffer and route through
+            // the standard PacketReceived dispatch path.
+            UDPPacketBuffer buffer = GetNewUDPBuffer(endPoint);
+            Buffer.BlockCopy(payload, 0, buffer.Data, 0, payload.Length);
+            buffer.DataLength = payload.Length;
+            PacketReceived(buffer);
+        }
+
+        /// <summary>
+        /// Handle a UseCircuitCode packet arriving over QUIC transport.
+        /// Creates the client and associates the IViewerTransport so that
+        /// outgoing packets are sent over QUIC instead of UDP.
+        /// </summary>
+        private void HandleQuicUseCircuitCode(
+            IPEndPoint endPoint, UseCircuitCodePacket uccp, IViewerTransport transport)
+        {
+            m_log.LogDebug(
+                "[LLUDPSERVER]: Handling QUIC UseCircuitCode request for circuit {0} to {1} from IP {2}",
+                uccp.CircuitCode.Code, Scene.Name, endPoint);
+
+            if (IsClientAuthorized(uccp, out AuthenticateResponse sessionInfo))
+            {
+                AgentCircuitData aCircuit = m_circuitManager.GetAgentCircuitData(uccp.CircuitCode.Code);
+                if (aCircuit != null && !string.IsNullOrEmpty(aCircuit.IPAddress))
+                {
+                    try
+                    {
+                        IPAddress aIP = IPAddress.Parse(aCircuit.IPAddress);
+                        if (!endPoint.Address.Equals(aIP))
+                        {
+                            // Private and loopback addresses are exempt: NAT, docker bridges and local
+                            // proxies legitimately change the source address.
+                            bool exempt = IsPrivateOrLoopback(endPoint.Address) || IsPrivateOrLoopback(aIP);
+
+                            if (m_rejectCircuitIPMismatch && !exempt)
+                            {
+                                m_log.LogWarning($"[LLUDPSERVER]: Refusing circuit {uccp.CircuitCode.Code}: UseCircuitCode from {endPoint.Address} but agent was authorised from {aCircuit.IPAddress}");
+                                return;
+                            }
+
+                            m_log.LogDebug($"[LLUDPSERVER]: QUIC UseCircuitCode IP mismatch {endPoint.Address} != {aCircuit.IPAddress}");
+                        }
+                    }
+                    catch
+                    {
+                        m_log.LogDebug($"[LLUDPSERVER]: QUIC UseCircuitCode could not compare IP {endPoint.Address} {aCircuit?.IPAddress}");
+                    }
+                }
+
+                IClientAPI client = AddClient(
+                    uccp.CircuitCode.Code,
+                    uccp.CircuitCode.ID,
+                    uccp.CircuitCode.SessionID,
+                    endPoint,
+                    sessionInfo);
+
+                if (client == null)
+                    return;
+
+                if (aCircuit == null)
+                {
+                    // For teleport UpdateAgent, child already exists as presence before viewer UseCircuitCode arrives.
+                    // Closing here would delete the child that IncomingUpdateChildAgent is waiting to promote to root,
+                    // causing "Found presence unexpectedly still child" after 25s and teleport failure.
+                    // If presence exists as child, keep it and still complete QUIC handshake.
+                    ScenePresence spDbg = Scene.GetScenePresence(uccp.CircuitCode.ID);
+                    m_log.LogWarning("[LLUDPSERVER][DEBUG] QUIC UseCircuitCode {0} for {1} aCircuit==null sp={2} isChild={3} endpoint={4} aCircuitIP={5}",
+                        uccp.CircuitCode.Code, uccp.CircuitCode.ID,
+                        spDbg != null ? "found" : "null",
+                        spDbg != null ? spDbg.IsChildAgent.ToString() : "n/a",
+                        endPoint, "n/a");
+                    ScenePresence sp = spDbg;
+                    if (sp != null && sp.IsChildAgent)
+                    {
+                        m_log.LogDebug("[LLUDPSERVER]: QUIC UseCircuitCode {0} for {1} has no circuit data but child presence exists, keeping child for UpdateAgent", uccp.CircuitCode.Code, uccp.CircuitCode.ID);
+                    }
+                    else
+                    {
+                        Scene.CloseAgent(client.AgentId, true);
+                        return;
+                    }
+                }
+
+                // Associate the QUIC transport with this client so outgoing packets
+                // are sent over QUIC instead of UDP.
+                if (client is LLClientView llClient)
+                {
+                    llClient.UDPClient.Transport = transport;
+                    m_log.LogDebug($"[LLUDPSERVER]: QUIC transport associated with client {client.AgentId}");
+
+                    // Tasia Viewer intentionally queues all non-UseCircuitCode
+                    // packets on a QUIC circuit until the simulator confirms
+                    // that the QUIC path is ready. Send this before the normal
+                    // region handshake so queued CompleteAgentMovement and
+                    // subsequent viewer traffic can flush over QUIC.
+                    llClient.SendGenericMessage("quicready", UUID.Zero, new List<string>());
+
+                    // Notify subscribers (QuicServerModule) that a QUIC circuit was created.
+                    // This triggers proxy registration for teleport-aware routing.
+                    try
+                    {
+                        OnQuicCircuitCreated?.Invoke(uccp.CircuitCode.Code, client.AgentId, transport);
+                    }
+                    catch (Exception ex)
+                    {
+                        m_log.LogWarning($"[LLUDPSERVER] OnQuicCircuitCreated handler error: {ex.Message}");
+                    }
+                }
+
+                if (aCircuit.teleportFlags <= 0)
+                    client.SendRegionHandshake();
+            }
+            else
+            {
+                m_log.LogWarning(
+                    "[LLUDPSERVER]: Ignoring QUIC connection request for {0} to {1} with unknown circuit code {2} from IP {3}",
+                    uccp.CircuitCode.ID, Scene.RegionInfo.RegionName, uccp.CircuitCode.Code, endPoint);
+            }
+        }
+
+        #endregion
     protected void RecordMalformedInboundPacket(IPEndPoint endPoint)
     {
         //if (m_malformedCount < 100)
@@ -1725,6 +1981,28 @@ public class LLUDPServer : OpenSimUDPBase
         };
 
         SendAckImmediate(remoteEndpoint, ack);
+    }
+
+    /// <summary>
+    /// Send an immediate ack over a non-UDP viewer transport.
+    /// Used during QUIC UseCircuitCode handling before a fully mapped
+    /// LLUDPClient is available for normal queued ACK delivery.
+    /// </summary>
+    protected void SendAckImmediate(IViewerTransport transport, uint sequenceNumber)
+    {
+        if (transport == null)
+            return;
+
+        PacketAckPacket ack = new();
+        ack.Header.Reliable = false;
+        ack.Packets = new PacketAckPacket.PacketsBlock[1];
+        ack.Packets[0] = new PacketAckPacket.PacketsBlock
+        {
+            ID = sequenceNumber
+        };
+
+        byte[] packetData = ack.ToBytes();
+        transport.SendPacket(packetData, false);
     }
 
     public virtual void SendAckImmediate(IPEndPoint remoteEndpoint, PacketAckPacket ack)

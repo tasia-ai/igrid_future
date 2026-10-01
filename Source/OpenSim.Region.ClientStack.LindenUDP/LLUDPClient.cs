@@ -113,6 +113,12 @@ public sealed class LLUDPClient
     /// <summary>Environment.TickCount when the last packet was received for this client</summary>
     public int TickLastPacketReceived;
 
+    /// <summary>
+    /// Optional transport abstraction. When non-null, outgoing packets are sent
+    /// via this transport instead of the UDP socket. Set by QuicServerModule
+    /// for QUIC connections.
+    /// </summary>
+    public IViewerTransport Transport { get; set; }
     /// <summary>Smoothed round-trip time. A smoothed average of the round-trip time for sending a
     /// reliable packet to the client and receiving an ACK</summary>
     public float SRTT;

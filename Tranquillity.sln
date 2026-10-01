@@ -221,6 +221,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TasiaAddons.WoWonder", "Add
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tasia.Extensions.SDK", "Source\Tasia.Extensions.SDK\Tasia.Extensions.SDK.csproj", "{16D2F0E1-64FA-4D15-B488-6672DBB67FF6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TasiaAddons.Quic", "Addons\TasiaAddons.Quic\TasiaAddons.Quic.csproj", "{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1503,6 +1505,18 @@ Global
 		{16D2F0E1-64FA-4D15-B488-6672DBB67FF6}.Release|x64.Build.0 = Release|Any CPU
 		{16D2F0E1-64FA-4D15-B488-6672DBB67FF6}.Release|x86.ActiveCfg = Release|Any CPU
 		{16D2F0E1-64FA-4D15-B488-6672DBB67FF6}.Release|x86.Build.0 = Release|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Debug|x64.Build.0 = Debug|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Debug|x86.Build.0 = Debug|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Release|x64.ActiveCfg = Release|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Release|x64.Build.0 = Release|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Release|x86.ActiveCfg = Release|Any CPU
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1614,6 +1628,7 @@ Global
 		{71EB5769-93E5-46F9-AFE8-AE94B57C9462} = {E1748B93-FA13-C50B-BD89-C3B777E73FCB}
 		{84A41CB9-E24B-4DD1-AC36-40BA01BF49CD} = {E1748B93-FA13-C50B-BD89-C3B777E73FCB}
 		{16D2F0E1-64FA-4D15-B488-6672DBB67FF6} = {E886CEB5-B01D-411F-A7A0-72AA1B71761D}
+		{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477} = {E1748B93-FA13-C50B-BD89-C3B777E73FCB}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {A40AD54B-8BC7-41E4-B241-19B59EA65D2A}

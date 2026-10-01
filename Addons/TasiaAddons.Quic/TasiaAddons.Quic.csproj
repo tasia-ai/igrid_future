@@ -1,10 +1,6 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-      <!-- PortWork: TasiaAddons.Quic is intentionally excluded from this build. It needs core
-           changes in Tranquillity: LLLoginResponse.SimQuicHost/SimQuicPort, an
-           IMainServer handler-registration API, and an IViewerTransport abstraction.
-           See docs/port-notes.md. -->
-    <AssemblyName>TasiaAddons.Quic</AssemblyName>
+<AssemblyName>TasiaAddons.Quic</AssemblyName>
     <RootNamespace>TasiaAddons.Quic</RootNamespace>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>$(NoWarn);CA2252</NoWarn>   <!-- System.Net.Quic is a preview API -->
@@ -13,6 +9,8 @@
   <ItemGroup>
     <!-- Robust side: the QUIC proxy ServiceConnector, moved out of OpenSim.Server.Handlers.dll -->
     <Compile Include="QuicProxyConnector.cs" />
+      <Compile Include="QuicViewerTransport.cs" />
+      <Compile Include="PacketFraming.cs" />
       <Compile Include="QuicServerConfig.cs" />
       <Compile Include="QuicClientConnection.cs" />
 

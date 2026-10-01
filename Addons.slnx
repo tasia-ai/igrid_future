@@ -1,4 +1,4 @@
-﻿<Solution>
+<Solution>
   <Folder Name="/Addons/">
     <Project Path="Addons/Gloebit.GloebitMoneyModule/Gloebit.GloebitMoneyModule.csproj" />
     <Project Path="Addons/OpenSim.Addons.Groups/OpenSim.Addons.Groups.csproj" />
@@ -15,6 +15,7 @@
     <Project Path="Addons/TasiaAddons.MACAudit/TasiaAddons.MACAudit.csproj" />
     <Project Path="Addons/TasiaAddons.Marketplace/TasiaAddons.Marketplace.csproj" />
     <Project Path="Addons/TasiaAddons.MetricsConnector/TasiaAddons.MetricsConnector.csproj" />
+    <Project Path="Addons/TasiaAddons.Quic/TasiaAddons.Quic.csproj" />
     <Project Path="Addons/TasiaAddons.RemoteSound/TasiaAddons.RemoteSound.csproj" />
     <Project Path="Addons/TasiaAddons.RestartModule/TasiaAddons.RestartModule.csproj" />
     <Project Path="Addons/TasiaAddons.SharedInventory/TasiaAddons.SharedInventory.csproj" />
