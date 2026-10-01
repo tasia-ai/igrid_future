@@ -945,7 +945,12 @@ public partial class BunchOfCaps
                     prim.RezzerID = creatorID;
                     prim.CreationDate = Util.UnixTimeSinceEpoch();
 
-                    if (grp == null)
+                    if (inner_instance_list.ContainsKey("mesh_name")
+                        && !string.IsNullOrEmpty(inner_instance_list["mesh_name"].AsString()))
+                    {
+                        prim.Name = inner_instance_list["mesh_name"].AsString();
+                    }
+                    else if (grp == null)
                         prim.Name = assetName;
                     else
                         prim.Name = assetName + "#" + i.ToString();
