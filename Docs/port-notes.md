@@ -47,33 +47,69 @@ and any caller compiled against them keep working.
 `SimQuicPort` is 0, which is precisely how `MACAudit` detects "no QUIC on this
 sim" and degrades gracefully. This is additive; it changes no existing behaviour.
 
-## TasiaAddons.Quic — excluded from the build
+## TasiaAddons.Quic — ported, builds, not runtime-tested
 
-`TasiaAddons.Quic` is **not** in `Addons.slnx`. It is the one addon that cannot
-be ported by rewriting project files, because in the i-Grid fork it depended on
-changes made to core that Tranquillity does not have:
+QUIC is now in the build. It needed real core support, not just project-file
+edits, which is why it was held back at first. What that support is:
 
-1. **`LLLoginResponse.SimQuicHost` / `SimQuicPort`** — addressed above, the
-   properties now exist. Population still needs the QUIC server module.
+| New/changed | Where |
+|---|---|
+| `IViewerTransport` — the transport seam | `Source/OpenSim.Framework/IViewerTransport.cs` |
+| `QuicCircuitRegistry` — in-process circuit→endpoint rendezvous | `Source/OpenSim.Framework/QuicCircuitRegistry.cs` |
+| `LLUDPClient.Transport` — optional per-circuit transport | `LLUDPClient.cs` |
+| QUIC region: two events, `ProcessIncomingQuicPacket`, `HandleQuicUseCircuitCode`, `SendAckImmediate(IViewerTransport, uint)` | `LLUDPServer.cs` |
+| `LLUDPServerShim.UdpServer` + self-registration on the scene | `LLUDPServer.cs` |
+| `RegionInfo.QuicHost`/`QuicPort`, `[ClientStack.Quic]` read, pack/unpack/`ToKeyValuePairs` | `RegionInfo.cs` |
+| `PacketFraming.cs`, `QuicViewerTransport.cs`, `PluginRegistration.cs` | `Addons/TasiaAddons.Quic/` |
 
-2. **`IMainServer.AddSimpleStreamHandler` / `RemoveSimpleStreamHandler` /
-   `AddHTTPHandler` / `RemoveHTTPHandler`** — i-Grid put these on `IMainServer`.
-   Tranquillity has them on `IHttpServer`. Same shape as the fix applied to the
-   other 4 addons, so this is mechanical once QUIC is being worked on.
+The send side is ~10 lines because `LLUDPServer.SendPacketFinal` is the single
+choke point every viewer packet already passes through — ACKs are appended and
+the sequence number assigned above the hook. Inbound QUIC packets re-enter the
+normal `PacketReceived` path via a synthesised `UDPPacketBuffer`, which is what
+keeps appended-ACK handling, dedup, ping and the packet inbox unchanged.
 
-3. **`IViewerTransport` — does not exist in Tranquillity at all.** This is the
-   hook that lets the viewer connection be carried over QUIC instead of UDP, and
-   it is the real work: Tranquillity's `LLClientView`/`LLUDPServer` have no
-   transport abstraction, so QUIC needs a genuine design plus core changes.
+Deliberately **not** ported, all separate features with their own risk:
 
-Its own sources are present and complete (`QuicClientConnection.cs` 431 lines,
-`QuicServerConfig.cs` 288 lines, `QuicProxyConnector.cs` 1613 lines,
-`QuicServerModule.cs` 661 lines). In i-Grid, only 2 of the 4 were compiled by
-the addon — the other two came from a patched core assembly. Both have been added
-to `<Compile Include>`, so the addon is self-contained on that point.
+- i-Grid's Quick-G brain/bridge lease mode. The newer addon copy removed it and
+  hard-fails without a configured port.
+- i-Grid's "crossing fix" (`TryRehomeClient`, `Scene.UpdateClientEndPoint`).
+- i-Grid's "keep child presence on teleport" fix.
 
-`System.Net.Quic` is present in the .NET 10 runtime; `QuicConnection.IsConnected`
-still does not exist, which the code already works around with a manual flag.
+**Still not wired up:** `LLLoginService` does not populate
+`SimQuicHost`/`SimQuicPort`, and does not serialise them into the login packet
+either (i-Grid `LLLoginResponse.cs:503-506` and `:608-611`). `GridRegion` has no
+`QuicHost`/`QuicPort`. So viewers cannot yet discover the endpoint through login
+or the grid — nothing populates the login-side values, which stay null/0, and
+`MACAudit` correctly reads that as "no QUIC".
+
+**Not runtime-tested.** It compiles and the plain UDP path is provably
+unaffected (`Transport` is null for every ordinary viewer), but the QUIC path
+needs a QUIC viewer, which none of us has here.
+
+## SmartNPC grid-wide teleport
+
+Intra-region teleport already works. Cross-region and Hypergrid are new protocol
+work, not a fix. See [smartnpc-grid-teleport.md](smartnpc-grid-teleport.md) —
+including the `requirePresenceLookup` NPC escape hatch that Tranquillity already
+declares and never uses.
+
+## pr/180 must not be merged
+
+`refs/heads/pr/180` is a single commit adding one comment line to
+`OpenSimDefaults.ini`:
+
+```ini
+ ; OSAWS specific Capability
++; Only activate this when you are using OSAWS
+ ExternalViewerAssetsURL = "http://viewerasset.yourgrid.com"
+```
+
+The change is harmless, but the **branch** is not mergeable: it descends from a
+much older commit, so `git diff origin/develop pr/180` reports the entire tree
+as different and a merge tries to reconcile hundreds of files (it conflicted in
+`GetAssetsHandler.cs` and would have brought in deletions of the AIS subsystem,
+Phlox, TrustedHypergrid, ~90 test projects and much else). If that comment is
+wanted, apply it by hand.
 
 ## BinaryFormatter — already resolved upstream, nothing to do
 
