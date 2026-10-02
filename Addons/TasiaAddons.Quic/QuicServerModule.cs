@@ -37,7 +37,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using log4net;
+using Microsoft.Extensions.Logging;
 using Nini.Config;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
@@ -63,7 +63,13 @@ namespace TasiaAddons.Quic
     /// </summary>
     public class QuicServerModule : INonSharedRegionModule
     {
-        private static readonly ILog m_log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        // Must be Microsoft.Extensions.Logging, not log4net. The .NET 10 region host
+        // (OpenSim.Server.Base.Hosting.AddOpenSimLogging) wires up Serilog/MS logging
+        // only and never calls Log4NetBootstrapper.Configure(), so log4net has no
+        // appenders at all: every m_log call below - including every failure path -
+        // was discarded before it reached the region log.
+        private static readonly ILogger m_log = LoggerProvider.CreateLogger(
+            System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         private QuicServerConfig m_config;
         private QuicListener m_listener;
@@ -103,30 +109,36 @@ namespace TasiaAddons.Quic
             m_config = QuicServerConfig.FromConfig(configSource);
             m_enabled = m_config.Enabled;
 
-            if (m_enabled)
+            // Load proxy registration config
+            IConfig quicConfig = configSource.Configs["ClientStack.Quic"];
+            if (quicConfig != null)
             {
-                // Load proxy registration config
-                IConfig quicConfig = configSource.Configs["ClientStack.Quic"];
-                if (quicConfig != null)
+                m_proxyRegistrationUrl = NormalizeQuicConfigString(quicConfig.GetString("ProxyRegistrationURL", ""));
+                if (string.IsNullOrWhiteSpace(m_proxyRegistrationUrl))
                 {
-                    m_proxyRegistrationUrl = NormalizeQuicConfigString(quicConfig.GetString("ProxyRegistrationURL", ""));
-                    if (string.IsNullOrWhiteSpace(m_proxyRegistrationUrl))
-                    {
-                        // Default: ROBUST internal connector port for QuicProxyConnector.
-                        m_proxyRegistrationUrl = "http://localhost:8003/admin/quic/circuit";
-                    }
-
+                    // Default: ROBUST internal connector port for QuicProxyConnector.
+                    m_proxyRegistrationUrl = "http://localhost:8003/admin/quic/circuit";
                 }
-
-                string portDescription = m_config.Port == 0 ? "brain/auto" : m_config.Port.ToString();
-                m_log.Info($"[QuicServer] Initialized: port={portDescription}, ALPN={m_config.Alpn}, proxy={m_proxyRegistrationUrl}");
             }
+
+            // Report the effective configuration unconditionally. Logging only when
+            // enabled made a disabled module indistinguishable from one that was never
+            // loaded at all, which is how a wrong config section went unnoticed.
+            string portDescription = m_config.Port == 0 ? "brain/auto" : m_config.Port.ToString();
+            m_log.LogInformation(
+                "[QuicServer] Initialized: enabled={0}, sectionPresent={1}, port={2}, ALPN={3}, proxy={4}",
+                m_enabled, quicConfig != null, portDescription, m_config.Alpn, m_proxyRegistrationUrl);
         }
 
         public void AddRegion(Scene scene)
         {
             if (!m_enabled)
+            {
+                m_log.LogWarning(
+                    "[QuicServer] AddRegion for {0} skipped: module is disabled (see the Initialized line for the effective config)",
+                    scene?.RegionInfo?.RegionName);
                 return;
+            }
 
             m_scene = scene;
 
@@ -144,7 +156,7 @@ namespace TasiaAddons.Quic
             // per-region QUIC listeners only, so a configured Port is mandatory.
             if (m_config.Port == 0)
             {
-                m_log.Error($"[QuicServer] No QUIC port configured for {m_regionName}; QUIC disabled for this region (Quick-G brain allocation is no longer supported)");
+                m_log.LogError($"[QuicServer] No QUIC port configured for {m_regionName}; QUIC disabled for this region (Quick-G brain allocation is no longer supported)");
                 m_enabled = false;
                 return;
             }
@@ -155,14 +167,23 @@ namespace TasiaAddons.Quic
         public void RegionLoaded(Scene scene)
         {
             if (!m_enabled)
+            {
+                m_log.LogWarning(
+                    "[QuicServer] RegionLoaded for {0} skipped: module is disabled (see the Initialized line for the effective config)",
+                    scene?.RegionInfo?.RegionName);
                 return;
+            }
 
             // Find the LLUDPServer for this scene so we can bridge packets
             m_udpServer = FindUdpServer(scene);
 
             if (m_udpServer == null)
             {
-                m_log.Warn("[QuicServer] Could not find LLUDPServer for scene, QUIC disabled");
+                // Previously a Warn with no detail, through a logger that had no
+                // appenders: the listener was simply never created and nothing said why.
+                m_log.LogError(
+                    "[QuicServer] Could not find LLUDPServer for scene, QUIC disabled: no LLUDPServerShim is registered on scene {0} (loaded modules: {1} region modules). Check that the client stack plugin from [Startup] clientstack_plugin loaded before this module",
+                    scene?.RegionInfo?.RegionName, scene?.RegionModules?.Count);
                 return;
             }
 
@@ -181,9 +202,12 @@ namespace TasiaAddons.Quic
 
             StartListener();
             if (m_listener == null)
+            {
+                m_log.LogError("[QuicServer] QUIC listener did not start for {0}; see the error above", m_regionName);
                 return;
+            }
 
-            m_log.Info($"[QuicServer] Region loaded, sim={m_simHost}:{m_simPort}, quic={m_config.Port}, proxy={m_proxyRegistrationUrl}");
+            m_log.LogInformation($"[QuicServer] Region loaded, sim={m_simHost}:{m_simPort}, quic={m_config.Port}, proxy={m_proxyRegistrationUrl}");
         }
 
         public void RemoveRegion(Scene scene)
@@ -222,7 +246,7 @@ namespace TasiaAddons.Quic
                 ? m_simHost
                 : scene.RegionInfo.QuicHost;
             scene.RegionInfo.QuicPort = (uint)m_config.Port;
-            m_log.Info($"[QuicServer] RegionInfo QUIC endpoint set for {m_regionName}: {scene.RegionInfo.QuicHost}:{scene.RegionInfo.QuicPort}");
+            m_log.LogInformation($"[QuicServer] RegionInfo QUIC endpoint set for {m_regionName}: {scene.RegionInfo.QuicHost}:{scene.RegionInfo.QuicPort}");
         }
 
 
@@ -238,7 +262,7 @@ namespace TasiaAddons.Quic
             if (transport is QuicViewerTransport quicTransport)
                 RegisterQuicClient(circuitCode, agentId.ToString(), quicTransport.Connection);
 
-            m_log.Debug($"[QuicServer] Circuit created: {circuitCode} for agent {agentId}, registering with proxy at {m_proxyRegistrationUrl}...");
+            m_log.LogDebug($"[QuicServer] Circuit created: {circuitCode} for agent {agentId}, registering with proxy at {m_proxyRegistrationUrl}...");
 
             // Fire-and-forget the registration call
             _ = RegisterCircuitWithProxyAsync(circuitCode, agentId);
@@ -270,7 +294,7 @@ namespace TasiaAddons.Quic
                     // Child agents usually arrive BEFORE the sim-to-sim
                     // handshake creates their presence. Retry instead of
                     // dropping quicready forever.
-                    m_log.Debug($"[QuicServer] Loopback circuit {circuitCode} for agent {agentId}: no scene presence yet, quicready will retry");
+                    m_log.LogDebug($"[QuicServer] Loopback circuit {circuitCode} for agent {agentId}: no scene presence yet, quicready will retry");
                     _ = SendQuicReadyWhenReadyAsync(circuitCode, agentId, endPoint);
                     return;
                 }
@@ -283,7 +307,7 @@ namespace TasiaAddons.Quic
             }
             catch (Exception ex)
             {
-                m_log.Warn($"[QuicServer] Failed to send quicready for circuit {circuitCode}: {ex.Message}");
+                m_log.LogWarning($"[QuicServer] Failed to send quicready for circuit {circuitCode}: {ex.Message}");
             }
         }
 
@@ -304,13 +328,13 @@ namespace TasiaAddons.Quic
                     if (presence?.ControllingClient != null)
                     {
                         presence.ControllingClient.SendGenericMessage("quicready", UUID.Zero, new List<string>());
-                        m_log.Info($"[QuicServer] Sent delayed quicready for bridged circuit {circuitCode} agent {agentId} via {endPoint} (attempt {i + 1})");
+                        m_log.LogInformation($"[QuicServer] Sent delayed quicready for bridged circuit {circuitCode} agent {agentId} via {endPoint} (attempt {i + 1})");
                         return;
                     }
                 }
                 catch { }
             }
-            m_log.Warn($"[QuicServer] Giving up delayed quicready for bridged circuit {circuitCode} agent {agentId}: presence never appeared");
+            m_log.LogWarning($"[QuicServer] Giving up delayed quicready for bridged circuit {circuitCode} agent {agentId}: presence never appeared");
         }
 
         /// <summary>
@@ -356,17 +380,17 @@ namespace TasiaAddons.Quic
                 HttpResponseMessage response = await m_httpClient.PostAsync(url, content);
                 if (response.IsSuccessStatusCode)
                 {
-                    m_log.Info($"[QuicServer] Circuit {circuitCode} registered with proxy -> {m_simHost}:{m_simPort}");
+                    m_log.LogInformation($"[QuicServer] Circuit {circuitCode} registered with proxy -> {m_simHost}:{m_simPort}");
                 }
                 else
                 {
-                    m_log.Warn($"[QuicServer] Proxy registration returned {response.StatusCode} for circuit {circuitCode}");
+                    m_log.LogWarning($"[QuicServer] Proxy registration returned {response.StatusCode} for circuit {circuitCode}");
                 }
             }
             catch (Exception ex)
             {
                 // Registration failure is non-fatal - proxy will use broadcast fallback
-                m_log.Warn($"[QuicServer] Failed to register circuit {circuitCode} with proxy: {ex.Message}");
+                m_log.LogWarning($"[QuicServer] Failed to register circuit {circuitCode} with proxy: {ex.Message}");
             }
         }
 
@@ -398,12 +422,12 @@ namespace TasiaAddons.Quic
                 HttpResponseMessage response = await m_httpClient.PostAsync(url, content);
                 if (response.IsSuccessStatusCode)
                 {
-                    m_log.Debug($"[QuicServer] Circuit {circuitCode} unregistered from proxy");
+                    m_log.LogDebug($"[QuicServer] Circuit {circuitCode} unregistered from proxy");
                 }
             }
             catch (Exception ex)
             {
-                m_log.Debug($"[QuicServer] Proxy unregistration for circuit {circuitCode} failed: {ex.Message}");
+                m_log.LogDebug($"[QuicServer] Proxy unregistration for circuit {circuitCode} failed: {ex.Message}");
             }
         }
 
@@ -434,7 +458,7 @@ namespace TasiaAddons.Quic
                 m_listener = QuicListener.ListenAsync(listenerOptions, m_cts.Token)
                     .GetAwaiter().GetResult();
 
-                m_log.Info($"[QuicServer] QUIC listener started on port {m_config.Port} with ALPN '{m_config.Alpn}'");
+                m_log.LogInformation($"[QuicServer] QUIC listener started on port {m_config.Port} with ALPN '{m_config.Alpn}'");
 
                 // Start accepting connections on a background thread
                 m_listenerThread = new Thread(() => AcceptLoopAsync(m_cts.Token).GetAwaiter().GetResult())
@@ -446,8 +470,8 @@ namespace TasiaAddons.Quic
             }
             catch (Exception ex)
             {
-                m_log.Error($"[QuicServer] Failed to start QUIC listener: {ex.Message}");
-                m_log.Debug($"[QuicServer] Stack: {ex.StackTrace}");
+                m_log.LogError($"[QuicServer] Failed to start QUIC listener: {ex.Message}");
+                m_log.LogDebug($"[QuicServer] Stack: {ex.StackTrace}");
                 m_enabled = false;
             }
         }
@@ -474,7 +498,7 @@ namespace TasiaAddons.Quic
             catch (Exception ex)
             {
                 if (!ct.IsCancellationRequested)
-                    m_log.Error($"[QuicServer] Accept loop error: {ex.Message}");
+                    m_log.LogError($"[QuicServer] Accept loop error: {ex.Message}");
             }
         }
 
@@ -483,7 +507,7 @@ namespace TasiaAddons.Quic
             if (m_config.LogHandshake)
             {
                 IPEndPoint remoteEp = quicConnection.RemoteEndPoint as IPEndPoint;
-                m_log.Info($"[QuicServer] New QUIC connection from {remoteEp}");
+                m_log.LogInformation($"[QuicServer] New QUIC connection from {remoteEp}");
             }
 
             var clientConnection = new QuicClientConnection(quicConnection, m_config);
@@ -510,7 +534,7 @@ namespace TasiaAddons.Quic
             }
             catch (Exception ex)
             {
-                m_log.Error($"[QuicServer] Failed to handle connection: {ex.Message}");
+                m_log.LogError($"[QuicServer] Failed to handle connection: {ex.Message}");
                 clientConnection.Close($"Setup failed: {ex.Message}");
                 clientConnection.Dispose();
             }
@@ -538,11 +562,11 @@ namespace TasiaAddons.Quic
                 m_connectionsByCircuit.Clear();
                 m_connectionsByAgentId.Clear();
 
-                m_log.Info("[QuicServer] QUIC listener stopped");
+                m_log.LogInformation("[QuicServer] QUIC listener stopped");
             }
             catch (Exception ex)
             {
-                m_log.Warn($"[QuicServer] Error stopping listener: {ex.Message}");
+                m_log.LogWarning($"[QuicServer] Error stopping listener: {ex.Message}");
             }
         }
 
@@ -591,7 +615,7 @@ namespace TasiaAddons.Quic
         /// </summary>
         private void OnQuicDisconnected(QuicClientConnection connection, string reason)
         {
-            m_log.Info($"[QuicServer] QUIC client disconnected: {reason}");
+            m_log.LogInformation($"[QuicServer] QUIC client disconnected: {reason}");
 
             uint circuitCode = 0;
 
@@ -630,7 +654,7 @@ namespace TasiaAddons.Quic
             m_connectionsByCircuit[circuitCode] = connection;
             m_connectionsByAgentId[agentId] = connection;
 
-            m_log.Info($"[QuicServer] Registered QUIC client: circuit={circuitCode}, agent={agentId}");
+            m_log.LogInformation($"[QuicServer] Registered QUIC client: circuit={circuitCode}, agent={agentId}");
         }
 
         /// <summary>
