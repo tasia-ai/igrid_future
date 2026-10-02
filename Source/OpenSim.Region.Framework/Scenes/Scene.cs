@@ -5267,7 +5267,13 @@ Label_GroupsDone:
 
     public int GetRootNPCCount()
     {
-        return m_sceneGraph.GetRootAgentCount();
+        // Must count NPCs, not every root agent. NPCModule.CreateNPC gates on this
+        // against MaxNumberNPCsPerScene, so returning the root-agent total made the
+        // cap fire on users too - a region with 100 NPCs and 25 users refused new
+        // NPCs at 120 total. It also contradicted GetRootAgentCount - GetRootNPCCount
+        // further down this file, which subtracts NPCs from AgentLimit precisely so
+        // they do not consume the user budget.
+        return m_sceneGraph.GetRootNPCCount();
     }
 
     public int GetChildAgentCount()
