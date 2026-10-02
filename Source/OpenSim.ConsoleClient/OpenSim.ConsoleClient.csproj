@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <!-- The manager (FreshMetaverseManager) launches sims as OpenSim.exe /
+         OpenSim.dll and the deployed bundle is validated by that name, so keep
+         the upstream assembly name instead of OpenSim.ConsoleClient. -->
+    <AssemblyName>OpenSim</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
