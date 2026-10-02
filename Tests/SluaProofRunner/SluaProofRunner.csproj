@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Offline SLua conformance runner: compiles Luau snippets with the Phlox SLua
        compiler, executes them on the Phlox VM with a recording syscall shim, and
@@ -19,9 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\InWorldz.Phlox\InWorldz.Phlox.csproj" />
+    <ProjectReference Include="..\..\Source\Phlox.ScriptEngine\Phlox.ScriptEngine.csproj" />
     <!-- C5 as an explicit local-file reference so it lands in the output dir and in
-         deps.json as a local assembly (not a NuGet package identity) — the runner must
+         deps.json as a local assembly (not a NuGet package identity) â€” the runner must
          load the same Library/C5.dll identity Phlox is compiled against. -->
     <Reference Include="C5">
       <HintPath>..\..\Library\C5.dll</HintPath>

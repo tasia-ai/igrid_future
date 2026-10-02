@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Tests for the Phlox LSL/SLua compiler and VM. Scripts are compiled with
        CompilerFrontend and run on the real Interpreter against a recording syscall
@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\InWorldz.Phlox\InWorldz.Phlox.csproj" />
+    <ProjectReference Include="..\..\Source\Phlox.ScriptEngine\Phlox.ScriptEngine.csproj" />
     <!-- The same Library/C5.dll identity InWorldz.Phlox is compiled against. -->
     <Reference Include="C5">
       <HintPath>..\..\Library\C5.dll</HintPath>
