@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- The first test project for the Phlox compiler: there was none, which is why
        an earlier review had to report YEngine's overload verdict from reading the source rather than
@@ -33,7 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\InWorldz.Phlox\InWorldz.Phlox.csproj" />
+    <ProjectReference Include="..\..\Source\Phlox.ScriptEngine\Phlox.ScriptEngine.csproj" />
     <ProjectReference Include="..\..\Source\Phlox.ScriptEngine\Phlox.ScriptEngine.csproj" />
     <ProjectReference Include="..\..\Source\OpenSim.Region.ScriptEngine.YEngine\OpenSim.Region.ScriptEngine.YEngine.csproj" />
     <ProjectReference Include="..\OpenSim.Tests.Common\OpenSim.Tests.Common.csproj" />
