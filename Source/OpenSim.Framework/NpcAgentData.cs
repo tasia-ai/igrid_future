@@ -132,8 +132,12 @@ public class NpcAgentData
             Vector3.TryParse(args["velocity"], out Velocity);
             Vector3.TryParse(args["look_at"], out LookAt);
 
-            if (args["packed_appearance"] != null)
-                Appearance = new AvatarAppearance((OSDMap)args["packed_appearance"]);
+            // Type-test, do not null-test: LibOMV's OSDMap indexer returns a
+            // non-null empty OSD for a missing key, so `!= null` is always true and
+            // the cast below would throw for a payload Pack emitted without an
+            // appearance. This would reject the sender's own output.
+            if (args["packed_appearance"] is OSDMap packed)
+                Appearance = new AvatarAppearance(packed);
         }
         catch (Exception)
         {

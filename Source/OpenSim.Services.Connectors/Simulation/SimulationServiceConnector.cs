@@ -576,14 +576,21 @@ public class SimulationServiceConnector : ISimulationService
                 return false;
             }
 
-            if (!result["success"].AsBoolean())
+            // WebUtil.CanonicalizeResults turns a JSON *object* body into a sibling
+            // `success` that keeps its true default, with the real payload stashed in
+            // `_Result`. So a refusal here would read as a success and the source
+            // would delete its NPC for a transfer that never happened. Read the
+            // success flag out of `_Result` when there is one - the same thing
+            // CreateAgent below has to do, for the same reason.
+            if (result["_Result"] is OSDMap inner)
             {
-                // Read the refusal reason out of the reply so the caller can log
-                // something better than "transfer failed".
-                if (result["_Result"] is OSDMap inner)
-                    reason = inner["reason"].AsString();
-                if (string.IsNullOrWhiteSpace(reason))
-                    reason = "Destination refused the NPC";
+                reason = inner["reason"].AsString();
+                if (!inner["success"].AsBoolean())
+                    return false;
+            }
+            else if (!result["success"].AsBoolean())
+            {
+                reason = "Destination refused the NPC";
                 return false;
             }
         }

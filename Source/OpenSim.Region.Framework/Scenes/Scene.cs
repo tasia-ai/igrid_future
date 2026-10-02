@@ -3079,9 +3079,19 @@ public partial class Scene : SceneBase
         // anyone who fails DenyMinors/DenyAnonymous, and GetUserFlags returns 0 for
         // every NPC because an NPC has no account - so that overload would ban every
         // SmartNPC from every estate with either setting on.
+        //
+        // Both UUIDs checked: the normal agent entry path checks the agent's own
+        // UUID, and for a SmartNPC the owner and the NPC UUID are unrelated, so
+        // checking only the owner would let a banned NPC in.
         if (RegionInfo.EstateSettings.IsBanned(npc.OwnerID))
         {
             reason = "NPC owner is banned from this estate";
+            return false;
+        }
+
+        if (RegionInfo.EstateSettings.IsBanned(npc.AgentID))
+        {
+            reason = "NPC is banned from this estate";
             return false;
         }
 
@@ -3113,7 +3123,22 @@ public partial class Scene : SceneBase
         // CurrentCultureIgnoreCase), so "Guard" and "guard" collide.
         if (npcFirstNameIsNotEmpty)
         {
-            List<ScenePresence> occupants = GetScenePresences();
+            // Copy before iterating. SceneGraph.GetScenePresences takes a write lock,
+            // releases it, and hands back its internal list, which the frame thread
+            // then mutates - so a foreach over the live reference throws
+            // "Collection was modified" from a handler or script thread, and that
+            // exception escapes every try in this method.
+            ScenePresence[] occupants;
+            try
+            {
+                occupants = GetScenePresences().ToArray();
+            }
+            catch (Exception e)
+            {
+                reason = $"Could not enumerate region presences: {e.Message}";
+                return false;
+            }
+
             foreach (ScenePresence other in occupants)
             {
                 if (other is null || other.IsDeleted)
@@ -3177,6 +3202,8 @@ public partial class Scene : SceneBase
 
         if (!npc.LookAt.IsZero())
             sp.RotateToLookAt(npc.LookAt);
+        else
+            sp.RotateToLookAt(npc.Position + new Vector3(0.0f, 1.0f, 0.0f));
 
         // Profile data is not touched by CreateNPC; without this a transferred NPC
         // shows a blank profile card.
