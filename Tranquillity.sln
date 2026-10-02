@@ -223,7 +223,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tasia.Extensions.SDK", "Sou
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TasiaAddons.Quic", "Addons\TasiaAddons.Quic\TasiaAddons.Quic.csproj", "{D8AE5AA0-2E49-46C8-92ED-6FFE4905C477}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhloxCompileProbe", "Tests\PhloxCompileProbe\PhloxCompileProbe.csproj", "{1DC110CD-7D2E-4501-A5D0-46D12DE23E26}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InWorldz.Phlox.Tests", "Tests\InWorldz.Phlox.Tests\InWorldz.Phlox.Tests.csproj", "{6BC011C0-41E2-4785-9BE1-5A19CF16ADA9}"
+	Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhloxCompileProbe", "Tests\PhloxCompileProbe\PhloxCompileProbe.csproj", "{1DC110CD-7D2E-4501-A5D0-46D12DE23E26}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
