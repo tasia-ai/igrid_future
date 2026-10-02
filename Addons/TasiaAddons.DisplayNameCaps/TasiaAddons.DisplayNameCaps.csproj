@@ -39,7 +39,7 @@
       <HintPath>$(SolutionDir)/bin/XMLRPC.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <ProjectReference Include="$(SolutionDir)/Addons/TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
+    <ProjectReference Include="../TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="xmlrpc" HintPath="..\..\Library\xmlrpc.dll" />

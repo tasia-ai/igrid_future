@@ -46,8 +46,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)/Addons/TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
-    <ProjectReference Include="$(SolutionDir)/Addons/TasiaAddons.LoginSecurity/TasiaAddons.LoginSecurity.csproj" />
+    <ProjectReference Include="../TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
+    <ProjectReference Include="../TasiaAddons.LoginSecurity/TasiaAddons.LoginSecurity.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="xmlrpc" HintPath="..\..\Library\xmlrpc.dll" />

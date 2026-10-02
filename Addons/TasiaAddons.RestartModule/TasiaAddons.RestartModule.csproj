@@ -37,7 +37,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)/Source/Tasia.Extensions.SDK/Tasia.Extensions.SDK.csproj" />
+    <ProjectReference Include="../../Source/Tasia.Extensions.SDK/Tasia.Extensions.SDK.csproj" />
   </ItemGroup>
 
   <ItemGroup>

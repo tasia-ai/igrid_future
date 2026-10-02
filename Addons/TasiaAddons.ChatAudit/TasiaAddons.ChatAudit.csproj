@@ -33,7 +33,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)/Addons/TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
+    <ProjectReference Include="../TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
