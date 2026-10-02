@@ -38,6 +38,31 @@ namespace OpenSim.Framework.Console;
 public class LocalConsole : CommandConsole
 {
     private static readonly ILogger m_log = LoggerProvider.CreateLogger<LocalConsole>();
+
+    /// <summary>
+    /// True only when this process owns a real console with a usable buffer.
+    /// A service, a supervisor or anything that redirects the standard streams has none:
+    /// every System.Console cursor/buffer call then throws
+    /// <c>IOException: The handle is invalid</c>. The command prompt catches and loops,
+    /// so one missing guard produces an exception per prompt iteration forever.
+    /// </summary>
+    private static bool HasConsole
+    {
+        get
+        {
+            try
+            {
+                if (System.Console.IsInputRedirected || System.Console.IsOutputRedirected)
+                    return false;
+                return System.Console.WindowWidth > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
     private string m_historyPath;
     private bool m_historyEnable;
     private bool m_historytimestamps;
@@ -145,7 +170,13 @@ public class LocalConsole : CommandConsole
             File.Create(m_historyPath).Dispose();
         }
 
-        System.Console.TreatControlCAsInput = true;
+        // Only valid when this process owns a real console. When the host redirects
+        // stdin (a service or a supervisor piping commands in, as FreshMetaverseManager
+        // does for every region) the setter throws IOException "The handle is invalid"
+        // and takes the whole region down during startup. There is no control character
+        // to intercept in that case anyway.
+        if (!System.Console.IsInputRedirected)
+            System.Console.TreatControlCAsInput = true;
     }
 
     private void AddToHistory(string text)
@@ -175,6 +206,13 @@ public class LocalConsole : CommandConsole
     /// </returns>
     private int SetCursorTop(int top)
     {
+        // No real console when the host redirects stdout (service, supervisor, daemon):
+        // every cursor/buffer call throws IOException "The handle is invalid", and the
+        // command prompt loop turns that into one exception per iteration. There is no
+        // cursor to place in that case, so just clamp and report back.
+        if (!HasConsole)
+            return top <= 0 ? 0 : top;
+
         // mono seems to fail unless we do check both left and top ranges, even current
         int left = System.Console.CursorLeft;
         if (left <= 0)
@@ -214,6 +252,10 @@ public class LocalConsole : CommandConsole
     /// </returns>
     private int SetCursorLeft(int left)
     {
+        // No console to move when output is redirected; see SetCursorTop.
+        if (!HasConsole)
+            return left <= 0 ? 0 : left;
+
         int top = System.Console.CursorTop;
         if (top <= 0)
             top = 0;
@@ -240,6 +282,10 @@ public class LocalConsole : CommandConsole
 
     private void SetCursorTopLeft(int top, int left)
     {
+        // No console to place the cursor in; see SetCursorTop.
+        if (!HasConsole)
+            return;
+
         if (top <= 0)
             top = 0;
         else
@@ -262,6 +308,10 @@ public class LocalConsole : CommandConsole
 
     private int SetCursorZeroLeft(int top)
     {
+        // No console to place the cursor in; see SetCursorTop.
+        if (!HasConsole)
+            return top <= 0 ? 0 : top;
+
         if (top <= 0)
         {
             System.Console.SetCursorPosition(0, 0);
@@ -280,6 +330,11 @@ public class LocalConsole : CommandConsole
 
     private void Show()
     {
+        // Redirected output has no cursor to track and nothing to redraw. Without this the
+        // buffer reads below throw and the prompt loop logs an exception every iteration.
+        if (!HasConsole)
+            return;
+
         lock (m_commandLine)
         {
             if (m_cursorYPosition == -1 || System.Console.BufferWidth == 0)
@@ -335,7 +390,7 @@ public class LocalConsole : CommandConsole
     {
         if (m_cursorYPosition != -1)
         {
-            m_cursorYPosition = System.Console.CursorTop;
+            m_cursorYPosition = HasConsole ? System.Console.CursorTop : 0;
             Show();
         }
         Monitor.Exit(m_commandLine);
@@ -444,7 +499,7 @@ public class LocalConsole : CommandConsole
             else
                 System.Console.WriteLine();
 
-            m_cursorYPosition = System.Console.CursorTop;
+            m_cursorYPosition = HasConsole ? System.Console.CursorTop : 0;
             Show();
         }
     }
@@ -472,6 +527,29 @@ public class LocalConsole : CommandConsole
 
     public override string ReadLine(string p, bool isCommand, bool e)
     {
+        // No console (service, supervisor, daemon with redirected streams): the interactive
+        // loop below polls Console.KeyAvailable, which throws InvalidOperationException
+        // forever and, because the caller catches and retries, writes one exception per
+        // iteration. Standard input is still a usable command channel in that mode - that is
+        // how FreshMetaverseManager feeds console commands to a region - so read it directly
+        // and block, which also stops the spin.
+        if (!HasConsole)
+        {
+            try
+            {
+                string line = System.Console.In.ReadLine();
+                if (line != null)
+                    AddToHistory(line);
+                return line;
+            }
+            catch (IOException)
+            {
+                // stdin closed by the supervisor; park instead of spinning.
+                System.Threading.Thread.Sleep(1000);
+                return string.Empty;
+            }
+        }
+
         m_cursorXPosition = 0;
         prompt = p;
         m_echo = e;
@@ -480,9 +558,9 @@ public class LocalConsole : CommandConsole
         lock (m_commandLine)
         {
             SetCursorLeft(0); // Needed for mono
-            m_cursorYPosition = System.Console.CursorTop;
+            m_cursorYPosition = HasConsole ? System.Console.CursorTop : 0;
             // mono is silly
-            if (m_cursorYPosition >= System.Console.BufferHeight)
+            if (HasConsole && m_cursorYPosition >= System.Console.BufferHeight)
                 m_cursorYPosition = System.Console.BufferHeight - 1;
             m_commandLine.Clear();
         }
