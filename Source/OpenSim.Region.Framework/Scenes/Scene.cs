@@ -3085,15 +3085,50 @@ public partial class Scene : SceneBase
             return false;
         }
 
-        // NPCModule.CreateNPC does an unguarded m_avatars.Add, so a duplicate UUID
-        // would throw ArgumentException out of it rather than returning false. This
-        // check is what keeps create-then-delete at the destination honest when a
-        // slow source delete races a re-entry.
+        // An NPC with no name cannot collide on one, so skip the name scan for it
+        // rather than refusing every unnamed transfer.
+        bool npcFirstNameIsNotEmpty = !string.IsNullOrWhiteSpace(npc.FirstName);
+
+        // Two collisions to refuse, and they are not the same check.
+        //
+        // NPCModule.CreateNPC does an unguarded m_avatars.Add, so a duplicate
+        // UUID would throw ArgumentException out of it rather than returning false.
+        // This is also the slow-source-delete / fast-re-entry race: the source may
+        // still hold the presence while the destination is being told about it.
         ScenePresence existing = GetScenePresence(npc.AgentID);
         if (existing is not null && !existing.IsDeleted)
         {
             reason = "A presence with this UUID already exists in this region";
             return false;
+        }
+
+        // Name collision, checked separately. SmartNPC UUIDs are derived from the
+        // name (igrid-virtual-avatar:<name>), so two NPCs of the same name carry
+        // the same UUID - which means a name check is also the UUID check in
+        // practice, and it catches the case where an avatar or a differently
+        // created NPC is already sitting on the name.
+        //
+        // Case-insensitive, matching how the rest of the simulator compares names
+        // (SceneGraph.GetScenePresence(firstName, lastName) uses
+        // CurrentCultureIgnoreCase), so "Guard" and "guard" collide.
+        if (npcFirstNameIsNotEmpty)
+        {
+            List<ScenePresence> occupants = GetScenePresences();
+            foreach (ScenePresence other in occupants)
+            {
+                if (other is null || other.IsDeleted)
+                    continue;
+
+                if (other.UUID.Equals(npc.AgentID))
+                    continue;
+
+                if (string.Equals(other.Firstname, npc.FirstName, StringComparison.CurrentCultureIgnoreCase)
+                    && string.Equals(other.Lastname, npc.LastName, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    reason = $"A presence named '{npc.FirstName} {npc.LastName}' already exists in this region";
+                    return false;
+                }
+            }
         }
 
         INPCModule npcModule = RequestModuleInterface<INPCModule>();
