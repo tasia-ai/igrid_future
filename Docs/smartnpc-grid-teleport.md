@@ -218,6 +218,33 @@ was the far grid's `UserAgentService` authenticating a session the NPC never had
 - `EntityTransferModule.GetTeleportDestinationRegion` is `private`; widen it to
   `protected` so the NPC path inherits the varregion offset correction for free.
 
+## Script surface
+
+| Function | Returns | Notes |
+|---|---|---|
+| `osTeleportSmartNPC(string key, UUID npcKey, UUID targetAgent)` | `int` | 1 = moved, 0 = refused. Target may be in any region of the grid; a zero UUID means the calling object's owner. |
+| `osTeleportSmartNPCToRegion(string key, UUID npcKey, string regionNameOrID, float x, float y, float z)` | `int` | 1 = moved, 0 = refused. `regionNameOrID` accepts a region name or a UUID. All-zero coordinates mean the destination region's centre. |
+
+Both live on `NPCModule` and are published through
+`IScriptModuleComms.RegisterScriptInvocations` in `RegionLoaded`, with
+`[ScriptInvocation]` on the methods. `IScriptModule` is **not** the right
+interface — it is the script engine's lifecycle contract and carries no function
+members, and it descends from `INonSharedRegionModule`, which conflicts with
+`NPCModule` being `ISharedRegionModule`.
+
+**Permission checks are done inside the functions.** Functions registered with
+`[ScriptInvocation]` bypass the OSSL threat-level system entirely — they are
+gated only by `AllowMODFunctions`, and no `Allow_<function>` ini line has any
+effect on them. `ResolveScriptCaller` therefore finds the host prim across the
+module's scene list, takes `SceneObjectPart.OwnerID` as the caller, and requires
+`CheckPermissions(npcKey, caller)` — which enforces the NPC-owner rule and the
+zero-UUID case.
+
+`NPCModule` is shared across a simulator while `ScriptModuleComms` is per-region,
+so neither the host prim nor the NPC's scene may be assumed from the calling
+region. On a one-process-per-region grid this never diverges; it would on any
+other topology.
+
 ## If it is to be built
 
 The precedent to copy is prim crossing, which already solves the same problem

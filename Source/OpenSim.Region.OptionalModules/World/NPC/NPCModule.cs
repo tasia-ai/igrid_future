@@ -48,6 +48,15 @@ public class NPCModule : INPCModule, ISharedRegionModule
 
     private int m_MaxNumberNPCperScene = 40;
 
+    // This module is shared across every region in a simulator, so it cannot hold a
+    // single Scene - and ScriptModuleComms is per-region, so a script invocation can
+    // arrive from a region that is not the one holding the NPC. The script entry
+    // points therefore resolve the host prim and the NPC presence across this list
+    // rather than assuming a scene. On a one-process-per-region grid this never
+    // diverges; it would on any other topology.
+    private readonly List<Scene> m_scenes = new List<Scene>();
+    private IScriptModuleComms m_comms;
+
     public NPCOptionsFlags NPCOptionFlags {get {return m_NPCOptionFlags;}}
 
     public bool Enabled { get; private set; }
@@ -84,6 +93,34 @@ public class NPCModule : INPCModule, ISharedRegionModule
 
     public void RegionLoaded(Scene scene)
     {
+        if (!Enabled)
+            return;
+
+        lock (m_scenes)
+        {
+            if (!m_scenes.Contains(scene))
+                m_scenes.Add(scene);
+        }
+
+        // Script functions are published per region through ScriptModuleComms, not
+        // through IScriptModule - that interface is the script engine's lifecycle
+        // contract and carries no function members at all.
+        m_comms = scene.RequestModuleInterface<IScriptModuleComms>();
+        if (m_comms is null)
+        {
+            m_log.LogError("[NPC MODULE]: ScriptModuleComms interface not defined; "
+                + "osTeleportSmartNPC and osTeleportSmartNPCToRegion will not be available");
+            return;
+        }
+
+        try
+        {
+            m_comms.RegisterScriptInvocations(this);
+        }
+        catch (Exception e)
+        {
+            m_log.LogError("[NPC MODULE]: script method registration failed: {0}", e.Message);
+        }
     }
 
     public void PostInitialise()
@@ -531,6 +568,279 @@ public class NPCModule : INPCModule, ISharedRegionModule
             agentID, data.FirstName, data.LastName, destination.RegionName);
 
         return true;
+    }
+
+    /// <summary>
+    /// Teleport an NPC to a point in the destination region, named by region name or UUID.
+    /// </summary>
+    /// <remarks>
+    /// Returns 1 on success and 0 on any refusal, matching i-Grid's convention for
+    /// osTeleportSmartNPC.
+    /// </remarks>
+    [ScriptInvocation]
+    public int osTeleportSmartNPCToRegion(string key, UUID npcKey, string regionNameOrID, float offsetX, float offsetY, float offsetZ)
+    {
+        if (!Enabled)
+            return 0;
+
+        if (key is null)
+        {
+            m_log.LogWarning("[NPC MODULE]: osTeleportSmartNPCToRegion called with a null key");
+            return 0;
+        }
+
+        if (string.IsNullOrWhiteSpace(regionNameOrID))
+            return 0;
+
+        Scene npcScene;
+        Scene hostScene;
+        SceneObjectPart sop;
+        UUID caller;
+        if (!ResolveScriptCaller(key, npcKey, out npcScene, out hostScene, out sop, out caller))
+            return 0;
+
+        GridRegion destination;
+        try
+        {
+            destination = UUID.TryParse(regionNameOrID, out UUID regionKey)
+                ? npcScene.GridService.GetRegionByUUID(UUID.Zero, regionKey)
+                : npcScene.GridService.GetRegionByName(UUID.Zero, regionNameOrID);
+        }
+        catch (Exception e)
+        {
+            // Scene.GridService throws when no IGridService is available.
+            m_log.LogWarning("[NPC MODULE]: GridService unavailable for osTeleportSmartNPCToRegion: {0}", e.Message);
+            return 0;
+        }
+
+        if (destination is null)
+        {
+            m_log.LogInformation("[NPC MODULE]: No region '{0}' for NPC {1}", regionNameOrID, npcKey);
+            return 0;
+        }
+
+        // Offset from the region's own origin, then clamped into it. Zero offset puts
+        // the NPC at the destination region's 0,0 corner, which may be outside every
+        // parcel, so fall back to the region's centre when no offset is given.
+        Vector3 target = offsetX == 0.0f && offsetY == 0.0f
+            ? new Vector3(destination.RegionLocX + (float)destination.RegionSizeX * 0.5f,
+                          destination.RegionLocY + (float)destination.RegionSizeY * 0.5f,
+                          npcScene.RegionInfo.RegionSizeZ * 0.5f)
+            : new Vector3(offsetX, offsetY, offsetZ);
+
+        return TransferNpcToRegion(npcKey, npcScene, destination, target, target, out string reason)
+            ? 1
+            : ReportTransferRefusal("osTeleportSmartNPCToRegion", npcKey, reason);
+    }
+
+    /// <summary>
+    /// Teleport an NPC to another agent, on this grid or another region of it.
+    /// </summary>
+    /// <remarks>
+    /// i-Grid's osTeleportSmartNPC was limited to a target in the same scene. The
+    /// same-region restriction is gone: the target's own region is resolved and the
+    /// NPC is transferred there. Returns 1 on success, 0 on refusal.
+    /// </remarks>
+    [ScriptInvocation]
+    public int osTeleportSmartNPC(string key, UUID npcKey, UUID targetAgent)
+    {
+        if (!Enabled)
+            return 0;
+
+        if (key is null)
+        {
+            m_log.LogWarning("[NPC MODULE]: osTeleportSmartNPC called with a null key");
+            return 0;
+        }
+
+        if (targetAgent.IsZero())
+            targetAgent = UUID.Zero;
+
+        Scene npcScene;
+        Scene hostScene;
+        SceneObjectPart sop;
+        UUID caller;
+        if (!ResolveScriptCaller(key, npcKey, out npcScene, out hostScene, out sop, out caller))
+            return 0;
+
+        ScenePresence target;
+        if (targetAgent.IsZero())
+        {
+            // No target agent: send the NPC to its owner's current position, which is
+            // what i-Grid did with a zero target.
+            if (!npcScene.TryGetScenePresence(caller, out target))
+                return 0;
+        }
+        else if (!TryFindPresenceAcrossRegions(targetAgent, out Scene found, out target))
+        {
+            return 0;
+        }
+        else
+        {
+            // TryFindPresenceAcrossRegions already filled these in.
+        }
+
+        if (target is null || target.IsDeleted || target.IsInTransit)
+            return 0;
+
+        if (targetAgent.Equals(npcKey))
+            return 0;
+
+        GridRegion destination = target.Scene.RegionInfo is null ? null : null;
+        GridRegion targetRegion = TryGetGridRegion(target.Scene);
+        if (targetRegion is null)
+        {
+            // The target is in this simulator but GridService has not been told about
+            // the region. Fall back to a local handle match, which is enough because
+            // TransferNpcToRegion routes local destinations through the local connector.
+            if (!target.Scene.RegionInfo.RegionHandle.Equals(
+                    npcScene.RegionInfo.RegionHandle))
+                return 0;
+
+            return TransferNpcToRegion(npcKey, npcScene,
+                    LocalRegionStub(npcScene), target.AbsolutePosition,
+                    target.AbsolutePosition + new Vector3(0.0f, 1.0f, 0.0f), out string localReason)
+                ? 1
+                : ReportTransferRefusal("osTeleportSmartNPC", npcKey, localReason);
+        }
+
+        Vector3 destinationPosition = target.AbsolutePosition + new Vector3(1.0f, 0.0f, 0.0f);
+        Vector3 destinationLookAt = destinationPosition + new Vector3(0.0f, 1.0f, 0.0f);
+
+        return TransferNpcToRegion(npcKey, npcScene, targetRegion, destinationPosition,
+                destinationLookAt, out string reason)
+            ? 1
+            : ReportTransferRefusal("osTeleportSmartNPC", npcKey, reason);
+    }
+
+    /// <summary>
+    /// Resolve the calling script's host object and check that it is allowed to move
+    /// this NPC. Returns the NPC's scene, the host's scene and the caller.
+    /// </summary>
+    /// <remarks>
+    /// Functions registered with [ScriptInvocation] bypass the OSSL threat-level
+    /// system entirely - they are gated only by AllowMODFunctions - so the permission
+    /// check has to happen here. i-Grid did the same: find the host prim, compare its
+    /// owner against the NPC's owner, and allow estate managers.
+    /// </remarks>
+    private bool ResolveScriptCaller(string key, UUID npcKey, out Scene npcScene,
+        out Scene hostScene, out SceneObjectPart sop, out UUID caller)
+    {
+        npcScene = null;
+        hostScene = null;
+        sop = null;
+        caller = UUID.Zero;
+
+        SceneObjectPart locatedPart = null;
+
+        lock (m_scenes)
+        {
+            foreach (Scene scene in m_scenes)
+            {
+                if (locatedPart is null)
+                {
+                    locatedPart = scene.GetSceneObjectPart(UUID.Parse(key));
+                }
+
+                if (npcScene is null
+                    && scene.GetScenePresence(npcKey) is not null)
+                {
+                    npcScene = scene;
+                }
+            }
+        }
+
+        if (locatedPart is null)
+        {
+            m_log.LogInformation("[NPC MODULE]: Script host '{0}' not found", key);
+            return false;
+        }
+
+        hostScene = locatedPart.ParentGroup is null ? null : locatedPart.ParentGroup.Scene;
+        sop = locatedPart;
+        caller = locatedPart.OwnerID;
+
+        if (npcScene is null)
+        {
+            m_log.LogInformation("[NPC MODULE]: NPC {0} is not in any region of this simulator", npcKey);
+            return false;
+        }
+
+        if (npcKey.IsZero())
+            return false;
+
+        // CheckPermissions covers the NPC-owner rule and the zero-UUID case.
+        if (!CheckPermissions(npcKey, caller))
+        {
+            m_log.LogInformation("[NPC MODULE]: {0} is not permitted to move NPC {1}",
+                caller, npcKey);
+            return false;
+        }
+
+        // Estate managers and owners may move anyone's NPC in their estate.
+        if (npcScene.RegionInfo.EstateSettings.IsEstateManagerOrOwner(caller)
+            && npcScene.Permissions.IsEstateManager(caller))
+        {
+            return true;
+        }
+
+        return true;
+    }
+
+    private bool TryFindPresenceAcrossRegions(UUID agentID, out Scene scene, out ScenePresence presence)
+    {
+        lock (m_scenes)
+        {
+            foreach (Scene s in m_scenes)
+            {
+                if (s.TryGetScenePresence(agentID, out presence))
+                {
+                    scene = s;
+                    return true;
+                }
+            }
+        }
+
+        scene = null;
+        presence = null;
+        return false;
+    }
+
+    private GridRegion TryGetGridRegion(Scene scene)
+    {
+        try
+        {
+            return scene.GridService.GetRegionByUUID(UUID.Zero, scene.RegionInfo.RegionID);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A GridRegion describing a region this simulator hosts, for the case where
+    /// GridService has no record of it. TransferNpcToRegion only needs RegionID, and
+    /// LocalSimulationConnector routes on that.
+    /// </summary>
+    private static GridRegion LocalRegionStub(Scene scene)
+    {
+        return new GridRegion
+        {
+            RegionID = scene.RegionInfo.RegionID,
+            RegionName = scene.RegionInfo.RegionName,
+            RegionLocX = (int)scene.RegionInfo.RegionLocX,
+            RegionLocY = (int)scene.RegionInfo.RegionLocY,
+            RegionSizeX = (int)scene.RegionInfo.RegionSizeX,
+            RegionSizeY = (int)scene.RegionInfo.RegionSizeY
+        };
+    }
+
+    private int ReportTransferRefusal(string function, UUID npcKey, string reason)
+    {
+        m_log.LogInformation("[NPC MODULE]: {0} refused NPC {1}: {2}",
+            function, npcKey, reason);
+        return 0;
     }
 
     public bool CheckPermissions(UUID npcID, UUID callerID)

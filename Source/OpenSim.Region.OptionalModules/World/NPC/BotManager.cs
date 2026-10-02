@@ -227,17 +227,55 @@ namespace OpenSim.Region.OptionalModules.World.NPC
             return data;
         }
 
-        /// <summary>Get the scene for a bot (stored in BotData).</summary>
+        /// <summary>
+        /// Get the scene for a bot, re-resolving it if the bot has moved.
+        /// </summary>
+        /// <remarks>
+        /// BotData.BotScene is captured at creation and never updated. A SmartNPC
+        /// that transfers to another region is destroyed at the source and rebuilt
+        /// at the destination with the same UUID, so the cached scene goes stale and
+        /// every operation that resolves through it silently starts failing -
+        /// GetBotSP returns null and NavPollTick gives up without a word. Re-resolve
+        /// when the cached scene no longer holds the presence, and refresh the cache
+        /// so the rest of the class sees the new scene.
+        /// </remarks>
         private Scene GetBotScene(BotData data)
         {
-            return data?.BotScene;
+            if (data is null)
+                return null;
+
+            if (data.BotScene != null
+                && data.BotScene.GetScenePresence(data.BotID) is not null)
+            {
+                return data.BotScene;
+            }
+
+            Scene current = FindSceneWithPresence(data.BotID);
+            if (current != null)
+                data.BotScene = current;
+
+            return current;
         }
 
         /// <summary>Get the scene for a bot by ID.</summary>
         private Scene GetBotScene(UUID botID)
         {
-            BotData data = GetBot(botID);
-            return data?.BotScene;
+            return GetBotScene(GetBot(botID));
+        }
+
+        /// <summary>Find whichever scene currently holds this agent's presence, if any.</summary>
+        private Scene FindSceneWithPresence(UUID agentID)
+        {
+            lock (m_scenes)
+            {
+                foreach (Scene s in m_scenes)
+                {
+                    if (s.GetScenePresence(agentID) != null)
+                        return s;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>Find the scene where the given agent is a root presence.</summary>
@@ -259,11 +297,17 @@ namespace OpenSim.Region.OptionalModules.World.NPC
             }
         }
 
-        /// <summary>Get the ScenePresence for a bot using its stored scene.</summary>
+        /// <summary>
+        /// Get the ScenePresence for a bot, resolving the scene each time rather than
+        /// trusting the one cached at creation.
+        /// </summary>
         private ScenePresence GetBotSP(BotData data)
         {
-            if (data?.BotScene == null) return null;
-            return data.BotScene.GetScenePresence(data.BotID);
+            if (data is null)
+                return null;
+
+            Scene scene = GetBotScene(data);
+            return scene?.GetScenePresence(data.BotID);
         }
 
         public static UUID OutfitKey(UUID ownerID, string outfitName)   // PHLOX-16: osOwnerSaveAppearance returns it
