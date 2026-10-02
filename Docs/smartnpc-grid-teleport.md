@@ -1,8 +1,23 @@
 # SmartNPC grid-wide teleport — findings and options
 
-Status: **researched, not implemented.** Intra-region teleport already works
-today with zero core changes. Cross-region and Hypergrid are both new protocol
-work, documented here so the decision is informed rather than guessed at.
+Status: **design decided, not implemented.** Decision: **the NPC owns its own
+transfer** rather than being routed through `EntityTransferModule`. Intra-region
+teleport already works today with zero core changes.
+
+> **Why the NPC-owned path.** Not elegance — risk. The alternative was a new
+> `ISimulationService.CreateNpcAgent` verb modelled on prim crossing. Both are
+> the same size, but the verb plan requires four changes to code real users
+> depend on, to fix a problem only NPCs have: adding `IsNpc` to
+> `AgentCircuitData` and packing it, threading `requirePresenceLookup` through
+> `LocalSimulationConnector.CreateAgent`, and fixing `DoTeleportInternal`'s
+> trust in `NPCAvatar.RequestClientInfo()` (which returns an empty
+> `AgentCircuitData`, so `SessionID`/`IPAddress`/`Viewer`/`ServiceURLs` are all
+> null). The NPC-owned path **touches zero lines on the live avatar teleport
+> path**. It adds code; it does not modify code that already works.
+>
+> It also proves itself locally: `LocalSimulationConnector.CreateObject` calls
+> `Scene.IncomingCreateObject` synchronously and inline, so same-simulator
+> transfer is deterministic and testable with no network at all.
 
 Source of the feature: the Amber/i-Grid fork at `H:\grid\work\fixtest`
 (`OpenSim/Region/OptionalModules/AI/OpenSimAIModule.cs`). There is a second,
@@ -99,6 +114,93 @@ already spoken for.
 Landmark paths cannot be borrowed either — they explicitly exclude NPCs:
 `EntityTransferModule.cs:1419` and `HGEntityTransferModule.cs:557` both start
 with `if (sp == null || sp.IsDeleted || sp.IsInTransit || sp.IsChildAgent || sp.IsNPC) return;`.
+
+## Build order, and the traps
+
+### Step 1 — `Source/OpenSim.Framework/NpcAgentData.cs` (~90 lines, new)
+
+A small payload with its own `Pack`/`Unpack`, mirroring `AgentData`'s shape but
+carrying only what the NPC needs: `AgentID`, `FirstName`, `LastName`, `OwnerID`,
+`SenseAsAgent`, `ActiveGroupID`, `GroupTitle`, `Born`, `ProfileAbout`,
+`ProfileImage`, `Position`, `Velocity`, `LookAt`, `Appearance`.
+`AvatarAppearance.Pack(ctx)` / `new AvatarAppearance(OSDMap)` already exist.
+
+**Do not reuse `AgentData`.** It invites a caller to route it into
+`Scene.IncomingUpdateChildAgent`, which calls `WaitGetScenePresence` — 30 s
+(`int ntimes = 120; // 30s`) and then a silent null. That is the trap this new
+type exists to avoid.
+
+### Step 2 — `Scene.IncomingCreateNpcAgent(NpcAgentData, out string reason)` (~60 lines)
+
+New method next to `IncomingCreateObject`. In order: reject if a live presence
+with that UUID already exists; check `LoginsEnabled`; check
+`RegionInfo.EstateSettings.IsBanned`; then delegate to
+`INPCModule.CreateNPC(...)` with the same UUID.
+
+That single call gets the whole lifecycle for free, and all of it is already
+NPC-clean code that works today: circuit registration, `AddNewAgent` →
+`CreateAndAddChildScenePresence`, `CacheUserName` → `AddNPCUser`,
+`CompleteMovement` → `MakeRootAgent`, attachment rezz from `sp.Appearance`.
+**That is the strongest argument for this whole design.** Afterwards restore
+`Velocity`, rotation via `sp.RotateToLookAt(data.LookAt)`, and the profile fields
+through `INPC`.
+
+The name cache needs no extra work: `CloseAgent` removes the entry and
+`AddNewAgent` re-adds it, and `ExpiringCacheOS.Add` is an overwrite rather than
+add-if-absent.
+
+### Step 3 — `NPCModule.TransferNpcToRegion(...)` (~70 lines)
+
+Snapshot `sp.Appearance` and the identity fields into `NpcAgentData`, then:
+pre-flight with `IEntityTransferModule.checkAgentAccessToRegion` (it is public
+and touches **no** `ControllingClient`, which is why it is the right check);
+create at the destination; **delete the source only on success**.
+
+Three ordering rules, each of which is a real failure mode:
+
+- **create-then-delete, never the reverse.** After `CloseAgent` the circuit,
+  presence, client and name-cache entry are gone and `ScenePresence.Dispose`
+  has nulled `Appearance`, `ControllingClient` and `GodController`. Nothing
+  persists a SmartNPC's identity, so delete-first loses it permanently.
+- **snapshot before delete.** `NPCAvatar` has no appearance field at all —
+  appearance lives on `ScenePresence` and is nulled by `Dispose`.
+- **read `m_avatars` out, then drop the lock.** `NPCModule.m_avatars` is taken
+  by `IsNPC`, `Say`, `Shout`, `Whisper`, `GetOwner`, `GetNPC`, `DeleteNPC`,
+  `CheckPermissions` and more. Holding it across the transfer call stalls every
+  NPC operation in the simulator. `CreateNPC` itself does hold it across
+  `AddNewAgent`; that should not be copied.
+
+### Step 4 — transport (~140 changed lines)
+
+`ISimulationService.CreateNpcAgent` beside `CreateObject`; local call in
+`LocalSimulationConnector`; HTTP handler in
+`OpenSim.Server.Handlers/Simulation/` beside `ObjectHandlers.cs`, registered in
+`SimulationServiceInConnector` and including the `ControlPlaneAccess.Authorize`
+check that `ObjectSimpleHandler` has; remote call in `RemoteSimulationConnector`
+with the same 40 s timeout as `CreateObject`.
+
+**A fresh `NPCAvatar` must be built at the destination.** `NPCAvatar.m_scene` is
+`private readonly`, and `NPCAvatar.Position` dereferences it
+(`m_scene.Entities[m_uuid].AbsolutePosition`) where `EntityManager`'s indexer
+returns **null** for a missing key rather than throwing — so any surviving
+reference NREs after a delete instead of failing cleanly.
+
+### Already fixed on this branch
+
+`Scene.GetRootNPCCount()` returned `GetRootAgentCount()`, so `NPCModule`'s
+`MaxNumberNPCsPerScene` cap charged users against the NPC budget. Fixed in
+`551028f1d5`. Worth noting because a transfer crosses the cap threshold twice.
+
+### Follow-ups this creates
+
+- `BotManager.m_bots[botID].BotScene` is captured at creation and never updated,
+  and there is no presence-removal hook. After a transfer, `GetBotSP` returns
+  null and `NavPollTick` silently gives up — the bot's navigation dies at the
+  region boundary. Needs a hook that rewrites or removes the entry.
+- `BotPersistenceManager`'s periodic save will try to save a position from a
+  scene the bot has left. Benign today; wants a guard.
+- `EntityTransferModule.GetTeleportDestinationRegion` is `private`; widen it to
+  `protected` so the NPC path inherits the varregion offset correction for free.
 
 ## If it is to be built
 
