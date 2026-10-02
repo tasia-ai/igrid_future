@@ -2,6 +2,10 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyTitle>OpenSim</AssemblyTitle>
+    <!-- The deployed region host must be OpenSim.exe/OpenSim.dll: the manager
+         (FreshMetaverseManager) resolves the host by that name, and OpenSim.ConsoleClient
+         is the remote console client, not a region host. -->
+    <AssemblyName>OpenSim</AssemblyName>
     <Product>OpenSim.Server.RegionServer</Product>
     <Description>The executable for regions simulator</Description>
     <IsPublishable>true</IsPublishable>
@@ -84,6 +88,31 @@
     <ProjectReference Include="../../Addons/os-webrtc-janus/WebRtcVoiceRegionModule/WebRtcVoiceRegionModule.csproj" />
     <ProjectReference Include="../../Addons/os-webrtc-janus/WebRtcVoiceServiceModule/WebRtcVoiceServiceModule.csproj" />
     <ProjectReference Include="../../Addons/os-webrtc-janus/Janus/WebRtcJanusService.csproj" />
+    <!--
+      The Tasia addons ship with the region host. Referencing them (rather than copying
+      their DLLs into the deployed folder by hand) makes `dotnet publish` carry each addon's
+      whole dependency closure - Microsoft.Extensions.Caching.Memory, Microsoft.Data.Sqlite and
+      the SQLite native assets among them. Without this the region dies at startup with
+      FileNotFoundException on the first addon that touches one of them.
+    -->
+    <ProjectReference Include="../../Source/Tasia.Extensions.SDK/Tasia.Extensions.SDK.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.AbuseReports/TasiaAddons.AbuseReports.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.AccessLogger/TasiaAddons.AccessLogger.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.AlertNotifications/TasiaAddons.AlertNotifications.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.ChatAudit/TasiaAddons.ChatAudit.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.DisplayNameCaps/TasiaAddons.DisplayNameCaps.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.FriendConference/TasiaAddons.FriendConference.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.JoinApi/TasiaAddons.JoinApi.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.LoginSecurity/TasiaAddons.LoginSecurity.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.MACAudit/TasiaAddons.MACAudit.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.Marketplace/TasiaAddons.Marketplace.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.MetricsConnector/TasiaAddons.MetricsConnector.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.Quic/TasiaAddons.Quic.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.RemoteSound/TasiaAddons.RemoteSound.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.RestartModule/TasiaAddons.RestartModule.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.SharedInventory/TasiaAddons.SharedInventory.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.WoWonder/TasiaAddons.WoWonder.csproj" />
   </ItemGroup>
 
   <ItemGroup>
