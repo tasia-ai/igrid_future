@@ -520,6 +520,85 @@ public class SimulationServiceConnector : ISimulationService
         return true;
     }
 
+    #region NPCs
+
+    protected virtual string NpcAgentPath()
+    {
+        return "npcagent/";
+    }
+
+    /// <summary>
+    /// Interface-shaped entry point. This connector is the HTTP client half of
+    /// ISimulationService; the local-then-remote decision is made by
+    /// RemoteSimulationConnectorModule, so calling this directly means the
+    /// destination is known to be remote.
+    /// </summary>
+    public bool CreateNpcAgent(GridRegion destination, NpcAgentData npc, bool isLocalCall, out string reason)
+    {
+        return CreateNpcAgent(destination, npc, out reason);
+    }
+
+    public bool CreateNpcAgent(GridRegion destination, NpcAgentData npc, out string reason)
+    {
+        reason = string.Empty;
+
+        if (destination == null || npc == null || npc.AgentID.IsZero())
+        {
+            reason = "No destination or no NPC data";
+            return false;
+        }
+
+        string uri = destination.ServerURI + NpcAgentPath() + npc.AgentID + "/";
+
+        try
+        {
+            // No version negotiation here. This is a single-grid verb between two
+            // simulators running the same build, so the context defaults (0.8 both
+            // ways) are correct and QueryAccess - which an NPC cannot pass, since
+            // it has no presence to verify - is not worth calling.
+            EntityTransferContext ctx = new EntityTransferContext();
+
+            OSDMap args = npc.Pack(ctx);
+
+            args["destination_x"] = OSD.FromString(destination.RegionLocX.ToString());
+            args["destination_y"] = OSD.FromString(destination.RegionLocY.ToString());
+            args["destination_name"] = OSD.FromString(destination.RegionName);
+            args["destination_uuid"] = OSD.FromString(destination.RegionID.ToString());
+
+            // Same 40s timeout as CreateObject. The destination does the whole
+            // create synchronously inside the handler, so this bounds the time the
+            // source is waiting on it.
+            OSDMap result = WebUtil.PostToService(uri, args, 40000, false);
+
+            if (result == null)
+            {
+                reason = "No response from the destination simulator";
+                return false;
+            }
+
+            if (!result["success"].AsBoolean())
+            {
+                // Read the refusal reason out of the reply so the caller can log
+                // something better than "transfer failed".
+                if (result["_Result"] is OSDMap inner)
+                    reason = inner["reason"].AsString();
+                if (string.IsNullOrWhiteSpace(reason))
+                    reason = "Destination refused the NPC";
+                return false;
+            }
+        }
+        catch (Exception e)
+        {
+            m_log.LogWarning("[SIMULATION CONNECTOR] CreateNpcAgent failed with exception; {0}", e.ToString());
+            reason = "Exception contacting the destination simulator";
+            return false;
+        }
+
+        return true;
+    }
+
+    #endregion NPCs
+
     /// <summary>
     ///
     /// </summary>

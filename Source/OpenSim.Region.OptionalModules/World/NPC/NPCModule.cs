@@ -33,6 +33,7 @@ using OpenMetaverse;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 using OpenSim.Framework;
+using GridRegion = OpenSim.Services.Interfaces.GridRegion;
 
 using Microsoft.Extensions.Logging;
 
@@ -436,6 +437,100 @@ public class NPCModule : INPCModule, ISharedRegionModule
                 agentID);
         */
         return false;
+    }
+
+    public bool TransferNpcToRegion(UUID agentID, Scene sourceScene, GridRegion destination,
+        Vector3 position, Vector3 lookAt, out string reason)
+    {
+        reason = string.Empty;
+
+        if (sourceScene == null)
+        {
+            reason = "No source scene";
+            return false;
+        }
+
+        if (destination == null)
+        {
+            reason = "No destination region";
+            return false;
+        }
+
+        NPCAvatar av;
+        ScenePresence sp;
+
+        // Snapshot under the lock, then release it. Holding m_avatars across the
+        // transfer would stall Say/Shout/IsNPC/GetOwner/CheckPermissions and every
+        // other NPC operation in this simulator for the length of an HTTP POST.
+        lock (m_avatars)
+        {
+            if (!m_avatars.TryGetValue(agentID, out av))
+            {
+                reason = "No such NPC in this simulator";
+                return false;
+            }
+
+            if (!sourceScene.TryGetScenePresence(agentID, out sp))
+            {
+                reason = "NPC has no presence in the source region";
+                return false;
+            }
+
+            if (sp.IsDeleted || sp.IsChildAgent || sp.IsInTransit)
+            {
+                reason = "NPC presence is not in a transferable state";
+                return false;
+            }
+        }
+
+        // The NPCAvatar doubles as the INPC handle, so read the profile fields
+        // through it after the lock is released.
+        INPC handle = av;
+
+        // Build the payload BEFORE anything is deleted. ScenePresence.Dispose nulls
+        // Appearance and ControllingClient, and NPCAvatar holds no appearance of its
+        // own, so a snapshot taken afterwards would lose the NPC's clothing.
+        NpcAgentData data = new NpcAgentData
+        {
+            AgentID = agentID,
+            FirstName = sp.Firstname ?? string.Empty,
+            LastName = sp.Lastname ?? string.Empty,
+            OwnerID = av.OwnerID,
+            SenseAsAgent = av.SenseAsAgent,
+            GroupTitle = sp.Grouptitle ?? string.Empty,
+            ActiveGroupID = av.ActiveGroupId,
+            Born = handle?.Born ?? string.Empty,
+            ProfileAbout = handle?.profileAbout ?? string.Empty,
+            ProfileImage = handle?.profileImage ?? UUID.Zero,
+            Position = position.IsZero() ? sp.AbsolutePosition : position,
+            Velocity = sp.Velocity,
+            LookAt = lookAt,
+            Appearance = sp.Appearance
+        };
+
+        // Pre-flight. checkAgentAccessToRegion touches no ControllingClient, which is
+        // what makes it usable here - most of EntityTransferModule assumes a viewer.
+        if (sourceScene.EntityTransferModule is { } transfer)
+        {
+            if (!transfer.checkAgentAccessToRegion(sp, destination, data.Position,
+                    new EntityTransferContext(), out reason))
+                return false;
+        }
+
+        if (!sourceScene.SimulationService.CreateNpcAgent(destination, data, false, out reason))
+            return false;
+
+        // Only now, with the destination confirmed to have it, drop the source copy.
+        // DeleteNPC removes m_avatars[agentID] and closes the presence; after that the
+        // circuit, the presence, the name-cache entry and Appearance are all gone, so a
+        // create that failed after this point would lose the NPC for good.
+        DeleteNPC(agentID, sourceScene);
+
+        m_log.LogInformation(
+            "[NPC MODULE]: Transferred NPC {0} ({1} {2}) to region {3}",
+            agentID, data.FirstName, data.LastName, destination.RegionName);
+
+        return true;
     }
 
     public bool CheckPermissions(UUID npcID, UUID callerID)

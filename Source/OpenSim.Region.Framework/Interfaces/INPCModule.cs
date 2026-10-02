@@ -28,6 +28,7 @@
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Region.Framework.Scenes;
+using GridRegion = OpenSim.Services.Interfaces.GridRegion;
 
 namespace OpenSim.Region.Framework.Interfaces;
 
@@ -291,6 +292,26 @@ public interface INPCModule
     /// or the agent was not an NPC.
     /// </returns>
     bool DeleteNPC(UUID agentID, Scene scene);
+
+    /// <summary>
+    /// Move an NPC to another region of this grid.
+    /// </summary>
+    /// <remarks>
+    /// Does not go through EntityTransferModule. That path is built around a viewer
+    /// circuit and a capability event queue, and its destination method waits for a
+    /// UseCircuitCode that an NPC never sends. This creates the NPC at the
+    /// destination through CreateNPC and only removes the source copy once the
+    /// destination has confirmed it, so a refused transfer leaves the NPC intact.
+    /// </remarks>
+    /// <param name="agentID">The UUID of the NPC</param>
+    /// <param name="scene">The scene currently holding the NPC</param>
+    /// <param name="destination">Destination region, on this grid</param>
+    /// <param name="position">Position in the destination; Vector3.Zero keeps the current position</param>
+    /// <param name="lookAt">Facing in the destination</param>
+    /// <param name="reason">Why the transfer was refused, if it was</param>
+    /// <returns>True if the NPC moved</returns>
+    bool TransferNpcToRegion(UUID agentID, Scene scene, GridRegion destination,
+        Vector3 position, Vector3 lookAt, out string reason);
 
     /// <summary>
     /// Get the owner of a NPC

@@ -340,6 +340,38 @@ public class LocalSimulationConnectorModule : ISharedRegionModule, ISimulationSe
 
     #endregion
 
+    #region NPCs
+
+    public bool CreateNpcAgent(GridRegion destination, NpcAgentData npc, bool isLocalCall, out string reason)
+    {
+        reason = string.Empty;
+
+        if (destination == null)
+        {
+            reason = "No destination region";
+            return false;
+        }
+
+        if (npc == null || npc.AgentID.IsZero())
+        {
+            reason = "No NPC data";
+            return false;
+        }
+
+        if (m_scenes.TryGetValue(destination.RegionID, out Scene s))
+        {
+            // Called synchronously and inline, exactly as CreateObject above. An
+            // NPC is rebuilt from its payload rather than cloned, so unlike a
+            // SceneObjectGroup there is nothing to copy.
+            return s.IncomingCreateNpcAgent(npc, out reason);
+        }
+
+        reason = $"Region {destination.RegionID} is not hosted here";
+        return false;
+    }
+
+    #endregion
+
     #region Misc
 
     public bool IsLocalRegion(ulong regionhandle)

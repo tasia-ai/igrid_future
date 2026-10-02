@@ -124,4 +124,24 @@ public interface ISimulationService
 
     #endregion Objects
 
+    #region NPCs
+
+    /// <summary>
+    /// Create an NPC in the destination region. Used for SmartNPC cross-region transfer.
+    /// </summary>
+    /// <remarks>
+    /// Not the viewer agent path. An NPC has no UDP circuit and no capability event
+    /// queue, so it cannot be created with CreateAgent - the destination would wait
+    /// for a viewer that never arrives. The payload is NpcAgentData rather than
+    /// AgentData for the same reason.
+    /// </remarks>
+    /// <param name="destination">Destination region</param>
+    /// <param name="npc">NPC state to materialise</param>
+    /// <param name="isLocalCall">True when the object came from this simulator rather than the wire</param>
+    /// <param name="reason">Why the NPC was refused, if it was</param>
+    /// <returns>True if the NPC now exists in the destination region</returns>
+    bool CreateNpcAgent(GridRegion destination, NpcAgentData npc, bool isLocalCall, out string reason);
+
+    #endregion NPCs
+
 }

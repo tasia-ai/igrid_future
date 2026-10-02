@@ -50,5 +50,6 @@ public class SimulationServiceInConnector : ServiceConnector
         // encoding breaks it
         server.AddSimpleStreamHandler(new AgentSimpleHandler(m_LocalSimulationService, controlPlaneAccess), true);
         server.AddSimpleStreamHandler(new ObjectSimpleHandler(m_LocalSimulationService, controlPlaneAccess), true);
+        server.AddSimpleStreamHandler(new NpcAgentSimpleHandler(m_LocalSimulationService, controlPlaneAccess), true);
     }
 }

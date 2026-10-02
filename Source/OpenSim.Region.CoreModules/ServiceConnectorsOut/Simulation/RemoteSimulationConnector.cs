@@ -266,4 +266,31 @@ public class RemoteSimulationConnectorModule : ISharedRegionModule, ISimulationS
     }
 
     #endregion
+
+    #region NPCs
+
+    public bool CreateNpcAgent(GridRegion destination, NpcAgentData npc, bool isLocalCall, out string reason)
+    {
+        if (destination == null)
+        {
+            reason = "No destination region";
+            return false;
+        }
+
+        // Try local first, same as CreateObject above.
+        if (m_localBackend.CreateNpcAgent(destination, npc, isLocalCall, out reason))
+            return true;
+
+        if (m_localBackend.IsLocalRegion(destination.RegionID))
+        {
+            // It is hosted here and the local path still refused it, so there is
+            // nothing to send anywhere else. Do not leak the local reason by
+            // overwriting it with a transport failure.
+            return false;
+        }
+
+        return m_remoteConnector.CreateNpcAgent(destination, npc, out reason);
+    }
+
+    #endregion NPCs
 }

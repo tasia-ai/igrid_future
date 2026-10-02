@@ -3044,6 +3044,124 @@ public partial class Scene : SceneBase
         return true;
     }
 
+    /// <summary>
+    /// Called when an NPC arrives from another region, for SmartNPC transfer.
+    /// </summary>
+    /// <remarks>
+    /// The counterpart to <see cref="IncomingUpdateChildAgent"/> for agents with
+    /// no viewer. That method blocks in WaitGetScenePresence until a UseCircuitCode
+    /// arrives from a viewer; an NPC has none, so it would sit there for 30 seconds
+    /// and then fail silently. This method builds the presence outright through
+    /// INPCModule.CreateNPC, which already does the whole NPC lifecycle correctly -
+    /// circuit registration, AddNewAgent, CacheUserName, CompleteMovement and
+    /// attachment rezz from the appearance.
+    /// </remarks>
+    /// <param name="npc">NPC state from the source region</param>
+    /// <param name="reason">Why the NPC was refused, if it was</param>
+    /// <returns>True if the NPC now exists here</returns>
+    public bool IncomingCreateNpcAgent(NpcAgentData npc, out string reason)
+    {
+        reason = string.Empty;
+
+        if (npc == null || npc.AgentID.IsZero())
+        {
+            reason = "No NPC data";
+            return false;
+        }
+
+        if (!LoginsEnabled)
+        {
+            reason = "Logins to this region are disabled";
+            return false;
+        }
+
+        // One-argument IsBanned on purpose. The two-argument overload also denies
+        // anyone who fails DenyMinors/DenyAnonymous, and GetUserFlags returns 0 for
+        // every NPC because an NPC has no account - so that overload would ban every
+        // SmartNPC from every estate with either setting on.
+        if (RegionInfo.EstateSettings.IsBanned(npc.OwnerID))
+        {
+            reason = "NPC owner is banned from this estate";
+            return false;
+        }
+
+        // NPCModule.CreateNPC does an unguarded m_avatars.Add, so a duplicate UUID
+        // would throw ArgumentException out of it rather than returning false. This
+        // check is what keeps create-then-delete at the destination honest when a
+        // slow source delete races a re-entry.
+        ScenePresence existing = GetScenePresence(npc.AgentID);
+        if (existing is not null && !existing.IsDeleted)
+        {
+            reason = "A presence with this UUID already exists in this region";
+            return false;
+        }
+
+        INPCModule npcModule = RequestModuleInterface<INPCModule>();
+        if (npcModule is null)
+        {
+            reason = "No NPC module is loaded in this simulator";
+            return false;
+        }
+
+        UUID id;
+        try
+        {
+            id = npcModule.CreateNPC(
+                npc.FirstName, npc.LastName, npc.Position, npc.AgentID,
+                npc.OwnerID, npc.GroupTitle, npc.ActiveGroupID,
+                npc.SenseAsAgent, this, npc.Appearance);
+        }
+        catch (Exception e)
+        {
+            m_log.LogWarning(
+                "[SCENE]: IncomingCreateNpcAgent for {0} in {1} threw: {2}",
+                npc.AgentID, RegionInfo.RegionName, e.Message);
+            reason = "NPC creation failed";
+            return false;
+        }
+
+        // CreateNPC returns UUID.Zero for exactly two cases: the per-region NPC cap,
+        // and a throwing NPCAvatar constructor.
+        if (id.IsZero())
+        {
+            reason = "NPC module refused the request (per-region NPC cap, or bad appearance)";
+            return false;
+        }
+
+        // CreateNPC passes position to the NPCAvatar as a start position only and
+        // never sets the presence's own position, so do it here. Same for velocity
+        // and facing - none of them are covered by the create path.
+        if (!TryGetScenePresence(id, out ScenePresence sp) || sp is null)
+        {
+            reason = "NPC was created but no presence appeared";
+            return false;
+        }
+
+        sp.AbsolutePosition = npc.Position;
+        sp.Velocity = npc.Velocity;
+
+        if (!npc.LookAt.IsZero())
+            sp.RotateToLookAt(npc.LookAt);
+
+        // Profile data is not touched by CreateNPC; without this a transferred NPC
+        // shows a blank profile card.
+        INPC handle = npcModule.GetNPC(id, this);
+        if (handle is not null)
+        {
+            handle.Born = npc.Born;
+            handle.profileAbout = npc.ProfileAbout;
+            handle.profileImage = npc.ProfileImage;
+        }
+
+        sp.SendAvatarDataToAllAgents();
+
+        m_log.LogInformation(
+            "[SCENE]: Incoming NPC {0} ({1} {2}) transferred into {3}",
+            id, npc.FirstName, npc.LastName, RegionInfo.RegionName);
+
+        return true;
+    }
+
     public bool IncomingAttechments(ScenePresence sp, List<SceneObjectGroup> attachments)
     {
         //m_log.LogDebug(" >>> IncomingCreateObject(sog) <<< {0} deleted? {1} isAttach? {2}", ((SceneObjectGroup)sog).AbsolutePosition,
