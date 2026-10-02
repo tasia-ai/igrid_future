@@ -170,7 +170,13 @@ Three ordering rules, each of which is a real failure mode:
   NPC operation in the simulator. `CreateNPC` itself does hold it across
   `AddNewAgent`; that should not be copied.
 
-### Step 4 — transport (~140 changed lines)
+### Step 4 — transport (~140 changed lines) — **part of the minimum, not a follow-up**
+
+This grid runs **one simulator process per region** (31 processes, each with its
+own `InternalPort`, e.g. `Fresh01` = 22011, `Dark_Secrets` = 22311). Source and
+destination are therefore *never* in the same simulator, so a same-process
+transfer would be unreachable in practice. The HTTP path is required from day
+one, not something to add later.
 
 `ISimulationService.CreateNpcAgent` beside `CreateObject`; local call in
 `LocalSimulationConnector`; HTTP handler in
@@ -184,6 +190,16 @@ with the same 40 s timeout as `CreateObject`.
 (`m_scene.Entities[m_uuid].AbsolutePosition`) where `EntityManager`'s indexer
 returns **null** for a missing key rather than throwing — so any surviving
 reference NREs after a delete instead of failing cleanly.
+
+That the destination is a different simulator is what makes the
+create-then-delete rule non-negotiable: the two calls cannot be one transaction,
+so a destination that refuses after the source has already kept its NPC is the
+happy path, and the reverse loses the NPC. `checkAgentAccessToRegion` as the
+pre-flight is precisely what reduces how often that happens.
+
+Scope is **this grid only**. Hypergrid is out of scope by decision — NPC teleport
+over Hypergrid is not wanted. That also removes the hardest constraint, which
+was the far grid's `UserAgentService` authenticating a session the NPC never had.
 
 ### Already fixed on this branch
 
