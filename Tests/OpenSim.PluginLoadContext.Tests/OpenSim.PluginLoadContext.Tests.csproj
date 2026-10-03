@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="McMaster.NETCore.Plugins" Version="2.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Source/OpenSim.Framework/OpenSim.Framework.csproj" />
+    <!-- The Quic addon is referenced only so it is copied to the test output
+         directory. Deliberately NOT referencing
+         OpenSim.Region.ClientStack.LindenUDP: that assembly must stay out of
+         the default load context until the test loads it by hand, otherwise
+         the plugin context unifies with it and the bug cannot be reproduced. -->
+    <ProjectReference Include="../../Addons/TasiaAddons.Quic/TasiaAddons.Quic.csproj" />
+  </ItemGroup>
+
+</Project>
