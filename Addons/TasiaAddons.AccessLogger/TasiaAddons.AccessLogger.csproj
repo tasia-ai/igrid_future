@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>TasiaAddons.AccessLogger</AssemblyName>
     <RootNamespace>TasiaAddons.AccessLogger</RootNamespace>
@@ -28,13 +28,13 @@
     <Reference Include="xmlrpc" HintPath="..\..\Library\xmlrpc.dll" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Framework\OpenSim.Framework.csproj" />
+    <ProjectReference Include="..\..\Source\OpenSim.Framework\OpenSim.Framework.csproj" Private="false" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Services.Interfaces\OpenSim.Services.Interfaces.csproj" />
+    <ProjectReference Include="..\..\Source\OpenSim.Services.Interfaces\OpenSim.Services.Interfaces.csproj" Private="false" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Services.LLLoginService\OpenSim.Services.LLLoginService.csproj" />
+    <ProjectReference Include="..\..\Source\OpenSim.Services.LLLoginService\OpenSim.Services.LLLoginService.csproj" Private="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="log4net" Version="3.3.2" />

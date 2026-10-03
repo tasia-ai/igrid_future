@@ -10,12 +10,12 @@
     <Reference Include="xmlrpc" HintPath="..\..\Library\xmlrpc.dll" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Data\OpenSim.Data.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Framework\OpenSim.Framework.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Framework.Console\OpenSim.Framework.Console.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Framework.Servers\OpenSim.Framework.Servers.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Region.Framework\OpenSim.Region.Framework.csproj" />
-    <ProjectReference Include="..\..\Source\OpenSim.Services.Interfaces\OpenSim.Services.Interfaces.csproj" />
+    <ProjectReference Include="..\..\Source\OpenSim.Data\OpenSim.Data.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Framework\OpenSim.Framework.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Framework.Console\OpenSim.Framework.Console.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Framework.Servers\OpenSim.Framework.Servers.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Region.Framework\OpenSim.Region.Framework.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Services.Interfaces\OpenSim.Services.Interfaces.csproj" Private="false" />
   </ItemGroup>
     
 </Project>

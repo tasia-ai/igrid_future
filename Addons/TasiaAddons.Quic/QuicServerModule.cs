@@ -242,15 +242,56 @@ namespace TasiaAddons.Quic
                 if (n.IndexOf("UDP", StringComparison.OrdinalIgnoreCase) >= 0)
                     udpNamed.Add(n);
 
+            // Dump what the scene actually holds, so the next reader does not
+            // have to guess between "not attached" and "attached but not this type".
+            var runtimeTypes = new List<string>();
+            if (scene.RegionModules != null)
+                foreach (var kv in scene.RegionModules)
+                {
+                    if (kv.Value == null)
+                    {
+                        runtimeTypes.Add(kv.Key + "=<null>");
+                        continue;
+                    }
+                    if (kv.Key.IndexOf("UDP", StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+
+                    var runtimeType = kv.Value.GetType();
+                    var expectedType = typeof(LLUDPServerShim);
+
+                    runtimeTypes.Add(
+                        $"{kv.Key} => {runtimeType.FullName} " +
+                        $"typeRefEqual={runtimeType == expectedType} " +
+                        $"isOp={kv.Value is LLUDPServerShim} " +
+                        $"asmRefEqual={runtimeType.Assembly == expectedType.Assembly} " +
+                        $"runtimeAsm={SafeLocation(runtimeType.Assembly)} " +
+                        $"expectedAsm={SafeLocation(expectedType.Assembly)}");
+                }
+
             m_log.LogError(
                 "[QuicServer] LLUDPServer never attached for {0} after {1} s. " +
-                "shimInRegionModules={2} shimFromInterface={3} udpNamedModules=[{4}] allModules={5} moduleCount={6}",
+                "shimInRegionModules={2} shimFromInterface={3} udpNamedModules=[{4}] runtimeTypes=[{5}] " +
+                "addonExpects={6} allModules={7} moduleCount={8}",
                 m_regionName, (maxAttempts * delayMs) / 1000,
                 FindShim(scene) != null,
                 scene.RequestModuleInterface<LLUDPServerShim>() != null,
                 string.Join(", ", udpNamed),
+                string.Join(" | ", runtimeTypes),
+                typeof(LLUDPServerShim).AssemblyQualifiedName,
                 string.Join(", ", names),
                 names.Count);
+        }
+
+        private static string SafeLocation(System.Reflection.Assembly asm)
+        {
+            try
+            {
+                return string.IsNullOrEmpty(asm.Location) ? "<no location>" : asm.Location;
+            }
+            catch
+            {
+                return "<unavailable>";
+            }
         }
 
         /// <summary>

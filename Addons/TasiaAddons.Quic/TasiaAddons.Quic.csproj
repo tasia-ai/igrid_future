@@ -62,28 +62,24 @@
     <Reference Include="xmlrpc" HintPath="..\..\Library\xmlrpc.dll" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Framework\OpenSim.Framework.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Framework.Servers\OpenSim.Framework.Servers.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Framework.Servers.HttpServer\OpenSim.Framework.Servers.HttpServer.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Region.ClientStack.LindenUDP\OpenSim.Region.ClientStack.LindenUDP.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Region.Framework\OpenSim.Region.Framework.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Server.Base\OpenSim.Server.Base.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Server.Handlers\OpenSim.Server.Handlers.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Source\OpenSim.Services.Interfaces\OpenSim.Services.Interfaces.csproj" />
+    <!-- Private="false" is REQUIRED, not cosmetic. Every reference below is
+         already loaded in the host process (OpenSim.Server.RegionServer). If
+         MSBuild copies the dependency next to the addon, the plugin loader
+         loads a SECOND Assembly instance from that copy. Same file, same path,
+         same full type name - but a different Assembly object, so every
+         `is SomeHostType` test in the addon is false and every cast throws.
+         That is why TasiaAddons.Quic could not find LLUDPServerShim while the
+         scene demonstrably had it attached under exactly that name.
+         Keep these references Private=false so the addon's dependencies always
+         unify with the host's already-loaded assemblies. -->
+    <ProjectReference Include="..\..\Source\OpenSim.Framework\OpenSim.Framework.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Framework.Servers\OpenSim.Framework.Servers.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Framework.Servers.HttpServer\OpenSim.Framework.Servers.HttpServer.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Region.ClientStack.LindenUDP\OpenSim.Region.ClientStack.LindenUDP.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Region.Framework\OpenSim.Region.Framework.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Server.Base\OpenSim.Server.Base.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Server.Handlers\OpenSim.Server.Handlers.csproj" Private="false" />
+    <ProjectReference Include="..\..\Source\OpenSim.Services.Interfaces\OpenSim.Services.Interfaces.csproj" Private="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="log4net" Version="3.3.2" />
