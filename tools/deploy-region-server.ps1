@@ -553,6 +553,53 @@ else {
     $verifyFail++
 }
 
+# Assembly version parity.
+#
+# Addons and the host MUST come from the same build. If a TasiaAddons.*.dll is
+# built standalone after new commits, Nerdbank.GitVersioning stamps it with a
+# newer identity (e.g. 1.1.137-alpha+9cb51d1f5b) than the deployed host
+# (1.1.130-alpha+cf6772b7d9). The runtime then sees two unrelated assemblies
+# that share a simple name, so `is SomeHostType` is false for every type the
+# addon shares with the host. That is silent and disables whole features: the
+# QUIC addon could not find LLUDPServerShim even though it was attached to the
+# scene, and gave up without binding its listener.
+Write-Host ''
+Write-Host 'Assembly version parity                                  :' -NoNewline
+
+$parityRef = $null
+$refFile = Join-Path $TargetHome 'OpenSim.Server.RegionServer.dll'
+if (Test-Path -LiteralPath $refFile) {
+    $parityRef = (Get-Item -LiteralPath $refFile).VersionInfo.ProductVersion
+}
+if (-not $parityRef) {
+    Write-Host 'UNKNOWN (cannot read OpenSim.Server.RegionServer.dll)' -ForegroundColor Red
+    $verifyFail++
+}
+else {
+    $skewed = @()
+    $checked = 0
+    Get-ChildItem -LiteralPath $TargetHome -Filter '*.dll' -File |
+        Where-Object { $_.Name -like 'TasiaAddons.*' -or $_.Name -like 'Gloebit.*' -or $_.Name -like 'OpenSim.*' } |
+        ForEach-Object {
+            $v = $_.VersionInfo.ProductVersion
+            $checked++
+            if ($v -ne $parityRef) { $skewed += , @($_.Name, $v) }
+        }
+
+    Write-Host ("ref={0}  checked={1}  skewed={2}" -f $parityRef, $checked, $skewed.Count) -NoNewline
+    if ($skewed.Count -gt 0) {
+        Write-Host '  FAIL' -ForegroundColor Red
+        $skewed | Select-Object -First 20 | ForEach-Object {
+            Write-Host ("    {0,-52} {1}" -f $_[0], $_[1]) -ForegroundColor Red
+        }
+        Write-Host '    Host and addons must be published from one build of one commit.' -ForegroundColor Red
+        $verifyFail++
+    }
+    else {
+        Write-Host '  OK' -ForegroundColor Green
+    }
+}
+
 # Runtime identity, useful evidence that the net10 build actually landed.
 try {
     $rc = Join-Path $TargetHome 'OpenSim.runtimeconfig.json'

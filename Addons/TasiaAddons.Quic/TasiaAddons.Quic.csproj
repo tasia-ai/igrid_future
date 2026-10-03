@@ -37,10 +37,6 @@
     <Reference Include="OpenSim.Framework.Servers.HttpServer">
       <HintPath>$(SolutionDir)/bin/OpenSim.Framework.Servers.HttpServer.dll</HintPath>
       <Private>False</Private>
-    </Reference>
-        <Reference Include="OpenSim.Region.ClientStack.LindenUDP">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Region.ClientStack.LindenUDP.dll</HintPath>
-      <Private>False</Private>
     </Reference>    <Reference Include="OpenSim.Region.Framework">
       <HintPath>$(SolutionDir)/bin/OpenSim.Region.Framework.dll</HintPath>
       <Private>False</Private>
