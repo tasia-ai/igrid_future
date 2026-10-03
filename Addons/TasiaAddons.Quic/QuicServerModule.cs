@@ -219,6 +219,12 @@ namespace TasiaAddons.Quic
                 if (udp == null)
                     continue;
 
+                // Re-check under the same conditions as RemoveRegion: the scene
+                // may have started departing after the check at the top of the
+                // loop. A volatile bool alone does not close that window.
+                if (!m_watchingForUdp || scene == null || !ReferenceEquals(m_scene, scene))
+                    return;
+
                 m_udpServer = udp;
                 m_log.LogInformation(
                     "[QuicServer] LLUDPServer attached after {0} ms for {1}; starting QUIC listener on port {2}",
@@ -319,6 +325,15 @@ namespace TasiaAddons.Quic
         /// </summary>
         private void FinishRegionLoaded(Scene scene)
         {
+            // The waiter may have raced a RemoveRegion that cleared the flag
+            // after it passed its own check. Refuse a scene that is no longer
+            // ours, and refuse to attach twice if RegionLoaded fired twice.
+            if (scene == null || !ReferenceEquals(m_scene, scene))
+                return;
+
+            if (m_listener != null)
+                return;
+
             m_watchingForUdp = false;
 
             // AddRegion() initializes identity and, in brain mode, acquires the
@@ -365,6 +380,9 @@ namespace TasiaAddons.Quic
 
         public void Close()
         {
+            // Stop the background waiter as well, otherwise it can hold this
+            // scene alive and bring QUIC up for up to two minutes after Close.
+            m_watchingForUdp = false;
             StopListener();
         }
 

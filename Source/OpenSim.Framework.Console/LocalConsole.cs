@@ -541,7 +541,22 @@ public class LocalConsole : CommandConsole
 
                 if (line != null)
                 {
-                    AddToHistory(line);
+                    // Mirror the interactive contract in CommandConsole.ReadLine:
+                    // a resolved command runs and reports "nothing to do".
+                    // Without this, every command piped by FreshMetaverseManager
+                    // falls through to "Invalid command" and never runs.
+                    if (isCommand)
+                    {
+                        string[] cmd = Commands.Resolve(Parser.Parse(line));
+                        if (cmd.Length != 0)
+                        {
+                            AddToHistory(line);
+                            return string.Empty;
+                        }
+                    }
+
+                    if (m_echo && line != "")
+                        AddToHistory(line);
                     return line;
                 }
 
