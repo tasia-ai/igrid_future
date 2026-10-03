@@ -775,8 +775,13 @@ public class CommandConsole : ConsoleBase, ICommandConsole
 
         // End of input. Report it the same way as a resolved command - "nothing
         // to do" - so callers do not treat it as an error and loop on it.
+// Pause as well: `while (!cancel) Prompt()` would otherwise become a hot
+// spin writing the prompt on every iteration when the input is closed.
         if (cmdinput == null)
+        {
+            System.Threading.Thread.Sleep(1000);
             return String.Empty;
+        }
 
         if (isCommand)
         {

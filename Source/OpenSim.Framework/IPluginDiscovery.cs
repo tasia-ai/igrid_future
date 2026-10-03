@@ -66,10 +66,6 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
 {
     private readonly ILogger m_log;
 
-    // Static helper TryAddType needs a logger of its own; m_log is per-instance
-    // and is not available from static context.
-    private static readonly ILogger s_log =
-        LoggerProvider.CreateLogger(MethodBase.GetCurrentMethod().DeclaringType);
     private string m_pluginDirectory = ".";
     private Type m_cachedRequiredType;
     private List<Assembly> m_assemblies = new List<Assembly>();
@@ -77,7 +73,6 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
     private int m_lastScannedAssemblyCount;
     private int m_lastSkippedAssemblyCount;
     private int m_lastLoadFailureCount;
-    private readonly List<McMaster.NETCore.Plugins.PluginLoader> m_pluginLoaders = new List<McMaster.NETCore.Plugins.PluginLoader>();
     private SharedPluginLoadContext m_pluginLoadContext;
     private static readonly string[] s_skippedAssemblyPrefixes =
     {
@@ -261,7 +256,6 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
             try
             {
                 string assemblyPath = Path.IsPathRooted(dllPath)? dllPath : Path.GetFullPath(dllPath);
-                Type[] sharedTypes = BuildSharedTypes(requiredTypeHint);
 
                 // Reuse an instance the host already has before loading our own.
                 //
@@ -300,91 +294,21 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
 
         m_registeredPlugins = PluginRegistry.FromProviders(m_assemblies, m_log);
 
-        return m_assemblies;
-    }
-
-    private static Type[] BuildSharedTypes(Type requiredTypeHint)
-    {
-        HashSet<Type> sharedTypes = new HashSet<Type>();
-
-        if (requiredTypeHint != null)
-            sharedTypes.Add(requiredTypeHint);
-
-        // Keep framework/plugin-registry contracts unified with the host context.
-        sharedTypes.Add(typeof(IPlugin));
-        sharedTypes.Add(typeof(IPluginRegistryProvider));
-
-        // Ensure singleton server state is shared instead of duplicated per plugin load context.
-        TryAddType(sharedTypes, "OpenSim.Framework.Servers.MainServer, OpenSim.Framework.Servers");
-        TryAddType(sharedTypes, "OpenSim.Framework.Servers.IMainServer, OpenSim.Framework.Servers");
-        TryAddType(sharedTypes, "OpenSim.Framework.Servers.HttpServer.IHttpServer, OpenSim.Framework.Servers.HttpServer");
-
-        // Client stack types that region addons must interoperate with directly.
-        //
-        // Every plugin gets its own AssemblyLoadContext. Any host assembly a
-        // plugin references is therefore resolved and loaded a SECOND time
-        // unless its type is declared shared here. The result is two distinct
-        // Assembly objects for one file: identical path, identical full type
-        // name, but `is` is false and casts throw. TasiaAddons.Quic needs the
-        // live LLUDPServer to bind a QUIC circuit to it, and silently found
-        // nothing because the shim in the scene was a different type object
-        // than the one it had compiled against - so it skipped binding its
-        // listener while still advertising the endpoint, and viewers were
-        // dropped at transport level.
-        TryAddType(sharedTypes, "OpenSim.Region.ClientStack.LindenUDP.LLUDPServerShim, OpenSim.Region.ClientStack.LindenUDP");
-        TryAddType(sharedTypes, "OpenSim.Region.ClientStack.LindenUDP.LLUDPServer, OpenSim.Region.ClientStack.LindenUDP");
-
-        return sharedTypes.ToArray();
-    }
-
-    private static void TryAddType(HashSet<Type> sharedTypes, string assemblyQualifiedTypeName)
-    {
-        Type resolvedType = Type.GetType(assemblyQualifiedTypeName, false);
-        if (resolvedType != null)
-        {
-            sharedTypes.Add(resolvedType);
-            return;
-        }
-
-        // Type.GetType only searches assemblies already reachable from this
-        // assembly's own dependency closure, and it fails SILENTLY. A client
-        // stack assembly like OpenSim.Region.ClientStack.LindenUDP is not a
-        // dependency of OpenSim.Framework, so the lookup returns null and the
-        // type is never shared - leaving every plugin load context with its own
-        // private copy. Fall back to loading by simple name, which resolves
-        // against the host's already-loaded assemblies.
-        var parts = assemblyQualifiedTypeName.Split(',');
-        if (parts.Length >= 2)
-        {
-            string typeName = parts[0].Trim();
-            string assemblyName = parts[1].Trim();
-            try
-            {
-                var loaded = Assembly.Load(new AssemblyName(assemblyName));
-                resolvedType = loaded.GetType(typeName, false);
-                if (resolvedType != null)
-                {
-                    sharedTypes.Add(resolvedType);
-                    return;
-                }
-            }
-            catch (Exception e)
-            {
-                s_log.LogWarning("[PLUGINS]: Could not resolve shared type {0}: {1}",
-                    assemblyQualifiedTypeName, e.Message);
-                return;
-            }
-        }
-
-        s_log.LogWarning(
-            "[PLUGINS]: Shared type {0} could not be resolved. Any plugin that uses it " +
-            "will see a SEPARATE type instance from the host, so `is` and casts against it fail.",
-            assemblyQualifiedTypeName);
+return m_assemblies;
     }
 
     /// <summary>
     /// Find an already loaded instance of an assembly by simple name, preferring
     /// the host's own load context so plugin types unify with host types.
+    /// </summary>
+    /// <summary>
+    /// Find an already loaded instance of an assembly by simple name, preferring
+    /// the host's own load context so plugin types unify with host types.
+    ///
+    /// Deliberately scans the DEFAULT context only. Scanning every load context
+    /// could hand back an instance from a previous, now-dead SharedPluginLoadContext
+    /// (it is not collectible, so a rescan would keep returning its assemblies -
+    /// including stale versions after an on-disk DLL update).
     /// </summary>
     private static Assembly FindAlreadyLoaded(string simpleName)
     {
@@ -395,15 +319,6 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
         {
             if (string.Equals(loaded.GetName().Name, simpleName, StringComparison.OrdinalIgnoreCase))
                 return loaded;
-        }
-
-        foreach (System.Runtime.Loader.AssemblyLoadContext context in AssemblyLoadContext.All)
-        {
-            foreach (Assembly loaded in context.Assemblies)
-            {
-                if (string.Equals(loaded.GetName().Name, simpleName, StringComparison.OrdinalIgnoreCase))
-                    return loaded;
-            }
         }
 
         return null;
@@ -457,13 +372,6 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
 
     private void DisposePluginLoaders()
     {
-        foreach (McMaster.NETCore.Plugins.PluginLoader loader in m_pluginLoaders)
-        {
-            loader.Dispose();
-        }
-
-        m_pluginLoaders.Clear();
-
         // The shared context is not collectible: plugin instances stay alive for
         // the lifetime of the process and are handed to scenes and modules. Drop
         // the reference only so a rescan starts from a clean slate.

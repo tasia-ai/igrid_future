@@ -106,8 +106,12 @@ public class PluginLoadContextIdentityTests
 
         // The invariant. A duplicate here means one plugin resolved the client
         // stack from a second Assembly instance, so `is` and casts between the
-        // addon and the scene can never succeed.
-        Assembly[] clientStackCopies = AppDomain.CurrentDomain.GetAssemblies()
+        // addon and the scene can never succeed. Enumerate every load context,
+        // not just the default one: per-plugin contexts are invisible to
+        // AppDomain.GetAssemblies, and an "exactly once" check against that
+        // list alone passed even when the bug was live.
+        Assembly[] clientStackCopies = System.Runtime.Loader.AssemblyLoadContext.All
+            .SelectMany(context => context.Assemblies)
             .Where(a => string.Equals(a.GetName().Name, ClientStackAssemblyName, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 

@@ -341,12 +341,16 @@ namespace TasiaAddons.Quic
             // in case startup ordering changes or explicit-port config is used.
             UpdateRegionInfoQuicEndpoint(scene);
 
-            // Subscribe to circuit creation events for proxy registration
+            // Subscribe to circuit creation events for proxy registration.
+            // Unsubscribe first: RegionLoaded can fire twice, and a second
+            // subscription would register every circuit with the proxy twice.
+            m_udpServer.OnQuicCircuitCreated -= OnQuicCircuitCreated;
             m_udpServer.OnQuicCircuitCreated += OnQuicCircuitCreated;
 
             // In Quick-G brain mode there is no native QUIC listener, so
             // bridged viewer circuits arrive as plain loopback UDP. Complete
             // the viewer QUIC handshake (quicready) for those circuits.
+            m_udpServer.OnLoopbackCircuitCreated -= OnLoopbackCircuitCreated;
             m_udpServer.OnLoopbackCircuitCreated += OnLoopbackCircuitCreated;
 
             StartListener();
@@ -398,10 +402,14 @@ namespace TasiaAddons.Quic
             if (scene == null || m_config.Port <= 0)
                 return;
 
-            scene.RegionInfo.QuicHost = string.IsNullOrWhiteSpace(scene.RegionInfo.QuicHost)
-                ? m_simHost
-                : scene.RegionInfo.QuicHost;
-            scene.RegionInfo.QuicPort = (uint)m_config.Port;
+            scene.RegionInfo.QuicHost = !string.IsNullOrWhiteSpace(m_config.AdvertiseHost)
+                ? m_config.AdvertiseHost
+                : string.IsNullOrWhiteSpace(scene.RegionInfo.QuicHost)
+                    ? m_simHost
+                    : scene.RegionInfo.QuicHost;
+            scene.RegionInfo.QuicPort = m_config.AdvertisePort != 0
+                ? (uint)m_config.AdvertisePort
+                : (uint)m_config.Port;
             m_log.LogInformation($"[QuicServer] RegionInfo QUIC endpoint set for {m_regionName}: {scene.RegionInfo.QuicHost}:{scene.RegionInfo.QuicPort}");
         }
 
@@ -761,7 +769,10 @@ namespace TasiaAddons.Quic
                 // this the QUIC stack drops the connection after IdleTimeoutMs
                 // (60 s), long before the region's AckTimeout (300 s) fires.
                 // The region then sees silence and disconnects the agent.
-                KeepAliveInterval = TimeSpan.FromMilliseconds(m_config.KeepaliveMs),
+                // Zero or negative disables the keep-alive. Clamp to half the
+                // idle timeout so a misconfigured value cannot invert the two.
+                KeepAliveInterval = m_config.KeepaliveMs <= 0 ? Timeout.InfiniteTimeSpan
+                    : TimeSpan.FromMilliseconds(Math.Min(m_config.KeepaliveMs, m_config.IdleTimeoutMs / 2)),
             };
 
             return ValueTask.FromResult(options);

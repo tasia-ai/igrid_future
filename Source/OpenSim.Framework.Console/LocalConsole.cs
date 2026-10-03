@@ -574,6 +574,20 @@ public class LocalConsole : CommandConsole
                 System.Threading.Thread.Sleep(1000);
                 return string.Empty;
             }
+            catch (ObjectDisposedException)
+            {
+                // The input pipe was disposed under us (supervisor detached or
+                // the inherited handle was closed). Same treatment as a closed
+                // pipe: park, do not propagate, do not spin.
+                System.Threading.Thread.Sleep(1000);
+                return string.Empty;
+            }
+            catch (InvalidOperationException)
+            {
+                // No usable input stream in this mode. Park, do not propagate.
+                System.Threading.Thread.Sleep(1000);
+                return string.Empty;
+            }
         }
 
         m_cursorXPosition = 0;
