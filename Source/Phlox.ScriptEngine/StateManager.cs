@@ -71,6 +71,11 @@ namespace Phlox.ScriptEngine
         private SQLiteConnection m_Reader;
         private readonly HashSet<UUID> m_LoadFailed = new HashSet<UUID>();
 
+        /// <summary>Scripts whose last capture failed, and so were warned of once.</summary>
+        private readonly HashSet<UUID> m_CaptureFailing = new HashSet<UUID>();
+        /// <summary>Capture failures written to the log as warnings (diagnostics and tests).</summary>
+        internal int CaptureFailureWarnings;
+
         /// <summary>Test seam: make LoadState fail for an item as the database would. Null in production.</summary>
         internal static Func<UUID, bool> FailLoadForTest;
         private const int FLUSH_INTERVAL_MS = 2500;
@@ -235,15 +240,55 @@ namespace Phlox.ScriptEngine
                 try { blob = CaptureRow(interp); }
                 catch (Exception e)
                 {
-                    Interlocked.Increment(ref FlushFailures);
-                    LastFlushError = e.Message;
-                    m_log.LogWarning("[PhloxState]: Failed to capture {0}: {1}", interp.ItemId, e.Message);
+                    CaptureFailed(interp.ItemId, e);
                     continue;
                 }
+                lock (m_Lock) m_CaptureFailing.Remove(interp.ItemId);
                 if (self) Interlocked.Increment(ref SelfCaptures);
                 else Interlocked.Increment(ref SchedulerCaptures);
                 Queue(new WriteOp { Kind = WriteKind.Save, ItemId = interp.ItemId, AssetId = interp.Script.AssetId, Blob = blob });
             }
+        }
+
+        /// <summary>
+        /// A capture of the script failed. A part that could not be copied passes: the last saved row is kept and the next
+        /// capture tries again. Any other failure means the script's state cannot be captured as it is now (tables nested
+        /// past the bound, a closure cycle), and it fails at every flush while it stays so. Its older row would resume the
+        /// script at an earlier moment after a restart with nothing to say so; it is moved to script_state_rejected
+        /// instead, once, so a restart starts the script fresh. A later capture that works writes a normal row again. The
+        /// warning is written once, until a capture of the script succeeds.
+        /// </summary>
+        private void CaptureFailed(UUID itemId, Exception e)
+        {
+            Interlocked.Increment(ref FlushFailures);
+            LastFlushError = e.Message;
+            if (e is SerializedRuntimeState.PartNotCopiedException)
+            {
+                m_log.LogWarning("[PhloxState]: Failed to capture {0}: {1}; its last saved state is kept", itemId, e.Message);
+                return;
+            }
+            bool first, loadFailed;
+            lock (m_Lock)
+            {
+                first = m_CaptureFailing.Add(itemId);
+                loadFailed = m_LoadFailed.Contains(itemId);
+            }
+            if (!first)
+            {
+                m_log.LogDebug("[PhloxState]: Failed to capture {0} again: {1}", itemId, e.Message);
+                return;
+            }
+            Interlocked.Increment(ref CaptureFailureWarnings);
+            if (loadFailed)   // Never touch a row that could not be read
+            {
+                m_log.LogWarning("[PhloxState]: Failed to capture {0}: {1}", itemId, e.Message);
+                return;
+            }
+            m_log.LogError("[PhloxState]: The state of {0} cannot be captured ({1}); its older saved state cannot be restored in its place and is moved to script_state_rejected, so a restart starts the script fresh. This is not logged again until a capture of it succeeds",
+                itemId, e.Message);
+            Interlocked.Increment(ref RowsMovedAside);
+            Queue(new WriteOp { Kind = WriteKind.MoveAside, ItemId = itemId, Reason = "a newer state could not be captured: " + e.Message });
+            m_WakeEvent.Set();
         }
 
         /// <summary>
@@ -256,9 +301,38 @@ namespace Phlox.ScriptEngine
             return Capture(interp);
         }
 
+        /// <summary>
+        /// A capture that reads a collection while another thread changes it gets
+        /// a transient "collection was modified" error. Failing the whole capture
+        /// on the first one made a flush taken against a running script throw.
+        /// The runtime state read is tried up to ten times; only a read that
+        /// fails every time fails the capture.
+        /// </summary>
+        private const int CaptureAttempts = 10;
+
         private static byte[] Capture(Interpreter interp)
         {
-            SerializedRuntimeState srs = SerializedRuntimeState.FromRuntimeState(interp.ScriptState);
+            SerializedRuntimeState srs = null;
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    srs = SerializedRuntimeState.FromRuntimeState(interp.ScriptState);
+                    break;
+                }
+                catch (Exception) when (attempt < CaptureAttempts) { }
+                catch (Exception e)
+                {
+                    // Ten attempts all failed. Report it as a copy failure (the
+                    // next capture may well work) rather than an uncapturable
+                    // state, so the last saved row is kept. Erring toward
+                    // keeping is safe: discarding good state is worse than
+                    // keeping a stale row.
+                    throw new SerializedRuntimeState.PartNotCopiedException(
+                        "the script's state could not be copied: " + e.Message, e);
+                }
+            }
+
             using var ms = new MemoryStream();
             ProtoBuf.Serializer.Serialize(ms, srs);
             return ms.ToArray();
@@ -272,10 +346,12 @@ namespace Phlox.ScriptEngine
         /// </summary>
         public void QueueUnloadSave(Interpreter interp)
         {
+            bool wasFailing;
             lock (m_Lock)
             {
                 m_Dirty.Remove(interp.ItemId);
                 m_Live.Remove(interp.ItemId);
+                wasFailing = m_CaptureFailing.Remove(interp.ItemId);
                 if (m_LoadFailed.Contains(interp.ItemId))
                 {
                     m_log.LogInformation("[PhloxState]: Not saving {0}: its state row could not be read this run and is kept as it was", interp.ItemId);
@@ -287,7 +363,10 @@ namespace Phlox.ScriptEngine
             try { blob = CaptureRow(interp); }
             catch (Exception e)
             {
-                m_log.LogWarning("[PhloxState]: Failed to capture {0} at unload: {1}", interp.ItemId, e.Message);
+                // Its older row was moved aside already when the failing began; otherwise it is now.
+                if (wasFailing) m_log.LogDebug("[PhloxState]: Failed to capture {0} at unload: {1}", interp.ItemId, e.Message);
+                else CaptureFailed(interp.ItemId, e);
+                lock (m_Lock) m_CaptureFailing.Remove(interp.ItemId);
                 return;
             }
             Queue(new WriteOp { Kind = WriteKind.Save, ItemId = interp.ItemId, AssetId = interp.Script.AssetId, Blob = blob });
