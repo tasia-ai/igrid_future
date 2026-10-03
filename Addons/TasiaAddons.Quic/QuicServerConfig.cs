@@ -49,6 +49,24 @@ namespace TasiaAddons.Quic
         /// </summary>
         public int Port { get; private set; } = 9001;
 
+        /// <summary>
+        /// Host and port to publish in RegionInfo for viewers.
+        ///
+        /// These are separate from the listener on purpose. A region listens on
+        /// an internal per-region port from the Quick-G pool (22200-22400),
+        /// which is not reachable from outside. Viewers must be pointed at the
+        /// public endpoint instead - Robust's QUIC proxy on 22002 - which routes
+        /// back to the right region through the brain. Publishing the listener
+        /// port makes the viewer connect somewhere it cannot reach, and the
+        /// Tasia viewer then waits for a connection that never completes instead
+        /// of falling back to LLUDP.
+        ///
+        /// AdvertisePort 0 means "publish the listener port", which is only
+        /// correct when the listener port is itself reachable.
+        /// </summary>
+        public string AdvertiseHost { get; private set; } = "";
+        public int AdvertisePort { get; private set; } = 0;
+
         public string Alpn { get; private set; } = "opensim-ll/1";
         public int IdleTimeoutMs { get; private set; } = 60000;
         public int KeepaliveMs { get; private set; } = 30000;
@@ -87,6 +105,8 @@ namespace TasiaAddons.Quic
 
             config.Enabled = quicConfig.GetBoolean("Enabled", config.Enabled);
             config.Port = quicConfig.GetInt("Port", config.Port);
+            config.AdvertiseHost = quicConfig.GetString("AdvertiseHost", config.AdvertiseHost);
+            config.AdvertisePort = quicConfig.GetInt("AdvertisePort", config.AdvertisePort);
             config.Alpn = quicConfig.GetString("ALPN", config.Alpn);
             config.IdleTimeoutMs = quicConfig.GetInt("IdleTimeoutMs", config.IdleTimeoutMs);
             config.KeepaliveMs = quicConfig.GetInt("KeepaliveMs", config.KeepaliveMs);
