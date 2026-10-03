@@ -119,6 +119,15 @@ namespace InWorldz.Phlox.Serialization
         [ProtoMember(28)]
         public string PermsOwner;
 
+        // NOTE: upstream numbers these 28/29/30; our 28 is already PermsOwner,
+        // so these use 29/30. Rows are NOT byte-compatible with upstream, but
+        // are self-consistent: our writer and our reader agree. Reconcile tags
+        // if the two trees ever share a database.
+        [ProtoMember(29)]
+        public string PermsExperience;
+        [ProtoMember(30)]
+        public bool PermsUnverified;
+
         public SerializedRuntimeState()
         {
         }
@@ -212,6 +221,8 @@ namespace InWorldz.Phlox.Serialization
             serState.PermsGranter = state.PermsGranter;
             serState.GrantedPermsMask = state.GrantedPermsMask;
             serState.PermsOwner = state.PermsOwner;
+            serState.PermsExperience = state.PermsExperience;
+            serState.PermsUnverified = state.PermsUnverified;
             serState.ActiveListens = listensSnapshot;
             serState.StartParameter = state.StartParameter;
 
@@ -325,6 +336,8 @@ namespace InWorldz.Phlox.Serialization
             state.PermsGranter = this.PermsGranter;
             state.GrantedPermsMask = this.GrantedPermsMask;
             state.PermsOwner = this.PermsOwner;
+            state.PermsExperience = this.PermsExperience;
+            state.PermsUnverified = this.PermsUnverified;
 
             return state;
         }

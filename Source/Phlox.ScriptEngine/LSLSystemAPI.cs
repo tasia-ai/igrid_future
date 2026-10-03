@@ -781,7 +781,7 @@ namespace Phlox.ScriptEngine
                 item.PermsGranter = granter;
                 item.PermsMask = mask;
             }
-            NoteGrant(m_thisScript.ScriptState, granter, mask, m_host.OwnerID);
+            NoteGrant(m_thisScript.ScriptState, granter, mask, m_host.OwnerID, UUID.Zero);
             GrantChanged();
         }
 
@@ -821,32 +821,45 @@ namespace Phlox.ScriptEngine
             TaskInventoryItem item = GetInventorySelf();
             if (st == null || item == null) return;
             if (item.PermsGranter != UUID.Zero && item.PermsMask != 0)
-                NoteGrant(st, item.PermsGranter, item.PermsMask, m_host.OwnerID);
+                NoteGrant(st, item.PermsGranter, item.PermsMask, m_host.OwnerID, UUID.Zero);
             else if (m_grantClaim is GrantClaim claim)
-                NoteGrant(st, claim.Granter, claim.Mask, claim.Owner);
+                NoteGrant(st, claim.Granter, claim.Mask, claim.Owner, UUID.Zero, unverified: true);
             else
                 ClearSavedGrant(st);
         }
 
-        /// <summary>The grant a row saves: the item's grant now, with the object's owner; none held, none saved.</summary>
+        /// <summary>The grant a row saves: the item's grant now, with the object's owner, and the Experience it came from while the
+        /// item's granter is still the one that Experience's grant noted; none held, none saved.</summary>
         internal static void NoteItemGrant(RuntimeState st, TaskInventoryItem item, UUID objectOwner)
         {
-            if (item.PermsGranter != UUID.Zero && item.PermsMask != 0) NoteGrant(st, item.PermsGranter, item.PermsMask, objectOwner);
-            else ClearSavedGrant(st);
+            if (item.PermsGranter == UUID.Zero || item.PermsMask == 0)
+            {
+                ClearSavedGrant(st);
+                return;
+            }
+            UUID experience = UUID.Zero;
+            if (st.ExperienceGranter is string g && st.ExperienceGrant is string e
+                && UUID.TryParse(g, out UUID expGranter) && expGranter == item.PermsGranter)
+                UUID.TryParse(e, out experience);
+            NoteGrant(st, item.PermsGranter, item.PermsMask, objectOwner, experience);
         }
 
-        private static void NoteGrant(RuntimeState st, UUID granter, int mask, UUID owner)
+        private static void NoteGrant(RuntimeState st, UUID granter, int mask, UUID owner, UUID experience, bool unverified = false)
         {
             st.PermsGranter = granter.ToString();
             st.GrantedPermsMask = mask;
             st.PermsOwner = owner.ToString();
+            st.PermsExperience = experience.IsZero() ? null : experience.ToString();
+            st.PermsUnverified = unverified;
         }
 
-        private static void ClearSavedGrant(RuntimeState st)
+        internal static void ClearSavedGrant(RuntimeState st)
         {
             st.PermsGranter = null;
             st.GrantedPermsMask = 0;
             st.PermsOwner = null;
+            st.PermsExperience = null;
+            st.PermsUnverified = false;
         }
 
         /// <summary>
@@ -2545,9 +2558,17 @@ namespace Phlox.ScriptEngine
         /// The grant changed, perhaps with no event run (a stand-up, Release Keys, an owner change): the script is saved
         /// again, so its row never keeps a grant the item no longer holds, which a restart would give back whole.
         /// </summary>
+        /// The grant changed, perhaps with no event run (a stand-up, Release Keys, an owner change): the state notes the
+        /// item's grant now, so a save that can no longer find the item (a region stop, a derez) holds the grant the
+        /// script holds, and the script is saved again, so its row never keeps a grant the item no longer holds, which a
+        /// restart would give back whole.
+        /// </summary>
         private void GrantChanged()
         {
-            if (m_thisScript != null) m_ScriptEngine?.StateManager?.ScriptChanged(m_thisScript);
+            if (m_thisScript == null) return;
+            if (m_thisScript.ScriptState is RuntimeState st && GetInventorySelf() is TaskInventoryItem item)
+                NoteItemGrant(st, item, m_host.OwnerID);
+            m_ScriptEngine?.StateManager?.ScriptChanged(m_thisScript);
         }
 
         private int GetImplicitPermissions(TaskInventoryItem item, UUID agentID)
