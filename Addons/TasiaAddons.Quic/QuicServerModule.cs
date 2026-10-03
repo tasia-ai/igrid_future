@@ -227,10 +227,50 @@ namespace TasiaAddons.Quic
                 return;
             }
 
+            // Time out with full detail: the whole point of this branch is
+            // that a silent give-up here is what made QUIC look like a config
+            // problem for a month.
             m_watchingForUdp = false;
+
+            var names = new List<string>();
+            if (scene.RegionModules != null)
+                foreach (var kv in scene.RegionModules)
+                    names.Add(kv.Key);
+
+            var udpNamed = new List<string>();
+            foreach (var n in names)
+                if (n.IndexOf("UDP", StringComparison.OrdinalIgnoreCase) >= 0)
+                    udpNamed.Add(n);
+
             m_log.LogError(
-                "[QuicServer] LLUDPServer never attached for {0} after {1} s; QUIC disabled for this region",
-                m_regionName, (maxAttempts * delayMs) / 1000);
+                "[QuicServer] LLUDPServer never attached for {0} after {1} s. " +
+                "shimInRegionModules={2} shimFromInterface={3} udpNamedModules=[{4}] allModules={5} moduleCount={6}",
+                m_regionName, (maxAttempts * delayMs) / 1000,
+                FindShim(scene) != null,
+                scene.RequestModuleInterface<LLUDPServerShim>() != null,
+                string.Join(", ", udpNamed),
+                string.Join(", ", names),
+                names.Count);
+        }
+
+        /// <summary>
+        /// Locate the LLUDPServerShim instance attached to the scene, if any.
+        /// </summary>
+        private static LLUDPServerShim FindShim(Scene scene)
+        {
+            if (scene == null)
+                return null;
+
+            var byInterface = scene.RequestModuleInterface<LLUDPServerShim>();
+            if (byInterface != null)
+                return byInterface;
+
+            if (scene.RegionModules != null)
+                foreach (var kv in scene.RegionModules)
+                    if (kv.Value is LLUDPServerShim shim)
+                        return shim;
+
+            return null;
         }
 
         /// <summary>
