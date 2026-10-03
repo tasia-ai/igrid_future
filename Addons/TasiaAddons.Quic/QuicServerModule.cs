@@ -737,6 +737,13 @@ namespace TasiaAddons.Quic
                 IdleTimeout = TimeSpan.FromMilliseconds(m_config.IdleTimeoutMs),
                 DefaultStreamErrorCode = 0,
                 DefaultCloseErrorCode = 0,
+
+                // Keep the connection alive below the transport level as well.
+                // Viewers behind a tunnel go quiet for long stretches; without
+                // this the QUIC stack drops the connection after IdleTimeoutMs
+                // (60 s), long before the region's AckTimeout (300 s) fires.
+                // The region then sees silence and disconnects the agent.
+                KeepAliveInterval = TimeSpan.FromMilliseconds(m_config.KeepaliveMs),
             };
 
             return ValueTask.FromResult(options);
