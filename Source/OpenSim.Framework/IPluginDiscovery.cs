@@ -63,6 +63,11 @@ public static class PluginDiscoveryFactory
 public class DotNetCorePluginsDiscovery : IPluginDiscovery
 {
     private readonly ILogger m_log;
+
+    // Static helper TryAddType needs a logger of its own; m_log is per-instance
+    // and is not available from static context.
+    private static readonly ILogger s_log =
+        LoggerProvider.CreateLogger(MethodBase.GetCurrentMethod().DeclaringType);
     private string m_pluginDirectory = ".";
     private Type m_cachedRequiredType;
     private List<Assembly> m_assemblies = new List<Assembly>();
@@ -300,6 +305,21 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
         TryAddType(sharedTypes, "OpenSim.Framework.Servers.IMainServer, OpenSim.Framework.Servers");
         TryAddType(sharedTypes, "OpenSim.Framework.Servers.HttpServer.IHttpServer, OpenSim.Framework.Servers.HttpServer");
 
+        // Client stack types that region addons must interoperate with directly.
+        //
+        // Every plugin gets its own AssemblyLoadContext. Any host assembly a
+        // plugin references is therefore resolved and loaded a SECOND time
+        // unless its type is declared shared here. The result is two distinct
+        // Assembly objects for one file: identical path, identical full type
+        // name, but `is` is false and casts throw. TasiaAddons.Quic needs the
+        // live LLUDPServer to bind a QUIC circuit to it, and silently found
+        // nothing because the shim in the scene was a different type object
+        // than the one it had compiled against - so it skipped binding its
+        // listener while still advertising the endpoint, and viewers were
+        // dropped at transport level.
+        TryAddType(sharedTypes, "OpenSim.Region.ClientStack.LindenUDP.LLUDPServerShim, OpenSim.Region.ClientStack.LindenUDP");
+        TryAddType(sharedTypes, "OpenSim.Region.ClientStack.LindenUDP.LLUDPServer, OpenSim.Region.ClientStack.LindenUDP");
+
         return sharedTypes.ToArray();
     }
 
@@ -307,7 +327,45 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
     {
         Type resolvedType = Type.GetType(assemblyQualifiedTypeName, false);
         if (resolvedType != null)
+        {
             sharedTypes.Add(resolvedType);
+            return;
+        }
+
+        // Type.GetType only searches assemblies already reachable from this
+        // assembly's own dependency closure, and it fails SILENTLY. A client
+        // stack assembly like OpenSim.Region.ClientStack.LindenUDP is not a
+        // dependency of OpenSim.Framework, so the lookup returns null and the
+        // type is never shared - leaving every plugin load context with its own
+        // private copy. Fall back to loading by simple name, which resolves
+        // against the host's already-loaded assemblies.
+        var parts = assemblyQualifiedTypeName.Split(',');
+        if (parts.Length >= 2)
+        {
+            string typeName = parts[0].Trim();
+            string assemblyName = parts[1].Trim();
+            try
+            {
+                var loaded = Assembly.Load(new AssemblyName(assemblyName));
+                resolvedType = loaded.GetType(typeName, false);
+                if (resolvedType != null)
+                {
+                    sharedTypes.Add(resolvedType);
+                    return;
+                }
+            }
+            catch (Exception e)
+            {
+                s_log.LogWarning("[PLUGINS]: Could not resolve shared type {0}: {1}",
+                    assemblyQualifiedTypeName, e.Message);
+                return;
+            }
+        }
+
+        s_log.LogWarning(
+            "[PLUGINS]: Shared type {0} could not be resolved. Any plugin that uses it " +
+            "will see a SEPARATE type instance from the host, so `is` and casts against it fail.",
+            assemblyQualifiedTypeName);
     }
 
     private static bool ShouldProbeAssembly(string dllPath, Type requiredTypeHint)
