@@ -79,6 +79,10 @@ namespace TasiaAddons.Quic
         private CancellationTokenSource m_cts;
         private bool m_enabled;
 
+        // True while a background poll is waiting for LLUDPServerShim to attach.
+        // Set from the module thread and the watcher thread, so it is volatile.
+        private volatile bool m_watchingForUdp;
+
         // Proxy registration config
         private string m_proxyRegistrationUrl = "";
         private string m_simHost = "";
@@ -174,18 +178,67 @@ namespace TasiaAddons.Quic
                 return;
             }
 
-            // Find the LLUDPServer for this scene so we can bridge packets
+            // Find the LLUDPServer for this scene so we can bridge packets.
+            // It may not be attached yet: region modules attach in plugin
+            // discovery order, and the client stack is discovered after this
+            // addon, so at RegionLoaded time the shim is frequently absent.
             m_udpServer = FindUdpServer(scene);
 
             if (m_udpServer == null)
             {
-                // Previously a Warn with no detail, through a logger that had no
-                // appenders: the listener was simply never created and nothing said why.
-                m_log.LogError(
-                    "[QuicServer] Could not find LLUDPServer for scene, QUIC disabled: no LLUDPServerShim is registered on scene {0} (loaded modules: {1} region modules). Check that the client stack plugin from [Startup] clientstack_plugin loaded before this module",
+                m_log.LogInformation(
+                    "[QuicServer] LLUDPServer not attached yet for {0} ({1} region modules so far); waiting for it in the background",
                     scene?.RegionInfo?.RegionName, scene?.RegionModules?.Count);
+                m_watchingForUdp = true;
+                Task.Run(() => WaitForUdpServer(scene));
                 return;
             }
+
+            FinishRegionLoaded(scene);
+        }
+
+        /// <summary>
+        /// Poll until LLUDPServerShim is attached, then bring QUIC up.
+        /// Without this, a startup ordering difference silently disables QUIC:
+        /// the endpoint is still advertised in the event queue while nothing is
+        /// listening, so viewers connect and are shut down at transport level.
+        /// </summary>
+        private void WaitForUdpServer(Scene scene)
+        {
+            const int delayMs = 500;
+            const int maxAttempts = 240; // 2 minutes
+
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                Thread.Sleep(delayMs);
+
+                if (!m_watchingForUdp || scene == null)
+                    return;
+
+                var udp = FindUdpServer(scene);
+                if (udp == null)
+                    continue;
+
+                m_udpServer = udp;
+                m_log.LogInformation(
+                    "[QuicServer] LLUDPServer attached after {0} ms for {1}; starting QUIC listener on port {2}",
+                    attempt * delayMs, m_regionName, m_config.Port);
+                FinishRegionLoaded(scene);
+                return;
+            }
+
+            m_watchingForUdp = false;
+            m_log.LogError(
+                "[QuicServer] LLUDPServer never attached for {0} after {1} s; QUIC disabled for this region",
+                m_regionName, (maxAttempts * delayMs) / 1000);
+        }
+
+        /// <summary>
+        /// Subscribe to the LLUDP server's circuit events and start the QUIC listener.
+        /// </summary>
+        private void FinishRegionLoaded(Scene scene)
+        {
+            m_watchingForUdp = false;
 
             // AddRegion() initializes identity and, in brain mode, acquires the
             // lease early enough for grid registration.  Keep RegionInfo in sync
@@ -212,6 +265,10 @@ namespace TasiaAddons.Quic
 
         public void RemoveRegion(Scene scene)
         {
+            // Stop the background waiter first, otherwise it can attach and
+            // start a listener for a scene that is going away.
+            m_watchingForUdp = false;
+
             if (!m_enabled && m_listener == null)
                 return;
 
@@ -672,8 +729,30 @@ namespace TasiaAddons.Quic
         /// </summary>
         private static LLUDPServer FindUdpServer(Scene scene)
         {
+            if (scene == null)
+                return null;
+
+            // Preferred lookup: the interface-based module query.
             var shim = scene.RequestModuleInterface<LLUDPServerShim>();
-            return shim?.UdpServer;
+            if (shim?.UdpServer != null)
+                return shim.UdpServer;
+
+            // Fallback: LLUDPServerShim is attached to the scene as a non-shared
+            // region module, and attachment happens in plugin discovery order.
+            // RequestModuleInterface only sees what is already attached, so when
+            // RegionLoaded fires before the client stack attaches, it returns
+            // null even though the shim is about to arrive. Scan the attached
+            // module table directly so ordering is not decisive.
+            if (scene.RegionModules != null)
+            {
+                foreach (var module in scene.RegionModules.Values)
+                {
+                    if (module is LLUDPServerShim attached && attached.UdpServer != null)
+                        return attached.UdpServer;
+                }
+            }
+
+            return null;
         }
 
         #endregion
