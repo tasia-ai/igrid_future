@@ -25,7 +25,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+using System.IO;
 using System.Reflection;
+using System.Runtime.Loader;
 using Microsoft.Extensions.Logging;
 
 namespace OpenSim.Framework;
@@ -76,6 +78,7 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
     private int m_lastSkippedAssemblyCount;
     private int m_lastLoadFailureCount;
     private readonly List<McMaster.NETCore.Plugins.PluginLoader> m_pluginLoaders = new List<McMaster.NETCore.Plugins.PluginLoader>();
+    private SharedPluginLoadContext m_pluginLoadContext;
     private static readonly string[] s_skippedAssemblyPrefixes =
     {
         "System.",
@@ -260,18 +263,29 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
                 string assemblyPath = Path.IsPathRooted(dllPath)? dllPath : Path.GetFullPath(dllPath);
                 Type[] sharedTypes = BuildSharedTypes(requiredTypeHint);
 
-                McMaster.NETCore.Plugins.PluginLoader loader =
-                    McMaster.NETCore.Plugins.PluginLoader.CreateFromAssemblyFile(
-                        assemblyPath,
-                        sharedTypes: sharedTypes,
-                        config => {
-                            config.IsLazyLoaded = true;
-                            config.PreferSharedTypes = true;
-                        }
-                        );
+                // Reuse an instance the host already has before loading our own.
+                //
+                // The scan probes anything starting with "OpenSim.", so host
+                // assemblies such as OpenSim.Region.ClientStack.LindenUDP are
+                // themselves loaded as if they were plugins - LLUDPServerShim is
+                // a region module discovered exactly that way. Loading a second
+                // copy here gives the scene one Assembly instance while plugins
+                // referencing it see another: same path, same type name, but
+                // `is` is false and casts throw. That is how QuicServerModule
+                // failed to find the shim it needed, skipped binding its QUIC
+                // listener, and left viewers dropped at transport level.
+                string simpleName = Path.GetFileNameWithoutExtension(assemblyPath) ?? string.Empty;
+                Assembly existing = FindAlreadyLoaded(simpleName);
 
-                m_pluginLoaders.Add(loader);
-                m_assemblies.Add(loader.LoadDefaultAssembly());
+                if (existing != null)
+                {
+                    m_assemblies.Add(existing);
+                }
+                else
+                {
+                    m_pluginLoadContext ??= new SharedPluginLoadContext(m_pluginDirectory, m_log);
+                    m_assemblies.Add(m_pluginLoadContext.LoadFromAssemblyPath(assemblyPath));
+                }
             }
             catch (BadImageFormatException)
             {
@@ -368,6 +382,33 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
             assemblyQualifiedTypeName);
     }
 
+    /// <summary>
+    /// Find an already loaded instance of an assembly by simple name, preferring
+    /// the host's own load context so plugin types unify with host types.
+    /// </summary>
+    private static Assembly FindAlreadyLoaded(string simpleName)
+    {
+        if (string.IsNullOrEmpty(simpleName))
+            return null;
+
+        foreach (Assembly loaded in AssemblyLoadContext.Default.Assemblies)
+        {
+            if (string.Equals(loaded.GetName().Name, simpleName, StringComparison.OrdinalIgnoreCase))
+                return loaded;
+        }
+
+        foreach (System.Runtime.Loader.AssemblyLoadContext context in AssemblyLoadContext.All)
+        {
+            foreach (Assembly loaded in context.Assemblies)
+            {
+                if (string.Equals(loaded.GetName().Name, simpleName, StringComparison.OrdinalIgnoreCase))
+                    return loaded;
+            }
+        }
+
+        return null;
+    }
+
     private static bool ShouldProbeAssembly(string dllPath, Type requiredTypeHint)
     {
         string assemblySimpleName = Path.GetFileNameWithoutExtension(dllPath) ?? string.Empty;
@@ -422,6 +463,75 @@ public class DotNetCorePluginsDiscovery : IPluginDiscovery
         }
 
         m_pluginLoaders.Clear();
+
+        // The shared context is not collectible: plugin instances stay alive for
+        // the lifetime of the process and are handed to scenes and modules. Drop
+        // the reference only so a rescan starts from a clean slate.
+        m_pluginLoadContext = null;
+    }
+
+    /// <summary>
+    /// A single AssemblyLoadContext shared by every plugin discovered in one
+    /// scan, so each file is loaded exactly once and every plugin sees the same
+    /// Assembly object for shared host assemblies.
+    /// </summary>
+    private sealed class SharedPluginLoadContext : AssemblyLoadContext
+    {
+        private readonly string m_directory;
+        private readonly ILogger m_log;
+
+        public SharedPluginLoadContext(string directory, ILogger log)
+            : base("OpenSimPlugins")
+        {
+            m_directory = directory;
+            m_log = log;
+        }
+
+        protected override Assembly Load(AssemblyName assemblyName)
+        {
+            string simpleName = assemblyName.Name;
+            if (string.IsNullOrEmpty(simpleName))
+                return null;
+
+            // Already loaded here (a plugin pulled in as a dependency of another
+            // plugin). This is the case that used to produce duplicates.
+            foreach (Assembly loaded in Assemblies)
+            {
+                if (string.Equals(loaded.GetName().Name, simpleName, StringComparison.OrdinalIgnoreCase))
+                    return loaded;
+            }
+
+            // Always let the DEFAULT context resolve it. It is the context the
+            // host itself runs in, so this both reuses the copy the host already
+            // has and forces anything missing to be loaded THERE rather than
+            // here. Two copies of one file can never result.
+            try
+            {
+                Assembly fromDefault = AssemblyLoadContext.Default.LoadFromAssemblyName(assemblyName);
+                if (fromDefault != null)
+                    return fromDefault;
+            }
+            catch (Exception e)
+            {
+                m_log?.LogDebug("[PLUGINS]: Default context could not resolve {0}: {1}",
+                    simpleName, e.Message);
+            }
+
+            // Plugin-only assembly: keep it in this context.
+            try
+            {
+                string candidate = Path.Combine(m_directory, simpleName + ".dll");
+                if (File.Exists(candidate))
+                    return LoadFromAssemblyPath(candidate);
+            }
+            catch (Exception e)
+            {
+                m_log?.LogDebug("[PLUGINS]: Could not load {0} from {1}: {2}",
+                    simpleName, m_directory, e.Message);
+            }
+
+            return null;
+        }
     }
 
     private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)

@@ -18,9 +18,13 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
-using McMaster.NETCore.Plugins;
+using Microsoft.Extensions.Logging;
+using OpenSim.Framework;
+using OpenSim.Region.Framework.Interfaces;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -29,34 +33,30 @@ namespace OpenSim.PluginLoadContext.Tests;
 /// <summary>
 /// Regression test for the QUIC transport never binding its listener.
 ///
-/// DotNetCorePluginsDiscovery scans the program home and, for every DLL it
-/// decides to probe, calls McMaster's PluginLoader.CreateFromAssemblyFile.
-/// That creates a SEPARATE AssemblyLoadContext per plugin DLL.
+/// DotNetCorePluginsDiscovery used to call McMaster's
+/// PluginLoader.CreateFromAssemblyFile once per probed DLL, and each of those
+/// creates its own AssemblyLoadContext. In a region that bites twice over,
+/// because LLUDPServerShim is itself discovered as a region module plugin:
 ///
-/// In a region that matters twice over, because LLUDPServerShim is itself
-/// discovered as a region module plugin:
+///   ALC A <- OpenSim.Region.ClientStack.LindenUDP.dll  (the instance the scene holds)
+///   ALC B <- TasiaAddons.Quic.dll                      (needs to reach that shim)
 ///
-///   ALC A  <- OpenSim.Region.ClientStack.LindenUDP.dll  (registered as the
-///              LLUDPServerShim region module; the scene holds THIS instance)
-///   ALC B  <- TasiaAddons.Quic.dll  (QuicServerModule; needs to reach
-///              LLUDPServerShim, and resolves it from its OWN copy)
+/// The same file was therefore loaded once per context. Both copies share the
+/// path and the full type name, so nothing looks wrong, but they are distinct
+/// Assembly objects and `is LLUDPServerShim` is false. QuicServerModule could
+/// not see the shim the scene demonstrably had attached, skipped binding its
+/// QUIC listener, and still advertised the endpoint in RegionInfo, so viewers
+/// connected to a dead port and were dropped with a QUIC transport-initiated
+/// shutdown.
 ///
-/// The same file is therefore loaded once per context. Both instances have the
-/// identical path and the identical full type name, so everything looks right,
-/// but they are different Assembly objects and `is LLUDPServerShim` is false.
-///
-/// QuicServerModule therefore could not see the shim that the scene
-/// demonstrably had attached, skipped binding its QUIC listener, and still
-/// advertised the endpoint in RegionInfo - so viewers connected to a dead
-/// port and were dropped with a QUIC transport-initiated shutdown.
-///
-/// This test reproduces that in seconds and without starting a region.
+/// This exercises the real production discovery class over a flat copy of a
+/// program home, and asserts the invariant that makes the bug impossible:
+/// after a scan, each assembly exists EXACTLY ONCE across all load contexts.
 /// </summary>
 public class PluginLoadContextIdentityTests
 {
-    private const string ClientStackAssemblyFile = "OpenSim.Region.ClientStack.LindenUDP.dll";
-    private const string ClientStackShimTypeName = "OpenSim.Region.ClientStack.LindenUDP.LLUDPServerShim";
-    private const string QuicModuleTypeName = "TasiaAddons.Quic.QuicServerModule";
+    private const string ClientStackAssemblyName = "OpenSim.Region.ClientStack.LindenUDP";
+    private const string RegionModuleExtensionPoint = "/OpenSim/RegionModules";
 
     private readonly ITestOutputHelper m_output;
 
@@ -66,89 +66,132 @@ public class PluginLoadContextIdentityTests
     }
 
     [Fact]
-    public void QuicAddonAndClientStackPluginShareOneAssemblyInstance()
+    public void ProductionScanLoadsEachPluginAssemblyExactlyOnce()
     {
-        string appDir = AppContext.BaseDirectory;
-        string scratch = Path.Combine(Path.GetTempPath(), "opensim-pluginalc-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(scratch);
+        string programHome = CreateFlatProgramHome();
+        m_output.WriteLine($"scan directory: {programHome}");
 
-        // The deployed program home is flat: every plugin and every host
-        // assembly sit in one directory. Reproduce that layout exactly.
-        foreach (string file in new[] { "TasiaAddons.Quic.dll", ClientStackAssemblyFile })
+        var log = new CapturingLogger(m_output);
+        var discovery = new DotNetCorePluginsDiscovery(log);
+        discovery.Initialize(programHome);
+
+        var nodes = discovery.GetExtensionNodes(RegionModuleExtensionPoint, typeof(INonSharedRegionModule));
+
+        m_output.WriteLine($"region module plugins discovered: {nodes.Count}");
+        m_output.WriteLine($"DLLs in scan dir: {Directory.GetFiles(programHome, "*.dll").Length}");
+        m_output.WriteLine("--- loader log ---");
+        foreach (string line in log.Lines)
+            m_output.WriteLine("  " + line);
+        m_output.WriteLine("--- end loader log ---");
+
+        m_output.WriteLine("--- load contexts ---");
+        foreach (System.Runtime.Loader.AssemblyLoadContext context in System.Runtime.Loader.AssemblyLoadContext.All)
         {
-            string source = Path.Combine(appDir, file);
-            Assert.True(File.Exists(source), $"{file} not found in {appDir}");
-            File.Copy(source, Path.Combine(scratch, file), overwrite: true);
+            var names = context.Assemblies
+                .Select(a => a.GetName().Name)
+                .Where(n => n != null && (n.StartsWith("OpenSim", StringComparison.Ordinal) || n.StartsWith("Tasia", StringComparison.Ordinal)))
+                .OrderBy(n => n)
+                .ToArray();
+
+            m_output.WriteLine($"  [{context.Name ?? "Default"}] {names.Length} assemblies: {string.Join(", ", names)}");
         }
+        m_output.WriteLine("--- end load contexts ---");
 
-        // STEP 1: the discovery scan reaches the client stack and registers
-        // LLUDPServerShim as a region module plugin. This is the instance the
-        // scene will hold.
-        Assembly sceneShimAssembly;
-        using (PluginLoader clientStackLoader = CreateLikeProduction(Path.Combine(scratch, ClientStackAssemblyFile)))
-        {
-            Assembly loaded = clientStackLoader.LoadDefaultAssembly();
-            Type? shim = loaded.GetType(ClientStackShimTypeName, throwOnError: false);
-            Assert.NotNull(shim);
-            sceneShimAssembly = shim!.Assembly;
+        m_output.WriteLine($"requiredTypeHint assembly: {typeof(INonSharedRegionModule).Assembly.GetName().Name}");
+        foreach (var node in nodes.Where(n => n.TypeName.Contains("LLUDPServerShim") || n.TypeName.Contains("QuicServerModule")))
+            m_output.WriteLine($"  found: {node.TypeName}");
 
-            m_output.WriteLine("STEP 1 - client stack as a region module plugin (the scene's instance)");
-            m_output.WriteLine($"  type    : {shim.FullName}");
-            m_output.WriteLine($"  assembly: {Identity(sceneShimAssembly)}");
-        }
+        Assert.Contains(nodes, n => n.TypeName.Contains("LLUDPServerShim"));
+        Assert.Contains(nodes, n => n.TypeName.Contains("QuicServerModule"));
 
-        // STEP 2: the same scan reaches TasiaAddons.Quic in its OWN context and
-        // resolves the client stack again.
-        Assembly addonSeesAssembly;
-        using (PluginLoader addonLoader = CreateLikeProduction(Path.Combine(scratch, "TasiaAddons.Quic.dll")))
-        {
-            Assembly addonAssembly = addonLoader.LoadDefaultAssembly();
-            Type? module = addonAssembly.GetType(QuicModuleTypeName, throwOnError: false);
-            Assert.NotNull(module);
+        // The invariant. A duplicate here means one plugin resolved the client
+        // stack from a second Assembly instance, so `is` and casts between the
+        // addon and the scene can never succeed.
+        Assembly[] clientStackCopies = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => string.Equals(a.GetName().Name, ClientStackAssemblyName, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
 
-            // m_udpServer is typed as the client stack server. Reading the field
-            // type reflects the addon's own view of that assembly, with no
-            // compile-time reference that would pre-load it.
-            FieldInfo? field = module!.GetField("m_udpServer", BindingFlags.NonPublic | BindingFlags.Instance);
-            Assert.NotNull(field);
-            addonSeesAssembly = field!.FieldType.Assembly;
-
-            m_output.WriteLine("STEP 2 - Quic addon in its own load context");
-            m_output.WriteLine($"  type    : {field.FieldType.FullName}");
-            m_output.WriteLine($"  assembly: {Identity(addonSeesAssembly)}");
-        }
-
-        m_output.WriteLine($"SAME Assembly object: {ReferenceEquals(sceneShimAssembly, addonSeesAssembly)}");
+        foreach (Assembly copy in clientStackCopies)
+            m_output.WriteLine($"  loaded copy: {Describe(copy)}");
 
         Assert.True(
-            ReferenceEquals(sceneShimAssembly, addonSeesAssembly),
-            "Two plugin load contexts hold SEPARATE Assembly instances of "
-            + $"{ClientStackAssemblyFile} - the same file, the same type name, different objects. "
-            + "TasiaAddons.Quic can therefore never match LLUDPServerShim with `is`, silently skips "
-            + "binding its QUIC listener, and viewers are dropped with a transport-initiated shutdown. "
-            + $"Scene side: {Identity(sceneShimAssembly)}; addon side: {Identity(addonSeesAssembly)}.");
+            clientStackCopies.Length == 1,
+            $"{ClientStackAssemblyName} was loaded {clientStackCopies.Length} times across load "
+            + "contexts. Every extra copy is a plugin that cannot match a host type with `is`, which is "
+            + "how the QUIC listener silently never bound. Copies: "
+            + string.Join(" | ", clientStackCopies.Select(Describe)));
+
+        // And the addon must resolve the very same Assembly the scene holds.
+        Type addonSeesShim = ResolveClientStackTypeAsSeenByQuicAddon(clientStackCopies[0]);
+        Assert.True(
+            ReferenceEquals(addonSeesShim.Assembly, clientStackCopies[0]),
+            "TasiaAddons.Quic does not share the host's client stack Assembly instance.");
+    }
+
+    private static Type ResolveClientStackTypeAsSeenByQuicAddon(Assembly hostClientStack)
+    {
+        Assembly addon = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => string.Equals(a.GetName().Name, "TasiaAddons.Quic", StringComparison.OrdinalIgnoreCase));
+
+        Assert.NotNull(addon);
+
+        Type? module = addon!.GetType("TasiaAddons.Quic.QuicServerModule", throwOnError: false);
+        Assert.NotNull(module);
+
+        FieldInfo? field = module!.GetField("m_udpServer", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(field);
+
+        Assert.Equal(hostClientStack.GetName().Name, field!.FieldType.Assembly.GetName().Name);
+        return field.FieldType;
     }
 
     /// <summary>
-    /// Mirrors DotNetCorePluginsDiscovery.GetAssemblies: one loader, one load
-    /// context, lazy loading, and PreferSharedTypes.
+    /// Builds a flat directory that looks like a deployed program home: every
+    /// assembly next to each other, which is what the region loader scans.
     /// </summary>
-    private static PluginLoader CreateLikeProduction(string assemblyPath)
+    private static string CreateFlatProgramHome()
     {
-        return PluginLoader.CreateFromAssemblyFile(
-            assemblyPath,
-            sharedTypes: new[] { typeof(OpenSim.Framework.IPlugin) },
-            config =>
+        string source = AppContext.BaseDirectory;
+        string home = Path.Combine(Path.GetTempPath(), "opensim-programhome-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(home);
+
+        foreach (string file in Directory.GetFiles(source, "*.dll"))
+        {
+            string name = Path.GetFileName(file);
+
+            // Leave the test runner's own assemblies behind; they are not plugins.
+            if (name.StartsWith("xunit", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("testhost", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("OpenSim.PluginLoadContext.Tests", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("Microsoft.TestPlatform", StringComparison.OrdinalIgnoreCase))
             {
-                config.IsLazyLoaded = true;
-                config.PreferSharedTypes = true;
-            });
+                continue;
+            }
+
+            File.Copy(file, Path.Combine(home, name), overwrite: true);
+        }
+
+        foreach (string sub in new[] { "lib64", "runtimes" })
+        {
+            string dir = Path.Combine(source, sub);
+            if (Directory.Exists(dir))
+                CopyDirectory(dir, Path.Combine(home, sub));
+        }
+
+        return home;
     }
 
-    private static string Identity(Assembly assembly)
+    private static void CopyDirectory(string from, string to)
     {
-        string name = assembly.GetName().Name ?? "?";
-        string version = assembly.GetName().Version?.ToString() ?? "?";
+        Directory.CreateDirectory(to);
+        foreach (string file in Directory.GetFiles(from))
+            File.Copy(file, Path.Combine(to, Path.GetFileName(file)), overwrite: true);
+        foreach (string dir in Directory.GetDirectories(from))
+            CopyDirectory(dir, Path.Combine(to, Path.GetFileName(dir)));
+    }
+
+    private static string Describe(Assembly assembly)
+    {
         string location;
         try
         {
@@ -159,6 +202,43 @@ public class PluginLoadContextIdentityTests
             location = "<unavailable>";
         }
 
-        return $"{name} v{version} [{location}]";
+        return $"{assembly.GetName().Name} v{assembly.GetName().Version} [{location}]";
+    }
+
+    /// <summary>
+    /// Keeps the discovery loader's own diagnostics so a failed scan explains
+    /// itself instead of just reporting zero candidates.
+    /// </summary>
+    private sealed class CapturingLogger : ILogger
+    {
+        private readonly ITestOutputHelper m_output;
+
+        public List<string> Lines { get; } = new();
+
+        public CapturingLogger(ITestOutputHelper output)
+        {
+            m_output = output;
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel,
+            Microsoft.Extensions.Logging.EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel < Microsoft.Extensions.Logging.LogLevel.Information)
+                return;
+
+            string text = formatter(state, exception);
+            if (exception != null)
+                text += " -> " + exception.Message;
+
+            Lines.Add($"[{logLevel}] {text}");
+        }
     }
 }

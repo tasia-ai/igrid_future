@@ -17,11 +17,14 @@
 
   <ItemGroup>
     <ProjectReference Include="../../Source/OpenSim.Framework/OpenSim.Framework.csproj" />
+    <!-- INonSharedRegionModule is the extension point type hint the production
+         scan uses for /OpenSim/RegionModules. Referencing it is safe: it lives
+         in OpenSim.Region.Framework, not in the client stack assembly under test. -->
+    <ProjectReference Include="../../Source/OpenSim.Region.Framework/OpenSim.Region.Framework.csproj" />
     <!-- The Quic addon is referenced only so it is copied to the test output
          directory. Deliberately NOT referencing
-         OpenSim.Region.ClientStack.LindenUDP: that assembly must stay out of
-         the default load context until the test loads it by hand, otherwise
-         the plugin context unifies with it and the bug cannot be reproduced. -->
+         OpenSim.Region.ClientStack.LindenUDP: that assembly must only be loaded
+         by the discovery scan, or the duplicate cannot be observed. -->
     <ProjectReference Include="../../Addons/TasiaAddons.Quic/TasiaAddons.Quic.csproj" />
   </ItemGroup>
 
