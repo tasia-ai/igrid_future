@@ -567,12 +567,15 @@ Write-Host ''
 Write-Host 'Assembly version parity                                  :' -NoNewline
 
 $parityRef = $null
-$refFile = Join-Path $TargetHome 'OpenSim.Server.RegionServer.dll'
+$refFile = Join-Path $TargetHome 'OpenSim.exe'
+if (-not (Test-Path -LiteralPath $refFile)) {
+    $refFile = Join-Path $TargetHome 'OpenSim.dll'
+}
 if (Test-Path -LiteralPath $refFile) {
     $parityRef = (Get-Item -LiteralPath $refFile).VersionInfo.ProductVersion
 }
 if (-not $parityRef) {
-    Write-Host 'UNKNOWN (cannot read OpenSim.Server.RegionServer.dll)' -ForegroundColor Red
+    Write-Host 'UNKNOWN (cannot read OpenSim.exe / OpenSim.dll)' -ForegroundColor Red
     $verifyFail++
 }
 else {
