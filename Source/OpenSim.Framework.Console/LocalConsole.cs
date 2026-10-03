@@ -538,9 +538,20 @@ public class LocalConsole : CommandConsole
             try
             {
                 string line = System.Console.In.ReadLine();
+
                 if (line != null)
+                {
                     AddToHistory(line);
-                return line;
+                    return line;
+                }
+
+                // End of input: the supervisor closed stdin, or the process was
+                // started with stdin redirected from NUL. Report "nothing to do"
+                // rather than null - null reads as a failed command to the
+                // prompt loop, which then spins and floods stdout. Pause as
+                // well, so a closed pipe cannot turn into a hot loop.
+                System.Threading.Thread.Sleep(1000);
+                return string.Empty;
             }
             catch (IOException)
             {

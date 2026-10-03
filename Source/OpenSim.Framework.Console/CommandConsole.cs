@@ -750,8 +750,16 @@ public class CommandConsole : ConsoleBase, ICommandConsole
     {
         string line = ReadLine(DefaultPrompt + "# ", true, true);
 
-        if (line != String.Empty)
-            Output("Invalid command");
+        // ReadLine returns null at end of input: standard input is closed, or
+        // the process was started with stdin redirected from NUL, which is how
+        // a supervisor launches a region. That is not a mistyped command, and
+        // reporting it as one turns the prompt loop into an infinite loop that
+        // pegs a core and writes gigabytes of "Invalid command" to stdout.
+        // Nothing arrived, so there is nothing to complain about.
+        if (string.IsNullOrEmpty(line))
+            return;
+
+        Output("Invalid command");
     }
 
     public void RunCommand(string cmd)
@@ -764,6 +772,11 @@ public class CommandConsole : ConsoleBase, ICommandConsole
     {
         System.Console.Write("{0}", p);
         string cmdinput = System.Console.ReadLine();
+
+        // End of input. Report it the same way as a resolved command - "nothing
+        // to do" - so callers do not treat it as an error and loop on it.
+        if (cmdinput == null)
+            return String.Empty;
 
         if (isCommand)
         {
