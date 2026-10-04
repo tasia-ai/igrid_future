@@ -32,7 +32,7 @@ using System.Net;
 using System.Net.Quic;
 using System.Threading;
 using System.Threading.Tasks;
-using log4net;
+using Microsoft.Extensions.Logging;
 using OpenMetaverse;
 
 using OpenSim.Region.ClientStack.LindenUDP;
@@ -49,7 +49,7 @@ namespace TasiaAddons.Quic
     /// </remarks>
     public class QuicClientConnection : IDisposable
     {
-        private static readonly ILog m_log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        private static readonly ILogger m_log = OpenSim.Framework.LoggerProvider.CreateLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         private readonly QuicConnection m_connection;
         private readonly QuicServerConfig m_config;
@@ -106,7 +106,7 @@ namespace TasiaAddons.Quic
             try
             {
                 if (m_config.LogHandshake)
-                    m_log.Info($"[QuicClient] Starting QUIC client from {RemoteEndPoint}");
+                    m_log.LogInformation($"[QuicClient] Starting QUIC client from {RemoteEndPoint}");
 
                 // Accept the first bidirectional stream — this is the control/data stream
                 m_controlStream = await m_connection.AcceptInboundStreamAsync(m_cts.Token);
@@ -119,7 +119,7 @@ namespace TasiaAddons.Quic
 
                 m_connected = true;
                 if (m_config.LogHandshake)
-                    m_log.Info($"[QuicClient] Control stream accepted (canRead={m_controlStream.CanRead}, canWrite={m_controlStream.CanWrite})");
+                    m_log.LogInformation($"[QuicClient] Control stream accepted (canRead={m_controlStream.CanRead}, canWrite={m_controlStream.CanWrite})");
 
                 // Start reading from the stream
                 _ = Task.Run(() => ReadStreamLoopAsync(m_cts.Token));
@@ -133,7 +133,7 @@ namespace TasiaAddons.Quic
             }
             catch (Exception ex)
             {
-                m_log.Error($"[QuicClient] Start failed: {ex.Message}");
+                m_log.LogError($"[QuicClient] Start failed: {ex.Message}");
                 NotifyDisconnected($"Start failed: {ex.Message}");
             }
         }
@@ -166,7 +166,7 @@ namespace TasiaAddons.Quic
             if (m_disposed)
                 return;
 
-            m_log.Debug($"[QuicClient] Closing: {reason}");
+            m_log.LogDebug($"[QuicClient] Closing: {reason}");
             m_connected = false;
             m_cts.Cancel();
 
@@ -223,14 +223,14 @@ namespace TasiaAddons.Quic
             try
             {
                 if (m_config.LogHandshake)
-                    m_log.Info("[QuicClient] Stream read loop started");
+                    m_log.LogInformation("[QuicClient] Stream read loop started");
 
                 while (!ct.IsCancellationRequested && m_controlStream != null && m_controlStream.CanRead)
                 {
                     int bytesRead = await m_controlStream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct);
 
                     if (m_config.LogPackets)
-                        m_log.Info($"[QuicClient] Read {bytesRead} bytes from stream");
+                        m_log.LogInformation($"[QuicClient] Read {bytesRead} bytes from stream");
 
                     if (bytesRead == 0)
                     {
@@ -242,7 +242,7 @@ namespace TasiaAddons.Quic
                     // Append to assembler buffer
                     if (m_streamBufferOffset + bytesRead > m_streamBuffer.Length)
                     {
-                        m_log.Warn($"[QuicClient] Stream buffer overflow, resetting");
+                        m_log.LogWarning($"[QuicClient] Stream buffer overflow, resetting");
                         m_streamBufferOffset = 0;
                         continue;
                     }
@@ -255,7 +255,7 @@ namespace TasiaAddons.Quic
                     while (PacketFraming.TryReadFrame(m_streamBuffer, m_streamBufferOffset, ref offset, out byte[] payload))
                     {
                         if (m_config.LogPackets)
-                            m_log.Info($"[QuicClient] Received frame: {payload.Length} bytes, first={FormatPrefix(payload)}");
+                            m_log.LogInformation($"[QuicClient] Received frame: {payload.Length} bytes, first={FormatPrefix(payload)}");
 
                         OnPacketReceived?.Invoke(payload);
                     }
@@ -278,7 +278,7 @@ namespace TasiaAddons.Quic
             {
                 if (!ct.IsCancellationRequested)
                 {
-                    m_log.Warn($"[QuicClient] Stream read error: {ex.Message}");
+                    m_log.LogWarning($"[QuicClient] Stream read error: {ex.Message}");
                     NotifyDisconnected($"Read error: {ex.Message}");
                 }
             }
@@ -322,7 +322,7 @@ namespace TasiaAddons.Quic
             catch (Exception ex)
             {
                 if (!ct.IsCancellationRequested)
-                    m_log.Warn($"[QuicClient] Additional stream accept error: {ex.Message}");
+                    m_log.LogWarning($"[QuicClient] Additional stream accept error: {ex.Message}");
             }
         }
 
@@ -358,7 +358,7 @@ namespace TasiaAddons.Quic
                     catch (Exception ex)
                     {
                         if (!ct.IsCancellationRequested)
-                            m_log.Debug($"[QuicClient] Keepalive write error: {ex.Message}");
+                            m_log.LogDebug($"[QuicClient] Keepalive write error: {ex.Message}");
                         break;
                     }
                 }
@@ -399,7 +399,7 @@ namespace TasiaAddons.Quic
                     await m_controlStream.FlushAsync(m_cts.Token);
 
                     if (m_config.LogPackets)
-                        m_log.Debug($"[QuicClient] Sent frame: {payload.Length} bytes");
+                        m_log.LogDebug($"[QuicClient] Sent frame: {payload.Length} bytes");
                 }
             }
             catch (OperationCanceledException)
@@ -409,7 +409,7 @@ namespace TasiaAddons.Quic
             }
             catch (Exception ex)
             {
-                m_log.Warn($"[QuicClient] Flush error: {ex.Message}");
+                m_log.LogWarning($"[QuicClient] Flush error: {ex.Message}");
                 lock (m_sendLock)
                     m_sending = false;
                 OnDisconnected?.Invoke($"Send error: {ex.Message}");

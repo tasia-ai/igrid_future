@@ -1,6 +1,6 @@
 using System;
 using System.Net;
-using log4net;
+using Microsoft.Extensions.Logging;
 using OpenSim.Framework;
 
 namespace TasiaAddons.Quic;
@@ -11,7 +11,7 @@ namespace TasiaAddons.Quic;
     /// </summary>
     public class QuicViewerTransport : IViewerTransport
     {
-        private static readonly ILog m_log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+        private static readonly ILogger m_log = OpenSim.Framework.LoggerProvider.CreateLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         private readonly QuicClientConnection m_connection;
         private readonly QuicServerConfig m_config;
@@ -41,7 +41,7 @@ namespace TasiaAddons.Quic;
             }
             catch (Exception ex)
             {
-                m_log.Error($"[QuicTransport] SendPacket failed: {ex.Message}");
+                m_log.LogError($"[QuicTransport] SendPacket failed: {ex.Message}");
             }
         }
 
@@ -61,7 +61,7 @@ namespace TasiaAddons.Quic;
             }
             catch (Exception ex)
             {
-                m_log.Error($"[QuicTransport] Error dispatching received packet: {ex.Message}");
+                m_log.LogError($"[QuicTransport] Error dispatching received packet: {ex.Message}");
             }
         }
     }
