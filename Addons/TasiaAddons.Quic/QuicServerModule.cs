@@ -463,11 +463,15 @@ namespace TasiaAddons.Quic
                     return;
                 }
 
-                // LLUDPServer already sends quicready directly for loopback
-                // bridged circuits before invoking this event, so sending it
-                // again here would duplicate the message (harmless to the
-                // viewer but noisy). Nothing further to do when the presence
-                // already exists — the direct send covered the handshake.
+                // This path used to do nothing on the assumption that LLUDPServer
+                // had already sent quicready. That was never true: quicready is
+                // sent only from HandleQuicUseCircuitCode, which is reachable
+                // only via ProcessIncomingQuicPacket, i.e. only when the packet
+                // arrived over a native QUIC listener on this region. Bridged
+                // viewer traffic arrives as plain loopback LLUDP, so nothing
+                // ever sent it and the viewer timed out waiting. Send it here.
+                presence.ControllingClient.SendGenericMessage("quicready", UUID.Zero, new List<string>());
+                m_log.LogInformation($"[QuicServer] Sent quicready for bridged circuit {circuitCode} agent {agentId} via {endPoint}");
             }
             catch (Exception ex)
             {

@@ -1413,6 +1413,8 @@ public class LLUDPServer : OpenSimUDPBase
                     // region handshake so queued CompleteAgentMovement and
                     // subsequent viewer traffic can flush over QUIC.
                     llClient.SendGenericMessage("quicready", UUID.Zero, new List<string>());
+                    m_log.LogInformation(
+                        $"[LLUDPSERVER] Sent quicready on native QUIC circuit {uccp.CircuitCode.Code} agent {client.AgentId}");
 
                     // Notify subscribers (QuicServerModule) that a QUIC circuit was created.
                     // This triggers proxy registration for teleport-aware routing.
@@ -1963,6 +1965,31 @@ public class LLUDPServer : OpenSimUDPBase
 
                 if(aCircuit.teleportFlags <= 0)
                     client.SendRegionHandshake();
+
+                // Bridged QUIC viewers reach this region as plain loopback LLUDP:
+                // the viewer talks QUIC to the Quick-G proxy in Robust, and the
+                // proxy relays the LL packets here over loopback. Such packets
+                // never enter ProcessIncomingQuicPacket, so they never reach
+                // HandleQuicUseCircuitCode -- the only place that used to send
+                // the quicready GenericMessage. Without it the Tasia Viewer keeps
+                // every session packet queued and drops the circuit after its
+                // 60 s idle timeout. Raise the event so the QUIC module can
+                // complete the handshake. Gated on loopback so ordinary LLUDP
+                // viewers are not sent a generic message they do not expect.
+                if (IPAddress.IsLoopback(endPoint.Address))
+                {
+                    m_log.LogInformation(
+                        $"[LLUDPSERVER] Bridged QUIC circuit {uccp.CircuitCode.Code} agent {client.AgentId} from {endPoint}: raising OnLoopbackCircuitCreated");
+
+                    try
+                    {
+                        OnLoopbackCircuitCreated?.Invoke(uccp.CircuitCode.Code, client.AgentId, endPoint);
+                    }
+                    catch (Exception e)
+                    {
+                        m_log.LogWarning($"[LLUDPSERVER] OnLoopbackCircuitCreated handler error: {e.Message}");
+                    }
+                }
             }
             else
             {
