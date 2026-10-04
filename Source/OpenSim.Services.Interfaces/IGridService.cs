@@ -258,6 +258,18 @@ public class GridRegion
     public UUID RegionID = UUID.Zero;
     public UUID ScopeID = UUID.Zero;
 
+    /// <summary>
+    /// The hostname viewers use for native QUIC transport, as published by the
+    /// region. Empty when the region does not offer QUIC.
+    /// </summary>
+    public string QuicHost { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The UDP port viewers use for native QUIC transport, as published by the
+    /// region. Zero when the region does not offer QUIC.
+    /// </summary>
+    public uint QuicPort { get; set; } = 0;
+
     public UUID TerrainImage = UUID.Zero;
     public UUID ParcelImage = UUID.Zero;
     public byte Access;
@@ -298,6 +310,8 @@ public class GridRegion
         Maturity = ConvertFrom.RegionSettings.Maturity;
         RegionSecret = ConvertFrom.regionSecret;
         EstateOwner = ConvertFrom.EstateSettings.EstateOwner;
+        QuicHost = ConvertFrom.QuicHost ?? string.Empty;
+        QuicPort = ConvertFrom.QuicPort;
     }
 
     public GridRegion(GridRegion ConvertFrom)
@@ -319,6 +333,8 @@ public class GridRegion
         Maturity = ConvertFrom.Maturity;
         RegionSecret = ConvertFrom.RegionSecret;
         EstateOwner = ConvertFrom.EstateOwner;
+        QuicHost = ConvertFrom.QuicHost ?? string.Empty;
+        QuicPort = ConvertFrom.QuicPort;
     }
 
     public GridRegion(Dictionary<string, object> kvp)
@@ -354,6 +370,13 @@ public class GridRegion
 
         if (kvp.ContainsKey("flags") && kvp["flags"] != null)
             RegionFlags = (OpenSim.Framework.RegionFlags?)Convert.ToInt32((string)kvp["flags"]);
+
+        if (kvp.ContainsKey("quicHost") && kvp["quicHost"] != null)
+            QuicHost = (string)kvp["quicHost"];
+
+        if (kvp.ContainsKey("quicPort") && kvp["quicPort"] != null &&
+            uint.TryParse((string)kvp["quicPort"], out uint quicPort))
+            QuicPort = quicPort;
 
         if (kvp.ContainsKey("serverIP"))
         {
@@ -425,6 +448,10 @@ public class GridRegion
         kvp["owner_uuid"] = EstateOwner.ToString();
         kvp["Token"] = Token.ToString();
         // Maturity doesn't seem to exist in the DB
+        if (!string.IsNullOrWhiteSpace(QuicHost))
+            kvp["quicHost"] = QuicHost;
+        if (QuicPort > 0)
+            kvp["quicPort"] = QuicPort.ToString();
 
         return kvp;
     }
