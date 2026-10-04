@@ -75,17 +75,20 @@ public interface IEventQueue
     bool Enqueue(osUTF8 o, UUID avatarID);
 
     //        void DisableSimulator(ulong handle, UUID avatarID);
-    void EnableSimulator(ulong handle, IPEndPoint endPoint, UUID avatarID, int regionSizeX, int regionSizeY);
+    void EnableSimulator(ulong handle, IPEndPoint endPoint, UUID avatarID, int regionSizeX, int regionSizeY,
+                     string quicHost = null, uint quicPort = 0);
     void EstablishAgentCommunication(UUID avatarID, IPEndPoint endPoint,
                                      string capsPath, ulong regionHandle, int regionSizeX, int regionSizeY);
     void TeleportFinishEvent(ulong regionHandle, byte simAccess,
                              IPEndPoint regionExternalEndPoint,
                              uint locationID, uint flags, string capsURL,
-                             UUID agentID, int regionSizeX, int regionSizeY);
+                             UUID agentID, int regionSizeX, int regionSizeY,
+                             string quicHost = null, uint quicPort = 0);
     void CrossRegion(ulong handle, Vector3 pos, Vector3 lookAt,
                      IPEndPoint newRegionExternalEndPoint,
                      string capsURL, UUID avatarID, UUID sessionID,
-                        int regionSizeX, int regionSizeY);
+                        int regionSizeX, int regionSizeY,
+                        string quicHost = null, uint quicPort = 0);
     void ChatterboxInvitation(UUID sessionID, string sessionName,
                             UUID fromAgent, string message, UUID toAgent, string fromName, byte dialog,
                             uint timeStamp, bool offline, int parentEstateID, Vector3 position,

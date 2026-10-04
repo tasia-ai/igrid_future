@@ -921,7 +921,8 @@ public class EntityTransferModule : INonSharedRegionModule, IEntityTransferModul
                 // simulator by sending the initial UseCircuitCode UDP packet to the destination containing the
                 // correct circuit code.
                 m_eqModule.EnableSimulator(destinationHandle, endPoint, spUUID,
-                                    finalDestination.RegionSizeX, finalDestination.RegionSizeY);
+                                    finalDestination.RegionSizeX, finalDestination.RegionSizeY,
+                                    finalDestination.QuicHost, finalDestination.QuicPort);
                 m_log.LogDebug("{0} Sent EnableSimulator. regName={1}, size=<{2},{3}>", LogHeader,
                     finalDestination.RegionName, finalDestination.RegionSizeX, finalDestination.RegionSizeY);
 
@@ -1021,7 +1022,8 @@ public class EntityTransferModule : INonSharedRegionModule, IEntityTransferModul
         if (m_eqModule != null)
         {
             m_eqModule.TeleportFinishEvent(destinationHandle, 13, endPoint, 0, teleportFlags, capsPath, spUUID,
-                        finalDestination.RegionSizeX, finalDestination.RegionSizeY);
+                        finalDestination.RegionSizeX, finalDestination.RegionSizeY,
+                        finalDestination.QuicHost, finalDestination.QuicPort);
         }
         else
         {
@@ -1164,7 +1166,8 @@ public class EntityTransferModule : INonSharedRegionModule, IEntityTransferModul
         // New protocol: send TP Finish directly, without prior ES or EAC. That's what happens in the Linden grid
         if (m_eqModule != null)
             m_eqModule.TeleportFinishEvent(destinationHandle, 13, endPoint, 0, teleportFlags, capsPath, sp.UUID,
-                                finalDestination.RegionSizeX, finalDestination.RegionSizeY);
+                                finalDestination.RegionSizeX, finalDestination.RegionSizeY,
+                                finalDestination.QuicHost, finalDestination.QuicPort);
         else
             sp.ControllingClient.SendRegionTeleport(destinationHandle, 13, endPoint, 4,
                                                         teleportFlags, capsPath);
@@ -1729,7 +1732,8 @@ public class EntityTransferModule : INonSharedRegionModule, IEntityTransferModul
                 neighbourRegion.RegionName, neighbourRegion.RegionLocX, neighbourRegion.RegionLocY, newSizeX, newSizeY , capsPath);
 
             m_eqModule.EnableSimulator(regionhandler,
-                    endPoint, agent.UUID, newSizeX, newSizeY);
+                    endPoint, agent.UUID, newSizeX, newSizeY,
+                    neighbourRegion.QuicHost, neighbourRegion.QuicPort);
             m_eqModule.EstablishAgentCommunication(agent.UUID, endPoint, capsPath,
                 regionhandler, newSizeX, newSizeY);
         }
@@ -1877,7 +1881,8 @@ public class EntityTransferModule : INonSharedRegionModule, IEntityTransferModul
             m_eqModule.CrossRegion(
                 neighbourRegion.RegionHandle, pos, vel2 /* agent.Velocity */,
                 endpoint, capsPath, agentUUID, agent.ControllingClient.SessionId,
-                neighbourRegion.RegionSizeX, neighbourRegion.RegionSizeY);
+                neighbourRegion.RegionSizeX, neighbourRegion.RegionSizeY,
+                neighbourRegion.QuicHost, neighbourRegion.QuicPort);
         }
         else
         {
@@ -2548,7 +2553,8 @@ public class EntityTransferModule : INonSharedRegionModule, IEntityTransferModul
                         scene.RegionInfo.RegionName, sp.Name,
                         reg.RegionName, reg.RegionLocX, reg.RegionLocY, reg.RegionSizeX, reg.RegionSizeY, capsPath);
 
-                    m_eqModule.EnableSimulator(reg.RegionHandle, endPoint, sp.UUID, reg.RegionSizeX, reg.RegionSizeY);
+                    m_eqModule.EnableSimulator(reg.RegionHandle, endPoint, sp.UUID, reg.RegionSizeX, reg.RegionSizeY,
+                    reg.QuicHost, reg.QuicPort);
                     m_eqModule.EstablishAgentCommunication(sp.UUID, endPoint, capsPath, reg.RegionHandle, reg.RegionSizeX, reg.RegionSizeY);
                 }
                 else

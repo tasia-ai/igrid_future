@@ -72,7 +72,8 @@ public partial class EventQueueGetModule : IEventQueue, INonSharedRegionModule
         return OSUTF8Cached.GetArrayAndRelease(sb);
     }
 
-    public virtual void EnableSimulator(ulong handle, IPEndPoint endPoint, UUID avatarID, int regionSizeX, int regionSizeY)
+    public virtual void EnableSimulator(ulong handle, IPEndPoint endPoint, UUID avatarID, int regionSizeX, int regionSizeY,
+                                        string quicHost = null, uint quicPort = 0)
     {
         if (DebugLevel > 0)
             m_log.LogDebug($"{LogHeader} EnableSimulator. handle={handle}, endPoint={endPoint}, avatarID={avatarID}");
@@ -84,6 +85,14 @@ public partial class EventQueueGetModule : IEventQueue, INonSharedRegionModule
             LLSDxmlEncode2.AddElem("Port", endPoint.Port, sb);
             LLSDxmlEncode2.AddElem("RegionSizeX", (uint)regionSizeX, sb);
             LLSDxmlEncode2.AddElem("RegionSizeY", (uint)regionSizeY, sb);
+            // The QUIC-capable viewer reads QuicHost/QuicPort here to decide whether
+            // it can talk QUIC to this neighbour. Without them it saw an empty host
+            // and a zero port and fell back to LLUDP for every neighbour circuit.
+            if (!string.IsNullOrWhiteSpace(quicHost) && quicPort > 0)
+            {
+                LLSDxmlEncode2.AddElem("QuicHost", quicHost, sb);
+                LLSDxmlEncode2.AddElem("QuicPort", quicPort, sb);
+            }
         LLSDxmlEncode2.AddEndMapAndArray(sb);
 
         Enqueue(EndEventToBytes(sb), avatarID);
@@ -111,7 +120,8 @@ public partial class EventQueueGetModule : IEventQueue, INonSharedRegionModule
     public virtual void TeleportFinishEvent(ulong regionHandle, byte simAccess,
                                     IPEndPoint regionExternalEndPoint,
                                     uint locationID, uint flags, string capsURL,
-                                    UUID avatarID, int regionSizeX, int regionSizeY)
+                                    UUID avatarID, int regionSizeX, int regionSizeY,
+                                    string quicHost = null, uint quicPort = 0)
     {
         if (DebugLevel > 0)
             m_log.LogDebug($"{LogHeader} TeleportFinishEvent. handle={regionHandle}, endPoint={regionExternalEndPoint}, avatarID={avatarID}");
@@ -135,6 +145,14 @@ public partial class EventQueueGetModule : IEventQueue, INonSharedRegionModule
             LLSDxmlEncode2.AddElem("TeleportFlags", flags, sb);
             LLSDxmlEncode2.AddElem("RegionSizeX", (uint)regionSizeX, sb);
             LLSDxmlEncode2.AddElem("RegionSizeY", (uint)regionSizeY, sb);
+            // Simulated QUIC endpoint for the destination. The viewer reads
+            // SimQuicHost/SimQuicPort from this map; without them it could not
+            // open a QUIC circuit after a teleport and used LLUDP instead.
+            if (!string.IsNullOrWhiteSpace(quicHost) && quicPort > 0)
+            {
+                LLSDxmlEncode2.AddElem("SimQuicHost", quicHost, sb);
+                LLSDxmlEncode2.AddElem("SimQuicPort", quicPort, sb);
+            }
         LLSDxmlEncode2.AddEndMapAndArray(sb);
 
         Enqueue(EndEventToBytes(sb), avatarID);
@@ -142,7 +160,8 @@ public partial class EventQueueGetModule : IEventQueue, INonSharedRegionModule
 
     public virtual void CrossRegion(ulong handle, Vector3 pos, Vector3 lookAt,
                             IPEndPoint newRegionExternalEndPoint,
-                            string capsURL, UUID avatarID, UUID sessionID, int regionSizeX, int regionSizeY)
+                            string capsURL, UUID avatarID, UUID sessionID, int regionSizeX, int regionSizeY,
+                            string quicHost = null, uint quicPort = 0)
     {
         if (DebugLevel > 0)
             m_log.LogDebug($"{LogHeader} CrossRegion. handle={handle}, avatarID={avatarID}, regionSize={regionSizeX},{regionSizeY}>");
@@ -166,6 +185,13 @@ public partial class EventQueueGetModule : IEventQueue, INonSharedRegionModule
             LLSDxmlEncode2.AddElem("SimPort", newRegionExternalEndPoint.Port, sb);
             LLSDxmlEncode2.AddElem("RegionSizeX", (uint)regionSizeX, sb);
             LLSDxmlEncode2.AddElem("RegionSizeY", (uint)regionSizeY, sb);
+            // Same contract as TeleportFinish: the viewer looks for
+            // SimQuicHost/SimQuicPort in RegionData before crossing.
+            if (!string.IsNullOrWhiteSpace(quicHost) && quicPort > 0)
+            {
+                LLSDxmlEncode2.AddElem("SimQuicHost", quicHost, sb);
+                LLSDxmlEncode2.AddElem("SimQuicPort", quicPort, sb);
+            }
         LLSDxmlEncode2.AddEndMapAndArray(sb);
 
         Enqueue(EndEventToBytes(sb), avatarID);
