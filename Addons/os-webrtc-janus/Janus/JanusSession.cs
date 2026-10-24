@@ -36,7 +36,7 @@ using OpenSim.Framework;
 namespace osWebRtcVoice;
 
 // Encapsulization of a Session to the Janus server
-public class JanusSession : IDisposable
+public partial class JanusSession : IDisposable
 {
     private static readonly ILogger m_log = LoggerProvider.CreateLogger(MethodBase.GetCurrentMethod().DeclaringType);
     private static readonly string LogHeader = "[JANUS SESSION]";
@@ -49,6 +49,17 @@ public class JanusSession : IDisposable
     private string _JanusAdminURI = String.Empty;
     private string _JanusAdminToken = String.Empty;
 
+    /// <summary>A URI as it may appear in a log: the query string and fragment are replaced, because a
+    /// query can carry the API secret (the long-poll GET must send it there; Janus reads a GET's secret
+    /// from nowhere else). A value that is not an absolute URI is cut at the first '?' or '#' as text.</summary>
+    public static string RedactUriForLog(string pUri)
+    {
+        if (string.IsNullOrEmpty(pUri))
+            return pUri;
+        int cut = pUri.IndexOfAny(new[] { '?', '#' });
+        return cut < 0 ? pUri : pUri.Substring(0, cut) + "?<redacted>";
+    }
+
     public string JanusServerURI => _JanusServerURI;
     public string JanusAdminURI => _JanusAdminURI;
 
@@ -58,12 +69,19 @@ public class JanusSession : IDisposable
     public string PluginId { get; set; }
 
     private CancellationTokenSource _CancelTokenSource = new CancellationTokenSource();
-    private HttpClient _HttpClient = new HttpClient();
+    private HttpClient _HttpClient;
 
     public bool IsConnected { get; set; }
 
     // Wrapper around the session connection to Janus-gateway
     public JanusSession(string pServerURI, string pAPIToken, string pAdminURI, string pAdminToken, bool pDebugMessages = false)
+        : this(pServerURI, pAPIToken, pAdminURI, pAdminToken, pDebugMessages, null)
+    {
+    }
+
+    // Test seam: pHandler replaces the network (null = a normal HttpClient).
+    public JanusSession(string pServerURI, string pAPIToken, string pAdminURI, string pAdminToken, bool pDebugMessages,
+                        HttpMessageHandler pHandler)
     {
         m_log.LogDebug("{0} JanusSession constructor", LogHeader);
         _JanusServerURI = pServerURI;
@@ -71,6 +89,7 @@ public class JanusSession : IDisposable
         _JanusAdminURI = pAdminURI;
         _JanusAdminToken = pAdminToken;
         _MessageDetails = pDebugMessages;
+        _HttpClient = pHandler is null ? new HttpClient() : new HttpClient(pHandler);
     }
 
     public void Dispose()
@@ -104,7 +123,7 @@ public class JanusSession : IDisposable
                 SessionId = sessionResp.returnedId;
                 IsConnected = true;
                 SessionUri = _JanusServerURI + "/" + SessionId;
-                m_log.LogDebug("{0} CreateSession. Created. ID={1}, URL={2}", LogHeader, SessionId, SessionUri);
+                m_log.LogDebug("{0} CreateSession. Created. ID={1}, URL={2}", LogHeader, SessionId, RedactUriForLog(SessionUri));
                 ret = true;
                 StartLongPoll();
             }
@@ -124,12 +143,23 @@ public class JanusSession : IDisposable
     public async Task<bool> DestroySession()
     {
         bool ret = false;
+        // Once the Janus session is destroyed Janus sends no more events, so complete every pending
+        // request now rather than leaving its caller waiting.
+        FailOutstanding(SessionDestroyedReason);
+        if (_SessionGone)
+        {
+            m_log.LogDebug("{0} DestroySession: session already destroyed", LogHeader);
+            IsConnected = false;
+            _CancelTokenSource.Cancel();
+            return false;
+        }
         try
         {
             JanusMessageResp resp = await SendToSession(new DestroySessionReq());
             if (resp is not null && resp.isSuccess)
             {
                 // Note that setting IsConnected to false will cause the long poll to exit
+                _SessionGone = true;
                 m_log.LogDebug("{0} DestroySession. Destroyed", LogHeader);
             }
             else
@@ -169,34 +199,17 @@ public class JanusSession : IDisposable
     }
 
     // ====================================================================
+    // forward the viewer's trickled candidates ({"janus":"trickle","candidates":[...]}). This used to
+    // send the end-of-candidates marker instead, so only the candidates already in the offer reached Janus.
     public async Task<JanusMessageResp> TrickleCandidates(JanusViewerSession pVSession, OSDArray pCandidates)
     {
-        JanusMessageResp ret = null;
-        // if the audiobridge is active, the trickle message is sent to it
-        if (pVSession.AudioBridge is null)
-        {
-            ret = await SendToJanusNoWait(new TrickleReq(pVSession));
-        }
-        else
-        {
-            ret = await SendToJanusNoWait(new TrickleReq(pVSession), pVSession.AudioBridge.PluginUri);
-        }
-        return ret;
+        return await SendTrickle(pVSession, new TrickleReq(pVSession, pCandidates));
     }
     // ====================================================================
+    // The viewer has finished trickling: {"janus":"trickle","candidate":{"completed":true}}.
     public async Task<JanusMessageResp> TrickleCompleted(JanusViewerSession pVSession)
     {
-        JanusMessageResp ret = null;
-        // if the audiobridge is active, the trickle message is sent to it
-        if (pVSession.AudioBridge is null)
-        {
-            ret = await SendToJanusNoWait(new TrickleReq(pVSession));
-        }
-        else
-        {
-            ret = await SendToJanusNoWait(new TrickleReq(pVSession), pVSession.AudioBridge.PluginUri);
-        }
-        return ret;
+        return await SendTrickle(pVSession, new TrickleReq(pVSession));
     }
     // ====================================================================
     public Dictionary<string, JanusPlugin> _Plugins = new Dictionary<string, JanusPlugin>();
@@ -206,10 +219,17 @@ public class JanusSession : IDisposable
     }
     // ====================================================================
     // Post to the session
+    // A session request (attach, destroy) is about the session, so it does not name a handle: Janus looks up
+    //     any handle_id in the body first and refuses the request if that handle is already detached.
     public async Task<JanusMessageResp> SendToSession(JanusMessageReq pReq)
     {
-        return await SendToJanus(pReq, SessionUri);
+        return await SendToJanus(pReq, SessionUri, false);
     }
+
+    // Set once Janus has answered "no such session" (or this session was destroyed): its handles went with it,
+    //     so a later leave, detach or destroy could only be refused (and logged by Janus at ERROR).
+    private volatile bool _SessionGone;
+    public bool IsSessionGone => _SessionGone;
 
     private class OutstandingRequest
     {
@@ -235,22 +255,33 @@ public class JanusSession : IDisposable
     /// <param name="pReq"></param>
     /// <param name="pURI"></param>
     /// <returns></returns>
-    public async Task<JanusMessageResp> SendToJanus(JanusMessageReq pReq, string pURI)
+    public Task<JanusMessageResp> SendToJanus(JanusMessageReq pReq, string pURI)
     {
-        AddJanusHeaders(pReq);
+        return SendToJanus(pReq, pURI, true);
+    }
+
+    private async Task<JanusMessageResp> SendToJanus(JanusMessageReq pReq, string pURI, bool pNamesHandle)
+    {
+        AddJanusHeaders(pReq, pNamesHandle);
         // m_log.LogDebug("{0} SendToJanus", LogHeader);
-        if (_MessageDetails) m_log.LogDebug("{0} SendToJanus. URI={1}, req={2}", LogHeader, pURI, pReq.ToJson());
+        // ToJsonForLog, not ToJson — this is the only place a request body reaches a log. It hides the API
+        // and admin secrets, and a join's capability, which must never be printed at any level (design).
+        if (_MessageDetails) m_log.LogDebug("{0} SendToJanus. URI={1}, req={2}", LogHeader, RedactUriForLog(pURI), pReq.ToJsonForLog());
 
         JanusMessageResp ret = null;
+        OutstandingRequest outReq = new OutstandingRequest
+        {
+            TransactionId = pReq.TransactionId,
+            RequestTime = DateTime.Now,
+            // Continuations run asynchronously, so a TrySetResult from the long-poll event task or
+            // FailOutstanding never runs this method's tail on the completing thread.
+            TaskCompletionSource = new TaskCompletionSource<JanusMessageResp>(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
         try
         {
-            OutstandingRequest outReq = new OutstandingRequest
-            {
-                TransactionId = pReq.TransactionId,
-                RequestTime = DateTime.Now,
-                TaskCompletionSource = new TaskCompletionSource<JanusMessageResp>()
-            };
-            _OutstandingRequests.Add(pReq.TransactionId, outReq);
+            // Every _OutstandingRequests access is under its lock (the long-poll event task races this).
+            lock (_OutstandingRequests)
+                _OutstandingRequests.Add(pReq.TransactionId, outReq);
 
             string reqStr = pReq.ToJson();
 
@@ -267,29 +298,47 @@ public class JanusSession : IDisposable
                 {
                     // Some messages are asynchronous and completed with an event
                     if (_MessageDetails) m_log.LogDebug("{0} SendToJanus: ack response {1}", LogHeader, respStr);
-                    if (_OutstandingRequests.TryGetValue(pReq.TransactionId, out OutstandingRequest outstandingRequest))
+                    // Wait on THIS request's completion source, bounded by JanusRequestTimeout. It is
+                    // completed by its event (long poll), or with an error by FailOutstanding. Awaiting our own
+                    // TCS rather than looking the entry up again also keeps an event that beat the ack.
+                    Task done = await Task.WhenAny(outReq.TaskCompletionSource.Task,
+                                                   Task.Delay(JanusRequestTimeout, _CancelTokenSource.Token));
+                    if (done == outReq.TaskCompletionSource.Task || !RemoveOutstanding(outReq))
                     {
-                        ret = await outstandingRequest.TaskCompletionSource.Task;
-                        _OutstandingRequests.Remove(pReq.TransactionId);
+                        // Completed — or claimed at the deadline by the event task / FailOutstanding, which
+                        // complete it immediately after removing it.
+                        ret = await outReq.TaskCompletionSource.Task;
                     }
-                    // If there is no OutstandingRequest, the request was not waiting for an event or already processed
+                    else if (done.IsCanceled)
+                    {
+                        ret = MakeErrorResp(pReq.TransactionId, SessionDestroyedReason);
+                    }
+                    else
+                    {
+                        m_log.LogWarning("{0}: request {1} ({2}) timed out after {3} ms (sent {4:HH:mm:ss.fff})",
+                            LogHeader, pReq.TransactionId, DescribeOp(pReq), (long)JanusRequestTimeout.TotalMilliseconds, outReq.RequestTime);
+                        ret = MakeErrorResp(pReq.TransactionId, RequestTimeoutReason);
+                    }
                 }
                 else 
                 {
                     // If the response is not an ack, that means a synchronous request/response so return the response
-                    _OutstandingRequests.Remove(pReq.TransactionId);
+                    RemoveOutstanding(outReq);
+                    if (ret.isError && new ErrorResp(ret).errorCode == WebRtcJanusService.JANUS_NO_SUCH_SESSION_ERROR_CODE)
+                        _SessionGone = true;
                     if (_MessageDetails) m_log.LogDebug("{0} SendToJanus: response {1}", LogHeader, respStr);
                 }
             }
             else
             {
                 m_log.LogError("{0} SendToJanus: response not successful {1}", LogHeader, response);
-                _OutstandingRequests.Remove(pReq.TransactionId);
+                RemoveOutstanding(outReq);
             }
         }
         catch (Exception e)
         {
             m_log.LogError("{0} SendToJanus: exception {1}", LogHeader, e.Message);
+            RemoveOutstanding(outReq);   // don't leave a dead entry parked (only ever removes our own)
         }
 
         return ret;
@@ -329,7 +378,7 @@ public class JanusSession : IDisposable
     }
 
     // There are various headers that are in most Janus requests. Add them here.
-    private void AddJanusHeaders(JanusMessageReq pReq)
+    private void AddJanusHeaders(JanusMessageReq pReq, bool pNamesHandle = true)
     {
         // Authentication token
         if (!String.IsNullOrEmpty(_JanusAPIToken))
@@ -349,7 +398,7 @@ public class JanusSession : IDisposable
             pReq.AddSessionId(SessionId);
         }
         // HandleId connects to the plugin
-        if (!pReq.hasHandleId && !String.IsNullOrEmpty(PluginId))
+        if (pNamesHandle && !pReq.hasHandleId && !String.IsNullOrEmpty(PluginId))
         {
             pReq.AddHandleId(PluginId);
         }
@@ -400,7 +449,7 @@ public class JanusSession : IDisposable
         JanusMessageResp ret = null;
         try
         {
-            // m_log.LogDebug("{0} GetFromJanus: URI = \"{1}\"", LogHeader, pURI);
+            if (_MessageDetails) m_log.LogDebug("{0} GetFromJanus: URI={1}", LogHeader, RedactUriForLog(pURI));
             HttpRequestMessage reqMsg = new HttpRequestMessage(HttpMethod.Get, pURI);
             reqMsg.Headers.Add("Accept", "application/json");
             HttpResponseMessage response = null;
@@ -560,7 +609,7 @@ public class JanusSession : IDisposable
                                     m_log.LogDebug("{0} EventLongPoll: error {1}", LogHeader, resp.ToString());
                                     if (TryGetOutstandingRequest(resp.TransactionId, out OutstandingRequest outstandingRequest))
                                     {
-                                        outstandingRequest.TaskCompletionSource.SetResult(resp);
+                                        outstandingRequest.TaskCompletionSource.TrySetResult(resp);
                                     }
                                     else
                                     {
@@ -573,11 +622,11 @@ public class JanusSession : IDisposable
                                     if (TryGetOutstandingRequest(resp.TransactionId, out OutstandingRequest outstandingRequest2))
                                     {
                                         // Someone is waiting for this event
-                                        outstandingRequest2.TaskCompletionSource.SetResult(resp);
+                                        outstandingRequest2.TaskCompletionSource.TrySetResult(resp);
                                     }
                                     else
                                     {
-                                        m_log.LogError("{0} EventLongPoll: event no outstanding request {1}", LogHeader, resp.ToString());
+                                        m_log.Log(UnclaimedEventLevel(resp), "{0} EventLongPoll: event no outstanding request {1}", LogHeader, resp.ToString());
                                         OnEvent?.Invoke(eventResp);
                                     }
                                     break;
@@ -607,24 +656,26 @@ public class JanusSession : IDisposable
                                         case 404:
                                             // "Not found" means there is a Janus server but the session is gone
                                             m_log.LogError("{0} EventLongPoll: GETERROR Not Found. URI={1}: {2}",
-                                                        LogHeader, SessionUri, resp.ToString());
+                                                        LogHeader, RedactUriForLog(SessionUri), resp.ToString());
                                             break;
                                         case 400:
                                             // "Bad request" means the session is gone
                                             m_log.LogError("{0} EventLongPoll: Bad Request. URI={1}: {2}",
-                                                        LogHeader, SessionUri, resp.ToString());
+                                                        LogHeader, RedactUriForLog(SessionUri), resp.ToString());
                                             break;
                                         case 499:
                                             // "Task canceled" means the long poll was canceled
-                                            m_log.LogDebug("{0} EventLongPoll: Task canceled. URI={1}", LogHeader, SessionUri);
+                                            m_log.LogDebug("{0} EventLongPoll: Task canceled. URI={1}", LogHeader, RedactUriForLog(SessionUri));
                                             break;
                                         default:
                                             m_log.LogDebug("{0} EventLongPoll: unknown response. URI={1}: {2}",
-                                                        LogHeader, SessionUri, resp.ToString());
+                                                        LogHeader, RedactUriForLog(SessionUri), resp.ToString());
                                             break;
                                     }   
                                     // This will cause the long poll to exit
                                     running = false;
+                                    // Nothing will deliver the pending requests' events now.
+                                    FailOutstanding(LongPollExitedReason);
                                     OnDisconnect?.Invoke(eventResp);
                                     break;
                                 default:
@@ -642,10 +693,11 @@ public class JanusSession : IDisposable
                 {
                     // This will cause the long poll to exit
                     running = false;
+                    FailOutstanding(LongPollExitedReason);   // as the GETERROR arm
                     m_log.LogError("{0} EventLongPoll: exception {1}", LogHeader, e);
                 }
             }
-            m_log.LogInformation("{0} EventLongPoll: Exiting long poll loop", LogHeader);
+            m_log.LogDebug("{0} EventLongPoll: Exiting long poll loop", LogHeader);
         });
     }
 }

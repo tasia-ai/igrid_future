@@ -97,11 +97,12 @@ public partial class Scene
 
     /// <summary>
     /// The script engine that will run a script: the engine named on the script's first line
-    /// ("//engine:language") if that engine is loaded, otherwise the default engine; null if neither is loaded.
+    /// ("//engine:language") if loaded, otherwise an engine with matching saved state (default first),
+    /// otherwise the default engine; null if no suitable engine is loaded.
     /// </summary>
     /// <param name="defaultEngine">the engine name the caller passes to CreateScriptInstance (DefaultScriptEngine)</param>
     /// <param name="scriptSource">the script source, or null if not known</param>
-    public IScriptModule ResolveScriptEngine(string defaultEngine, string scriptSource)
+    public IScriptModule ResolveScriptEngine(string defaultEngine, string scriptSource, TaskInventoryItem item = null)
     {
         IScriptModule[] engines = RequestModuleInterfaces<IScriptModule>();
 
@@ -125,12 +126,30 @@ public partial class Scene
             }
         }
 
+        IScriptModule defaultModule = null;
         foreach (IScriptModule engine in engines)
         {
             if (engine.ScriptEngineName == defaultEngine)
-                return engine;
+            {
+                defaultModule = engine;
+                break;
+            }
         }
-        return null;
+
+        if (item is not null)
+        {
+            if (defaultModule is IScriptStateProvider defaultState
+                && defaultState.HasSavedScriptState(item.ItemID, item.AssetID))
+                return defaultModule;
+
+            foreach (IScriptModule engine in engines)
+            {
+                if (engine != defaultModule && engine is IScriptStateProvider savedState
+                    && savedState.HasSavedScriptState(item.ItemID, item.AssetID))
+                    return engine;
+            }
+        }
+        return defaultModule;
     }
 
     /// <summary>
@@ -749,7 +768,8 @@ public partial class Scene
             AssetType = item.AssetType,
             InvType = item.InvType,
             Folder = recipientFolderId,
-            Flags = item.Flags
+            Flags = item.Flags,
+            ExperienceID = item.ExperienceID
         };
 
         if (Permissions.PropagatePermissions() && recipient != senderId)
@@ -1111,7 +1131,7 @@ public partial class Scene
                 remoteClient, item.CreatorId, item.CreatorData, newFolderID,
                 newName, item.Description, item.Flags, callbackID, item.AssetID, (sbyte)item.AssetType, (sbyte)item.InvType,
                 item.BasePermissions, item.CurrentPermissions, item.EveryOnePermissions,
-                item.NextPermissions, item.GroupPermissions, Util.UnixTimeSinceEpoch());
+                item.NextPermissions, item.GroupPermissions, Util.UnixTimeSinceEpoch(), item.ExperienceID);
         }
         else
         {
@@ -1124,7 +1144,7 @@ public partial class Scene
                     remoteClient, item.CreatorId, item.CreatorData, newFolderID, newName, item.Description, item.Flags, callbackID,
                     item.AssetID, (sbyte)item.AssetType, (sbyte)item.InvType,
                     item.NextPermissions, item.NextPermissions, item.EveryOnePermissions & item.NextPermissions,
-                    item.NextPermissions, item.GroupPermissions, Util.UnixTimeSinceEpoch());
+                    item.NextPermissions, item.GroupPermissions, Util.UnixTimeSinceEpoch(), item.ExperienceID);
             }
         }
     }
@@ -1220,6 +1240,19 @@ public partial class Scene
         string name, string description, uint flags, uint callbackID, UUID assetID, sbyte assetType, sbyte invType,
         uint baseMask, uint currentMask, uint everyoneMask, uint nextOwnerMask, uint groupMask, int creationDate)
     {
+        CreateNewInventoryItem(
+            remoteClient, creatorID, creatorData, folderID,
+            name, description, flags, callbackID, assetID, assetType, invType,
+            baseMask, currentMask, everyoneMask, nextOwnerMask, groupMask, creationDate, UUID.Zero);
+    }
+
+    /// <param name="experienceID">The Experience a copied script item was compiled into, or UUID.Zero.</param>
+    private void CreateNewInventoryItem(
+        IClientAPI remoteClient, string creatorID, string creatorData, UUID folderID,
+        string name, string description, uint flags, uint callbackID, UUID assetID, sbyte assetType, sbyte invType,
+        uint baseMask, uint currentMask, uint everyoneMask, uint nextOwnerMask, uint groupMask, int creationDate,
+        UUID experienceID)
+    {
         InventoryItemBase item = new()
         {
             Owner = remoteClient.AgentId,
@@ -1238,7 +1271,8 @@ public partial class Scene
             EveryOnePermissions = everyoneMask,
             GroupPermissions = groupMask,
             BasePermissions = baseMask,
-            CreationDate = creationDate
+            CreationDate = creationDate,
+            ExperienceID = experienceID
         };
         // special AnimationSet case
         if (item.InvType == (int)CustomInventoryType.AnimationSet)
@@ -1449,7 +1483,8 @@ public partial class Scene
             Name = taskItem.Name,
             AssetType = taskItem.Type,
             InvType = taskItem.InvType,
-            Flags = taskItem.Flags
+            Flags = taskItem.Flags,
+            ExperienceID = taskItem.ExperienceID
         };
 
         // The code below isn't OK. It doesn't account for flags being changed
@@ -1752,6 +1787,53 @@ public partial class Scene
             SendInventoryUpdate(remoteClient, newFolder, false, true);
         }
 
+        return newFolderID;
+    }
+
+    /// <summary>
+    /// Give an avatar every listed item from a prim's inventory, in a new folder named <paramref name="category"/>,
+    /// or give nothing. MoveTaskInventoryItems gives what it can and alerts per item; a caller that must give a list
+    /// whole cannot check the items first, since the prim's inventory may change between that check and the move.
+    /// Here every item is checked and its inventory copy made before anything is added, so a change made while the
+    /// items are being added does not leave the folder part-filled. The avatar need not be in this region.
+    /// </summary>
+    /// <returns>The new folder's ID, or UUID.Zero with <paramref name="message"/> saying why nothing was given.</returns>
+    public UUID MoveTaskInventoryItemsAllOrNone(UUID destID, string category, SceneObjectPart host, List<UUID> items, out string message)
+    {
+        List<InventoryItemBase> agentItems = new(items.Count);
+        foreach (UUID itemID in items)
+        {
+            InventoryItemBase agentItem = CreateAgentInventoryItemFromTask(destID, host, itemID, out message);
+            if (agentItem is null)
+                return UUID.Zero;
+            agentItems.Add(agentItem);
+        }
+
+        InventoryFolderBase rootFolder = InventoryService.GetRootFolder(destID);
+        if (rootFolder is null)
+        {
+            message = "Inventory root folder not found";
+            return UUID.Zero;
+        }
+
+        UUID newFolderID = UUID.Random();
+        InventoryFolderBase newFolder = new(newFolderID, category, destID, -1, rootFolder.ID, rootFolder.Version);
+        InventoryService.AddFolder(newFolder);
+
+        for (int i = 0; i < agentItems.Count; i++)
+        {
+            agentItems[i].Folder = newFolderID;
+            AddInventoryItem(agentItems[i]);
+            RemoveNonCopyTaskItemFromPrim(host, items[i]);
+        }
+
+        if (TryGetScenePresence(destID, out ScenePresence avatar) && avatar.ControllingClient is not null)
+        {
+            SendInventoryUpdate(avatar.ControllingClient, rootFolder, true, false);
+            SendInventoryUpdate(avatar.ControllingClient, newFolder, false, true);
+        }
+
+        message = null;
         return newFolderID;
     }
 
@@ -2827,7 +2909,8 @@ public partial class Scene
                 {
                     fixrot = true;
                     sog = objlist[0];
-                    netRot = Quaternion.Conjugate(sog.RootPart.GetWorldRotation());
+                    Quaternion worldRotation = sog.RootPart.GetWorldRotation();
+                    netRot = Quaternion.Conjugate(in worldRotation);
                     netRot *= rot.Value;
                     Vector3 off;
                     if (atRoot)
@@ -2863,6 +2946,11 @@ public partial class Scene
 
             group.RezzerID = rezzerID;
             group.RezStringParameter = null;
+
+            // llSetStatus: an object rezzed by a script is deleted when it goes off world, unless the script clears
+            // STATUS_DIE_AT_EDGE. Not the stored flag: that also acts at a crossing into a neighbouring region.
+            if (!humanRez && ScriptRezzedObjectsDieAtEdge)
+                group.DieAtVoidEdge = true;
 
             if (rezSelected)
             {
@@ -2941,6 +3029,9 @@ public partial class Scene
         }
 
         sog.RezzerID = sourcePart.UUID;
+
+        if (ScriptRezzedObjectsDieAtEdge)
+            sog.DieAtVoidEdge = true;
 
         AddNewSceneObject(sog, true, pos, rot, vel);
 

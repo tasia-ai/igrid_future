@@ -58,6 +58,7 @@ public class TestClient : IClientAPI, IClientCore
     public event Action<RegionInfo, Vector3, Vector3> OnReceivedMoveAgentIntoRegion;
     public event Action<ulong, IPEndPoint> OnTestClientInformClientOfNeighbour;
     public event TestClientOnSendRegionTeleportDelegate OnTestClientSendRegionTeleport;
+    public event Action<ulong, IPEndPoint> OnTestClientCrossRegion;
 
     public event Action<ISceneEntity, PrimUpdateFlags> OnReceivedEntityUpdate;
 
@@ -65,6 +66,10 @@ public class TestClient : IClientAPI, IClientCore
     public event Action<GridInstantMessage> OnReceivedInstantMessage;
 
     public event Action<UUID> OnReceivedSendRebakeAvatarTextures;
+
+    public event Action<string> OnReceivedAlertMessage;
+    public event Action<UUID, int, UUID[], uint> OnReceivedEstateList;
+    public event Action<UUID, EstateBan[], uint> OnReceivedBannedUserList;
 
     public delegate void TestClientOnSendRegionTeleportDelegate(
         ulong regionHandle, byte simAccess, IPEndPoint regionExternalEndPoint,
@@ -468,9 +473,12 @@ public class TestClient : IClientAPI, IClientCore
         set { m_circuitCode = value; }
     }
 
+    /// <summary>The viewer's source address reported by <see cref="RemoteEndPoint"/>; loopback unless a test sets it.</summary>
+    public IPAddress RemoteAddress { get; set; } = IPAddress.Loopback;
+
     public IPEndPoint RemoteEndPoint
     {
-        get { return new IPEndPoint(IPAddress.Loopback, (ushort)m_circuitCode); }
+        get { return new IPEndPoint(RemoteAddress, (ushort)m_circuitCode); }
     }
 
     public List<uint> SelectedObjects {get; private set;}
@@ -713,8 +721,13 @@ public class TestClient : IClientAPI, IClientCore
                 regionHandle, simAccess, regionExternalEndPoint, locationID, flags, capsURL);
     }
 
+    /// <summary>The reasons given to the client by SendTeleportFailed, oldest first.</summary>
+    public List<string> TeleportFailedReasons { get; } = new();
+
     public virtual void SendTeleportFailed(string reason)
     {
+        lock (TeleportFailedReasons)
+            TeleportFailedReasons.Add(reason);
     }
 
     public virtual void CrossRegion(ulong newRegionHandle, Vector3 pos, Vector3 lookAt,
@@ -725,6 +738,7 @@ public class TestClient : IClientAPI, IClientCore
         // It's ugly, but avoids needless communication setup. This is used in ScenePresenceTests.cs.
         // Arthur V.
 
+        OnTestClientCrossRegion?.Invoke(newRegionHandle, newRegionExternalEndPoint);
         wh.Set();
     }
 
@@ -866,6 +880,15 @@ public class TestClient : IClientAPI, IClientCore
         OnAvatarNowWearing?.Invoke(this, e);
     }
 
+    /// <summary>
+    /// Test seam: raise <see cref="OnUpdateEstateAccessDeltaRequest"/> as if an EstateOwnerMessage
+    /// "estateaccessdelta" had arrived.
+    /// </summary>
+    public void TriggerEstateAccessDelta(UUID invoice, int estateAccessType, UUID user)
+    {
+        OnUpdateEstateAccessDeltaRequest?.Invoke(this, invoice, estateAccessType, user);
+    }
+
     public void SendTriggeredSound(UUID soundID, UUID ownerID, UUID objectID, UUID parentID, ulong handle, Vector3 position, float gain)
     {
     }
@@ -877,6 +900,7 @@ public class TestClient : IClientAPI, IClientCore
 
     public void SendAlertMessage(string message)
     {
+        OnReceivedAlertMessage?.Invoke(message);
     }
 
     public void SendAgentAlertMessage(string message, bool modal)
@@ -1103,10 +1127,12 @@ public class TestClient : IClientAPI, IClientCore
 
     public void SendEstateList(UUID invoice, int code, UUID[] Data, uint estateID)
     {
+        OnReceivedEstateList?.Invoke(invoice, code, Data, estateID);
     }
 
     public void SendBannedUserList(UUID invoice, EstateBan[] banlist, uint estateID)
     {
+        OnReceivedBannedUserList?.Invoke(invoice, banlist, estateID);
     }
 
     public void SendRegionInfoToEstateMenu(RegionInfoForEstateMenuArgs args)
@@ -1447,9 +1473,13 @@ public class TestClient : IClientAPI, IClientCore
     public void FireScriptAnswer(UUID taskID, UUID itemID, int answer)
         => OnScriptAnswer?.Invoke(this, taskID, itemID, answer);
 
-    public void SendEstateExperiences(UUID invoice, UUID[] allowed, UUID[] key, uint estateID)
+    /// <summary>Every estate Experience lists reply sent to this client.</summary>
+    public List<(UUID Invoice, UUID[] Allowed, UUID[] Key, UUID[] Blocked, uint EstateID)> EstateExperienceReplies { get; } = new();
+
+    public void SendEstateExperiences(UUID invoice, UUID[] allowed, UUID[] key, UUID[] blocked, uint estateID)
+
     {
-        throw new NotImplementedException();
+        lock (EstateExperienceReplies) EstateExperienceReplies.Add((invoice, allowed, key, blocked, estateID));
     }
 
     public void SendPickInfoReply(UUID pickID, UUID creatorID, bool topPick, UUID parcelID, string name, string desc, UUID snapshotID, string user, string originalName, string simName, Vector3d posGlobal, int sortOrder, bool enabled)

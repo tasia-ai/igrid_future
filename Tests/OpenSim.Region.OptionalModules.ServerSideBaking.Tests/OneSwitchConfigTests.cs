@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using Nini.Config;
 using OpenSim.Region.ClientStack.LindenCaps.AIS;
 using OpenSim.Region.OptionalModules.Avatar.ServerSideBaking;
@@ -6,7 +13,7 @@ using Xunit;
 namespace OpenSim.Region.OptionalModules.ServerSideBaking.Tests;
 
 /// <summary>
-/// S12. The operator contract: **two lines in the global config turn AIS v3 and server-side baking on for the
+/// The operator contract: **two lines in the global config turn AIS v3 and server-side baking on for the
 /// whole simulator, and no region is ever named.** A <c>[&lt;Region Name&gt;]</c> section is an optional override
 /// — the way a single region opts *out* — and never the way to opt in.
 ///
@@ -67,7 +74,7 @@ public class OneSwitchConfigTests
     public void the_two_global_lines_are_the_documented_keys_and_sections()
     {
         // If either name drifts, the line an operator was told to add stops working and nothing says so. These are
-        // the exact section and key names written into OpenSimDefaults.ini and the design brief's config contract.
+        // the exact section and key names written into RegionServerDefaults.ini and the design brief's config contract.
         Assert.Equal("AIS", AISv3Module.ConfigSection);
         Assert.Equal("Appearance", ServerSideBakingModule.ConfigSection);
 
@@ -115,8 +122,8 @@ public class OneSwitchConfigTests
     [Fact]
     public void c_global_false_and_a_region_section_of_true_turns_that_region_on()
     {
-        // This is how Ebony runs today (config/OpenSim.ini:162-164) and it must keep working: the single-region
-        // trial is what every flip so far has depended on.
+        // A single region opting in through its own section must keep working: it is how a
+        // grid trials the feature on one region first.
         var source = Config(
             (Ebony, "AIS_Enabled", "true"),
             (Ebony, "ServerSideBaking", "true"));

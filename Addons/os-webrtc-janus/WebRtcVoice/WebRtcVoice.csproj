@@ -5,6 +5,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The non-spatial session model keeps internal setters; the region module and its tests build and read sessions. -->
+    <InternalsVisibleTo Include="WebRtcVoiceRegionModule" />
+    <InternalsVisibleTo Include="WebRtcVoiceRegionModule.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.10" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.13" />
   </ItemGroup>
 
 </Project>

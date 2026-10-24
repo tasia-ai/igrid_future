@@ -126,7 +126,7 @@ public class DetectParams
     public int Type;
     public LSL_Types.Vector3 Velocity;
 
-    // PHLOX-10: on_damage / final_damage. llDetectedDamage(n) = [Damage, DamageType, OriginalDamage];
+    // on_damage / final_damage. llDetectedDamage(n) = [Damage, DamageType, OriginalDamage];
     // AdjustDamage, set only for on_damage, is how llAdjustDamage(n, v) rewrites the pending entry.
     public float Damage;
     public int DamageType;
@@ -210,6 +210,13 @@ public class DetectParams
 
             if (presence.Velocity != Vector3.Zero)
                 Type |= ACTIVE;
+            else if (Type == AGENT && presence.ParentPart is not null)
+            {
+                // A seated avatar is out of the physics scene, so its own velocity is zero. The SL wiki's
+                // llDetectedType results give an agent sitting 3 (ACTIVE | AGENT) in physical movement and
+                // 5 (PASSIVE | AGENT) on a non-physical object: the seat's movement decides.
+                Type |= presence.ParentPart.ParentGroup.RootPart.Velocity.IsZero() ? PASSIVE : ACTIVE;
+            }
 
             Group = presence.ControllingClient.ActiveGroupId;
 
@@ -269,6 +276,10 @@ public class DetectParams
             Velocity = new LSL_Types.Vector3(obj.velVector);
             LinkNum = obj.linkNumber;
             Type = obj.colliderType;
+            // SL wiki llDetectedType results: an agent standing in physical movement is 3 (ACTIVE | AGENT), as the
+            // overload above types a moving avatar.
+            if (Type == AGENT && !obj.velVector.IsZero())
+                Type |= ACTIVE;
             return;
         }
 

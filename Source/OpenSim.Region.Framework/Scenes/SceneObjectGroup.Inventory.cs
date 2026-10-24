@@ -157,7 +157,8 @@ public partial class SceneObjectGroup : EntityBase
             CreatorID = item.CreatorIdAsUuid,
             Type = item.AssetType,
             InvType = item.InvType,
-            Flags = item.Flags
+            Flags = item.Flags,
+            ExperienceID = item.ExperienceID
         };
 
         if (agentID.NotEqual(part.OwnerID) && m_scene.Permissions.PropagatePermissions())
@@ -608,6 +609,67 @@ public partial class SceneObjectGroup : EntityBase
         SceneObjectPart[] parts = m_parts.GetArray();
         for (int i = 0; i < parts.Length; i++)
             parts[i].Inventory.ResumeScripts();
+    }
+
+    /// <summary>
+    /// Stops the engines from running any script of this object (no event is started), so that the state read
+    /// afterwards is the last one. Returns the items that were suspended, to give to <see cref="ResumeScripts(IScriptModule[], List{UUID})"/>
+    /// when the object stays; an object that moves on has its scripts removed instead.
+    /// </summary>
+    public List<UUID> SuspendScripts(IScriptModule[] engines)
+    {
+        List<UUID> suspended = new();
+        if (engines is null || engines.Length == 0)
+            return suspended;
+
+        SceneObjectPart[] parts = m_parts.GetArray();
+        for (int i = 0; i < parts.Length; i++)
+        {
+            foreach (TaskInventoryItem item in parts[i].Inventory.GetInventoryItems(InventoryType.LSL))
+            {
+                foreach (IScriptModule engine in engines)
+                {
+                    // an engine that fails leaves that one script running: it does not stop the others being
+                    // suspended, and the ones that were are all listed to be resumed
+                    try
+                    {
+                        if (engine is not null && engine.SuspendScript(item.ItemID))
+                        {
+                            suspended.Add(item.ItemID);
+                            break;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        m_log.LogWarning($"[SCENE OBJECT GROUP]: Script engine {engine?.ScriptEngineName} failed to suspend script {item.ItemID} in object {Name}: {e.Message}");
+                    }
+                }
+            }
+        }
+        return suspended;
+    }
+
+    /// <summary>Lets the scripts that <see cref="SuspendScripts"/> stopped run again.</summary>
+    public static void ResumeScripts(IScriptModule[] engines, List<UUID> suspended)
+    {
+        if (engines is null || suspended is null)
+            return;
+
+        foreach (UUID itemID in suspended)
+        {
+            foreach (IScriptModule engine in engines)
+            {
+                try
+                {
+                    if (engine is not null && engine.ResumeScript(itemID))
+                        break;
+                }
+                catch (Exception e)
+                {
+                    m_log.LogWarning($"[SCENE OBJECT GROUP]: Script engine {engine?.ScriptEngineName} failed to resume script {itemID}: {e.Message}");
+                }
+            }
+        }
     }
 
     /// <summary>

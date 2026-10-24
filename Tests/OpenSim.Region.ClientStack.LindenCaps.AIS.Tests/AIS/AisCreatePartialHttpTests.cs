@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -213,7 +220,7 @@ public class AisCreatePartialHttpTests
     // ------------------------------------------------------------------ (d) the happy path is pinned
 
     /// <summary>
-    /// Full success, pinned against the behaviour that shipped before this session so AIS-SEC-4 cannot quietly
+    /// Full success, pinned against the behaviour that shipped before the fix so AIS-SEC-4 cannot quietly
     /// change it: status 200, the same four delta/content keys, and no error keys.
     /// </summary>
     [Test]

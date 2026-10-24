@@ -767,6 +767,55 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
     }
 
     public bool inTransit = false;
+
+    /// <summary>
+    /// The object is deleted, not returned, when it reaches a region edge with no neighbouring region. Set for an
+    /// object rezzed by a script when Scene.ScriptRezzedObjectsDieAtEdge is on; llSetStatus(STATUS_DIE_AT_EDGE, FALSE)
+    /// clears it. Unlike DIE_AT_EDGE it does not act when the object crosses into a neighbouring region, and it is
+    /// not stored.
+    /// </summary>
+    public bool DieAtVoidEdge;
+
+    /// <summary>
+    /// Set on an object that arrived with avatars while it waits for them: its scripts and keyframed motion are not
+    /// started (see Scene.IncomingCreateObject).
+    /// </summary>
+    public bool HeldForRiders { get; set; }
+
+    /// <summary>
+    /// The time (the receiving region's crossing clock, ms) at which this object arrived in the region with riders to wait
+    /// for; NaN when it did not. An engine that asks for it (<see cref="PhysicsActor.WaitsBeforeCrossingBack"/>) keeps the
+    /// object from crossing out again for <see cref="RideOnLimits.RecrossWaitMs"/> after that.
+    /// </summary>
+    public double ArrivedWithRidersAtMs { get; set; } = double.NaN;
+
+    /// <summary>
+    /// Set on the frozen original of an object this region sent to another region, from the moment that region took it
+    /// until it reports the crossing complete (the object is then deleted) or gives it back (see <see cref="ShowToViewers"/>):
+    /// the viewers of this region are not shown it, since they would see it twice.
+    /// </summary>
+    public bool HiddenForCrossing { get; private set; }
+
+    // the scripts a crossing suspended, resumed if the object stays
+    private List<UUID> m_crossSuspendedScripts;
+
+    // what a crossing has done so far, so that a failure at any step can be undone
+    private sealed class CrossState
+    {
+        public readonly List<ScenePresence> Riders = new();
+        public readonly List<avtocrossInfo> AvsToCross = new();
+
+        // the other region took the object: whatever else fails, it is no longer ours to put back
+        public bool Committed;
+
+        // set while the object is being handed to the other region (until its answer is in), so that a failure inside
+        // the hand-over can ask that region to give back a copy it may already have taken in
+        public bool Sending;
+        public bool SendHeld;
+        public OpenSim.Services.Interfaces.GridRegion SendDestination;
+        public IEntityTransferModule SendTransfer;
+    }
+
     private delegate SceneObjectGroup SOGCrossDelegate(SceneObjectGroup sog,Vector3 pos, TeleportObjectData tpData);
 
     /// <summary>
@@ -789,13 +838,7 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
                 if (!inTransit)
                 {
                     inTransit = true;
-                    SceneObjectGroup sog = this;
-
-                    Util.FireAndForget(delegate
-                    {
-                        sog = CrossAsync(sog, val, null);
-                        CrossAsyncCompleted(sog);
-                    }, null, "ObjCross-"+sog.UUID.ToString(), false);
+                    StartCrossing(val, null, "ObjCross-" + UUID.ToString());
                 }
                 return;
             }
@@ -849,7 +892,184 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Run a crossing (or an object teleport to another region) whose caller has just set <see cref="inTransit"/>,
+    /// on its own thread. It is announced with EventManager.OnGroupBeginInTransit before that thread starts, and its
+    /// end with OnGroupEndInTransit once it is over: crossed when the object left (CrossAsync returns null), not
+    /// crossed when it stays here, after CrossAsyncCompleted has put it back in the region.
+    /// </summary>
+    private void StartCrossing(Vector3 val, TeleportObjectData tpdata, string threadName)
+    {
+        SceneObjectGroup sog = this;
+        Scene scene = m_scene;
+        scene.EventManager.TriggerGroupBeginInTransit(sog);
+
+        Util.FireAndForget(delegate
+        {
+            bool crossed = false;
+            try
+            {
+                SceneObjectGroup stayed = CrossAsync(sog, val, tpdata);
+                crossed = stayed is null;
+                CrossAsyncCompleted(stayed);
+            }
+            finally
+            {
+                scene.EventManager.TriggerGroupEndInTransit(sog, crossed);
+            }
+        }, null, threadName, false);
+    }
+
+    /// <summary>
+    /// Stand up every avatar seated on this object and keep it inside the region, for an object that is about to be
+    /// deleted or returned at the region's edge. A stand-up beside a seat near the edge can land past it, and the
+    /// avatar would be left outside the region with no region to take it.
+    /// </summary>
+    private void StandSittersUpInsideRegion()
+    {
+        float maxX = m_scene.RegionInfo.RegionSizeX - 0.5f;
+        float maxY = m_scene.RegionInfo.RegionSizeY - 0.5f;
+
+        foreach (ScenePresence av in GetSittingAvatars())
+        {
+            av.StandUp();
+
+            Vector3 pos = av.AbsolutePosition;
+            Vector3 inside = new(Utils.Clamp(pos.X, 0.5f, maxX), Utils.Clamp(pos.Y, 0.5f, maxY), pos.Z);
+            if (inside != pos)
+                av.AbsolutePosition = inside;
+        }
+    }
+
+    /// <summary>
+    /// Returns null when the object left this region, else the object, which stays. Whatever went wrong on the way,
+    /// what the crossing froze and was not handed over is given back.
+    /// </summary>
     private SceneObjectGroup CrossAsync(SceneObjectGroup sog, Vector3 val, TeleportObjectData tpdata)
+    {
+        CrossState state = new();
+        try
+        {
+            return CrossAsyncCore(sog, val, tpdata, state);
+        }
+        catch (Exception e)
+        {
+            m_log.LogError(e, $"[SCENE OBJECT]: Crossing of {sog.Name} {sog.UUID} failed with {e.GetType().Name} in step '{sog.m_crossStep}': {e.Message}");
+            return sog.RollBackCrossing(state);
+        }
+        finally
+        {
+            sog.m_crossWatch = null;
+        }
+    }
+
+    // running while a crossing that carries standing riders is under way; only for the timing lines at Debug level
+    private System.Diagnostics.Stopwatch m_crossWatch;
+    private string m_crossDestinationName;
+
+    // the step a crossing is in, for the log line of a crossing that fails
+    private string m_crossStep = "start";
+
+    private void CrossStep(string label)
+    {
+        m_crossStep = label;
+        if (m_crossWatch is not null)
+            m_log.LogDebug($"[SCENE OBJECT]: Crossing {Name} from {m_scene?.Name} to {m_crossDestinationName}: {label} at {m_crossWatch.ElapsedMilliseconds} ms");
+        m_scene?.CrossingStepHook?.Invoke(this, label);
+    }
+
+    /// <summary>
+    /// Undoes a crossing that failed with an exception. Before the other region took the object, everything goes
+    /// back as it was and the object stays (returned). After, the object is the other region's: the avatars that did
+    /// not cross are put back in this region and the object is reported as crossed (null).
+    /// </summary>
+    private SceneObjectGroup RollBackCrossing(CrossState state)
+    {
+        Vector3 curPos = m_rootPart.GroupPosition;
+        try
+        {
+            if (state.Sending && !state.Committed)
+            {
+                // The failure came while the object was being handed over, so the other region may have taken it in
+                // before it failed: it is asked to give that copy back, so that exactly one copy is left.
+                state.Sending = false;
+                if (!RecallAfterFailedSend(state))
+                    m_log.LogWarning($"[SCENE OBJECT]: The region ahead would not give back {Name} {UUID} after the failed crossing; it keeps its copy");
+            }
+
+            if (!state.Committed)
+            {
+                ReleaseStandingRiders(state.Riders, curPos);
+                foreach (ScenePresence av in GetSittingAvatars())
+                {
+                    if (av.IsNPC)
+                        continue;
+                    foreach (avtocrossInfo info in state.AvsToCross)
+                    {
+                        if (info.av == av && av.ParentID == 0)
+                            av.ParentID = info.ParentID;
+                    }
+                    av.ParentUUID = UUID.Zero;
+                    av.m_crossingFlags = 0;
+                    av.IsInLocalTransit = false;
+                    av.IsInTransit = false;
+                    av.ThawAfterCrossing();
+                }
+                return this;
+            }
+
+            foreach (ScenePresence rider in state.Riders)
+            {
+                if (!rider.IsChildAgent && !rider.CarriedByGroup.IsZero())
+                    ReleaseStandingRider(rider, curPos);
+            }
+            foreach (avtocrossInfo info in state.AvsToCross)
+            {
+                ScenePresence av = info.av;
+                if (!av.IsChildAgent && (av.m_crossingFlags & AgentData.CrossingCarried) == 0 && av.IsInTransit)
+                    StandUpAfterFailedCrossing(av, curPos, GetSittingAvatars(), 0);
+            }
+        }
+        catch (Exception e)
+        {
+            m_log.LogError(e, $"[SCENE OBJECT]: Putting back after the failed crossing of {Name} {UUID} failed with {e.GetType().Name} in step '{m_crossStep}': {e.Message}");
+        }
+
+        return state.Committed ? null : this;
+    }
+
+    /// <summary>
+    /// Asks the region a failed hand-over was made to for the object back. True when it holds no copy any longer, so
+    /// that the original here is the only one.
+    /// </summary>
+    private bool RecallAfterFailedSend(CrossState state)
+    {
+        if (!state.SendHeld || state.SendTransfer is null || state.SendDestination is null)
+            return true;
+
+        try
+        {
+            return state.SendTransfer.RecallCrossingObject(state.SendDestination, this);
+        }
+        catch (Exception e)
+        {
+            m_log.LogError(e, $"[SCENE OBJECT]: Asking the region ahead for {Name} {UUID} back after the failed crossing failed with {e.GetType().Name}: {e.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// True while this object, which crossed into the region with riders, is within the short time after that in which its
+    /// engine does not let it cross out again.
+    /// </summary>
+    private bool IsWaitingBeforeCrossingBack(Scene scene)
+    {
+        if (double.IsNaN(ArrivedWithRidersAtMs) || m_rootPart.PhysActor is not { WaitsBeforeCrossingBack: true })
+            return false;
+        return scene.CrossingClock() - ArrivedWithRidersAtMs < RideOnLimits.RecrossWaitMs;
+    }
+
+    private SceneObjectGroup CrossAsyncCore(SceneObjectGroup sog, Vector3 val, TeleportObjectData tpdata, CrossState state)
     {
         Scene sogScene = sog.m_scene;
         SceneObjectPart root = sog.RootPart;
@@ -862,11 +1082,12 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
             {
                 try
                 {
+                    sog.StandSittersUpInsideRegion();
                     sogScene.DeleteSceneObject(sog, false);
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    m_log.LogWarning("[SCENE]: exception when trying to remove the prim that crossed the border.");
+                    m_log.LogWarning(e, $"[SCENE]: exception when trying to remove the prim that crossed the border: {e.GetType().Name}: {e.Message}");
                 }
                 return sog;
             }
@@ -877,13 +1098,14 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
                 try
                 {
                     List<uint> localIDs = new(){root.LocalId};
+                    sog.StandSittersUpInsideRegion();
                     sogScene.AddReturn(sog.OwnerID, sog.Name, sog.AbsolutePosition,
                         "Returned at region cross");
                     sogScene.DeRezObjects(null, localIDs, UUID.Zero, DeRezAction.Return, UUID.Zero, false);
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    m_log.LogWarning("[SCENE]: exception when trying to return the prim that crossed the border.");
+                    m_log.LogWarning(e, $"[SCENE]: exception when trying to return the prim that crossed the border: {e.GetType().Name}: {e.Message}");
                 }
                 return sog;
             }
@@ -892,26 +1114,31 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
 //            if(!m_scene.IsRunning)
 //                return sog;
 
-        root.KeyframeMotion?.StartCrossingCheck();
-
-        root.PhysActor?.CrossingStart();
-
         IEntityTransferModule entityTransfer = sogScene.RequestModuleInterface<IEntityTransferModule>();
-
-        if (entityTransfer is null)
-            return sog;
 
         Vector3 newpos = Vector3.Zero;
         OpenSim.Services.Interfaces.GridRegion destination = null;
 
-        destination = entityTransfer.GetObjectDestination(sog, val, out newpos);
-        if (destination is null)
-            return sog;
-
-        if (sog.m_sittingAvatars.Count == 0)
+        // the destination is looked up first (no side effects) so that the avatars standing on the object are frozen
+        // before the object's own physics body is touched: a physical object's CrossingStart takes it out of the
+        // engine, and with it the ground under them
+        if (entityTransfer is not null)
+            destination = entityTransfer.GetObjectDestination(sog, val, out newpos);
+        else
         {
-            if(entityTransfer.CrossPrimGroupIntoNewRegion(destination, newpos, sog, !isTeleport, true))
-                return null;
+            // No module to send the object with: it stays, as it did before, and is not taken for an object that left the world
+            root.KeyframeMotion?.StartCrossingCheck();
+            root.PhysActor?.CrossingStart();
+            return sog;
+        }
+
+        if (destination is not null && !isTeleport && sog.IsWaitingBeforeCrossingBack(sogScene))
+        {
+            // It crossed in with riders a moment ago, and its engine keeps such an object from crossing out again at once
+            // (Halcyon: SceneObjectGroup.cs, TestForAndBeginCrossing). It stays: nothing has been frozen yet, so the body is
+            // taken out of the engine as for any crossing and the caller puts it back inside the border, at rest.
+            root.KeyframeMotion?.StartCrossingCheck();
+            root.PhysActor?.CrossingStart();
             return sog;
         }
 
@@ -919,6 +1146,73 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
         EntityTransferContext ctx = new();
 
         Vector3 curPos = root.GroupPosition;
+        List<ScenePresence> riders = null;
+        if (destination is not null && !isTeleport && sogScene.EnableStandingRiderCrossing)
+        {
+            if (m_log.IsEnabled(LogLevel.Debug))
+            {
+                sog.m_crossDestinationName = destination.RegionName;
+                sog.m_crossWatch = System.Diagnostics.Stopwatch.StartNew();
+            }
+            sog.FreezeStandingRiders(entityTransfer, destination, newpos, ctx, val, state.Riders);
+            if (state.Riders.Count > 0)
+                riders = state.Riders;
+            else
+                sog.m_crossWatch = null;
+            sog.CrossStep("riders-frozen");
+        }
+
+        // From here until the object is sent, nothing may change what is sent: its scripts stop (the riders' attachment
+        // scripts were stopped with the riders), its motion and its physics body stop below, and the object is in
+        // transit, which keeps scripts and avatars from moving it. A crossing with nowhere to go freezes nothing.
+        if (destination is not null && sogScene.EnableStandingRiderCrossing)
+        {
+            sog.m_crossSuspendedScripts = sog.SuspendScripts(sogScene.RequestModuleInterfaces<IScriptModule>());
+            sog.CrossStep("scripts-suspended");
+        }
+
+        root.KeyframeMotion?.StartCrossingCheck();
+
+        root.PhysActor?.CrossingStart();
+
+        if (destination is null)
+        {
+            // No region beyond: the object has gone off world
+            if (sog.DieAtVoidEdge && !isTeleport)
+            {
+                try
+                {
+                    sog.StandSittersUpInsideRegion();
+                    sogScene.DeleteSceneObject(sog, false);
+                }
+                catch (Exception e)
+                {
+                    m_log.LogWarning(e, $"[SCENE]: exception when trying to remove the prim that went off world: {e.GetType().Name}: {e.Message}");
+                }
+            }
+            return sog;
+        }
+
+        // A vehicle's motors go on across the border: the engine writes their running state into the record that is sent
+        if (root.VehicleParams is not null && root.PhysActor is not null)
+            root.PhysActor.CaptureVehicleRunningState(ref root.VehicleParams.vd);
+
+        // the physical object's move-to, hover and look-at go on in the next region, for an engine that keeps them
+        if (!isTeleport)
+            sog.CaptureCrossingTargets(new Vector3(sogScene.RegionInfo.WorldLocX - destination.RegionLocX, sogScene.RegionInfo.WorldLocY - destination.RegionLocY, 0f));
+
+        sog.CrossStep("motion-stopped");
+
+        if (sog.m_sittingAvatars.Count == 0 && riders is null)
+        {
+            if(entityTransfer.CrossPrimGroupIntoNewRegion(destination, newpos, sog, !isTeleport, true))
+            {
+                sog.EndGrabAfterSend();
+                return null;
+            }
+            return sog;
+        }
+
         foreach (ScenePresence av in sog.m_sittingAvatars)
         {
             // We need to cross these agents. First, let's find
@@ -933,18 +1227,35 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
                 continue;
 
             if(av.IsInTransit)
+            {
+                sog.ReleaseStandingRiders(riders, curPos);
                 return sog;
+            }
 
             if(!entityTransfer.checkAgentAccessToRegion(av, destination, newpos, ctx, out reason))
+            {
+                sog.ReleaseStandingRiders(riders, curPos);
                 return sog;
+            }
 
             m_log.LogDebug($"[SCENE OBJECT]: Avatar {av.Name} needs to be crossed to {destination.RegionName}");
+        }
+
+        // The seated avatars are frozen as the standing ones were: before the object is sent they take no input and
+        // their attachment scripts are stopped
+        if (sogScene.EnableStandingRiderCrossing)
+        {
+            foreach (ScenePresence av in sog.m_sittingAvatars)
+            {
+                if (!av.IsNPC)
+                    av.FreezeForCrossing();
+            }
         }
 
         // We unparent the SP quietly so that it won't
         // be made to stand up
 
-        List<avtocrossInfo> avsToCross = new();
+        List<avtocrossInfo> avsToCross = state.AvsToCross;
         List<ScenePresence> avsToCrossFar = new();
         ulong destHandle = destination.RegionHandle;
         List<ScenePresence> sittingAvatars = GetSittingAvatars();
@@ -989,6 +1300,21 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
             av.ParentID = 0;
         }
 
+        if (riders is not null)
+        {
+            foreach (ScenePresence rider in riders)
+            {
+                byte cflags = (byte)(1 | AgentData.CrossingCarried);
+                avsToCross.Add(new avtocrossInfo { av = rider, ParentID = 0 });
+                if (!rider.knowsNeighbourRegion(destHandle))
+                {
+                    cflags |= 8;
+                    avsToCrossFar.Add(rider);
+                }
+                rider.m_crossingFlags = cflags;
+            }
+        }
+
         Vector3 vel = root.Velocity;
         Vector3 avel = root.AngularVelocity;
         Vector3 acc = root.Acceleration;
@@ -1009,8 +1335,46 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
             root.RotationOffset = tpdata.ori;
         }
 
-        if (entityTransfer.CrossPrimGroupIntoNewRegion(destination, newpos, sog, true, false))
+        // An object that crosses with avatars is held by the region that takes it until they have arrived, and this
+        // region keeps its frozen original until it is told so: with that, a failure after the other region took the
+        // object can still be undone. Not for a teleport, and not towards a region that does not know the messages.
+        List<UUID> expectedRiders = new();
+        foreach (avtocrossInfo info in avsToCross)
         {
+            if (!info.av.IsNPC)
+                expectedRiders.Add(info.av.UUID);
+        }
+        bool held = !isTeleport && expectedRiders.Count > 0 && entityTransfer.SupportsHeldCrossing(destination);
+
+        sog.CrossStep("before-send");
+
+        state.SendDestination = destination;
+        state.SendTransfer = entityTransfer;
+        state.SendHeld = held;
+        state.Sending = true;
+
+        bool sent = held
+            ? entityTransfer.CrossPrimGroupIntoNewRegionHeld(destination, newpos, sog,
+                new OpenSim.Services.Interfaces.CrossingHoldRequest
+                {
+                    Source = new OpenSim.Services.Interfaces.GridRegion(sogScene.RegionInfo),
+                    ExpectedRiders = expectedRiders
+                })
+            : entityTransfer.CrossPrimGroupIntoNewRegion(destination, newpos, sog, true, false);
+        state.Sending = false;
+
+        if (sent)
+        {
+            state.Committed = true;
+            sog.EndGrabAfterSend();
+            if (held)
+            {
+                sogScene.AddPendingCrossing(sog);
+                // the other region has the object now: this copy is only kept for a recall, and not shown to anyone
+                sog.HideFromViewers(avsToCross);
+            }
+            sog.CrossStep("object-sent");
+
             if(isTeleport)
             {
                 sogScene.ForEachScenePresence(delegate(ScenePresence oav)
@@ -1038,6 +1402,9 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
             if(crossedfar)
                 Thread.Sleep(1000);
 
+            bool anyCrossed = false;
+            bool recallTried = false;
+            bool recalled = false;
             foreach (avtocrossInfo avinfo in avsToCross)
             {
                 ScenePresence av = avinfo.av;
@@ -1045,11 +1412,31 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
                 av.IsInTransit = true;
                 m_log.LogDebug($"[SCENE OBJECT]: Crossing avatar {av.Name} to {val}");
 
+                bool carried = (av.m_crossingFlags & AgentData.CrossingCarried) != 0;
+
                 if(av.m_crossingFlags > 0)
-                    entityTransfer.CrossAgentToNewRegionAsync(av, newpos, destination, false, ctx);
+                {
+                    // a carried rider arrives at the same place relative to the object, wherever it lands
+                    Vector3 arrival = carried ? newpos + av.CarriedOffset : newpos;
+                    if (carried)
+                        m_log.LogDebug($"[SCENE OBJECT]: Crossing rider {av.Name} from {sogScene.Name} to {destination.RegionName}: arrival {arrival} (object at {newpos}, offset {av.CarriedOffset})");
+                    entityTransfer.CrossAgentToNewRegionAsync(av, arrival, destination, false, ctx);
+                }
+
+                if (!av.IsChildAgent && held && !anyCrossed && !recallTried)
+                {
+                    // the first avatar to cross failed and none is on its way: the other region gives the object back
+                    recallTried = true;
+                    if (entityTransfer.RecallCrossingObject(destination, sog))
+                    {
+                        recalled = true;
+                        break;
+                    }
+                }
 
                 if (av.IsChildAgent)
                 {
+                    anyCrossed = true;
                     // avatar crossed do some extra cleanup
                     if (av.ParentUUID.IsNotZero())
                     {
@@ -1061,44 +1448,33 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
                     // In any case
                     av.IsInTransit = false;
                     av.m_crossingFlags = 0;
+                    av.CarriedByGroup = UUID.Zero;
+                    av.RideOn.Clear();
                     m_log.LogDebug($"[SCENE OBJECT]: Crossing agent {av.Firstname} {av.Lastname} completed.");
+                }
+                else if (carried)
+                {
+                    // the object is gone from this region, so the avatar stays where it stood, inside the region
+                    sog.ReleaseStandingRider(av, curPos);
+                    m_log.LogDebug($"[SCENE OBJECT]: Crossing agent {av.Firstname} {av.Lastname} failed.");
                 }
                 else
                 {
-                    // avatar cross failed we need do dedicated standUp
-                    // part of it was done at CrossAgentToNewRegionAsync
-                    // so for now just remove the sog controls
-                    // this may need extra care
-                    av.UnRegisterSeatControls(sog.UUID);
-                    av.ParentUUID = UUID.Zero;
-                    av.ParentPart = null;
-                    Vector3 oldp = curPos;
-                    oldp.X = Utils.Clamp(oldp.X, 0.5f, sog.m_scene.RegionInfo.RegionSizeX - 0.5f);
-                    oldp.Y = Utils.Clamp(oldp.Y, 0.5f, sog.m_scene.RegionInfo.RegionSizeY - 0.5f);
-                    av.AbsolutePosition = oldp;
-                    av.m_crossingFlags = 0;
-                    av.sitAnimation = "SIT";
-                    av.IsInTransit = false;
-
-                    av.Animator?.SetMovementAnimations("STAND");
-                    av.AddToPhysicalScene(false);
-                    sogScene.ForEachScenePresence(delegate(ScenePresence oav)
-                        {
-                            if(sittingAvatars.Contains(oav))
-                                return;
-                            if(oav.knowsNeighbourRegion(destHandle))
-                                av.SendAvatarDataToAgent(oav);
-                            else
-                            {
-                                av.SendAvatarDataToAgent(oav);
-                                av.SendAppearanceToAgent(oav);
-                                
-                                av.Animator?.SendAnimPackToClient(oav.ControllingClient);
-                                av.SendAttachmentsToAgentNF(oav); // not ok
-                            }
-                        });
+                    sog.StandUpAfterFailedCrossing(av, curPos, sittingAvatars, destHandle);
                     m_log.LogDebug($"[SCENE OBJECT]: Crossing agent {av.Firstname} {av.Lastname} failed.");
                 }
+
+                sog.CrossStep("rider-crossed");
+            }
+
+            if (recalled)
+            {
+                // nobody left, the other region discarded the object: everything here goes back as it was
+                sog.RestoreAvatarsToThisRegion(avsToCross, curPos);
+                sogScene.RemovePendingCrossing(sog.UUID);
+                state.Committed = false;
+                avsToCross.Clear();
+                return sog;
             }
 
             if(crossedfar)
@@ -1116,8 +1492,12 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
             }
             avsToCrossFar.Clear();
             avsToCross.Clear();
-            sog.RemoveScriptInstances(true);
-            sog.Dispose();
+            if (!held)
+            {
+                sog.RemoveScriptInstances(true);
+                sog.Dispose();
+            }
+            // held: this region lets go of the object when the other one reports the crossing complete
             return null;
         }
         else
@@ -1132,22 +1512,223 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
                 }
                 root.RotationOffset = ori;
             }
-            foreach (avtocrossInfo avinfo in avsToCross)
-            {
-                ScenePresence av = avinfo.av;
-                av.ParentUUID = UUID.Zero;
-                av.ParentID = avinfo.ParentID;
-                av.m_crossingFlags = 0;
-            }
+            sog.RestoreAvatarsToThisRegion(avsToCross, curPos);
         }
         avsToCross.Clear();
         return sog;
+    }
+
+    /// <summary>
+    /// Gives back to this region the avatars a crossing froze that did not leave: the standing ones go back in
+    /// physics next to the object, the seated ones sit again.
+    /// </summary>
+    /// <summary>
+    /// Takes the object away from the viewers of this region, as a delete would, but keeps it here. The avatars that
+    /// cross with it are left alone: their viewers follow them to the other region.
+    /// </summary>
+    private void HideFromViewers(List<avtocrossInfo> riders)
+    {
+        HiddenForCrossing = true;
+        SceneObjectPart root = m_rootPart;
+        List<uint> rootId = new() { root.LocalId };
+
+        Scene.ForEachScenePresence(delegate (ScenePresence viewer)
+        {
+            if (viewer.IsNPC || riders.Exists(r => r.av == viewer))
+                return;
+
+            viewer.ControllingClient.SendKillObject(rootId);
+            viewer.ControllingClient.SendEntityUpdate(root, PrimUpdateFlags.Kill);
+        });
+    }
+
+    /// <summary>The other region gave the object back: it is sent to the viewers of this region again.</summary>
+    private void ShowToViewers()
+    {
+        if (!HiddenForCrossing)
+            return;
+
+        HiddenForCrossing = false;
+        if (IsDeleted || Scene is null)
+            return;
+
+        SceneObjectPart[] parts = m_parts.GetArray();
+        Scene.ForEachScenePresence(delegate (ScenePresence viewer)
+        {
+            if (viewer.IsNPC)
+                return;
+
+            foreach (SceneObjectPart part in parts)
+                viewer.ControllingClient.SendEntityUpdate(part, PrimUpdateFlags.CancelKill);
+        });
+    }
+
+    private void RestoreAvatarsToThisRegion(List<avtocrossInfo> avsToCross, Vector3 rootPos)
+    {
+        foreach (avtocrossInfo avinfo in avsToCross)
+        {
+            ScenePresence av = avinfo.av;
+            if ((av.m_crossingFlags & AgentData.CrossingCarried) != 0)
+            {
+                ReleaseStandingRider(av, rootPos);
+                continue;
+            }
+            av.ParentUUID = UUID.Zero;
+            av.ParentID = avinfo.ParentID;
+            av.m_crossingFlags = 0;
+            av.IsInLocalTransit = false;
+            av.IsInTransit = false;
+            av.ThawAfterCrossing();
+        }
+    }
+
+    /// <summary>
+    /// A seated avatar whose crossing failed after its object was given to the other region is stood up where the
+    /// object was.
+    /// </summary>
+    private void StandUpAfterFailedCrossing(ScenePresence av, Vector3 rootPos, List<ScenePresence> sittingAvatars, ulong destHandle)
+    {
+        // avatar cross failed we need do dedicated standUp
+        // part of it was done at CrossAgentToNewRegionAsync
+        // so for now just remove the sog controls
+        // this may need extra care
+        av.UnRegisterSeatControls(UUID);
+        av.ParentUUID = UUID.Zero;
+        av.ParentPart = null;
+        Vector3 oldp = rootPos;
+        oldp.X = Utils.Clamp(oldp.X, 0.5f, m_scene.RegionInfo.RegionSizeX - 0.5f);
+        oldp.Y = Utils.Clamp(oldp.Y, 0.5f, m_scene.RegionInfo.RegionSizeY - 0.5f);
+        av.AbsolutePosition = oldp;
+        av.m_crossingFlags = 0;
+        av.sitAnimation = "SIT";
+        av.IsInLocalTransit = false;
+        av.IsInTransit = false;
+        av.ThawAfterCrossing();
+
+        av.Animator?.SetMovementAnimations("STAND");
+        av.AddToPhysicalScene(false);
+        m_scene.ForEachScenePresence(delegate(ScenePresence oav)
+            {
+                if(sittingAvatars.Contains(oav))
+                    return;
+                if(oav.knowsNeighbourRegion(destHandle))
+                    av.SendAvatarDataToAgent(oav);
+                else
+                {
+                    av.SendAvatarDataToAgent(oav);
+                    av.SendAppearanceToAgent(oav);
+
+                    av.Animator?.SendAnimPackToClient(oav.ControllingClient);
+                    av.SendAttachmentsToAgentNF(oav); // not ok
+                }
+            });
+    }
+
+    /// <summary>
+    /// The avatars that stand on this object (their soft link names it) and are still on it, frozen for the crossing:
+    /// no input, no physics body, and each one's position relative to the root and its crossing state recorded. A link
+    /// whose avatar is outside the object's bounds grown by <see cref="RideOnLimits.PositionGate"/> is stale, and is
+    /// dropped. An avatar the destination would not admit is not carried. Each avatar is added to
+    /// <paramref name="riders"/> as it is frozen, so that a failure part way still leaves the caller the list to put back.
+    /// </summary>
+    private void FreezeStandingRiders(IEntityTransferModule entityTransfer,
+            OpenSim.Services.Interfaces.GridRegion destination, Vector3 newpos, EntityTransferContext ctx, Vector3 rootPos,
+            List<ScenePresence> riders)
+    {
+        GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out float minY, out float maxY, out _, out _);
+        float gate = RideOnLimits.PositionGate;
+        UUID id = UUID;
+
+        m_scene.ForEachScenePresence(delegate (ScenePresence av)
+        {
+            if (!av.RideOn.IsLinked || !av.RideOn.GroupID.Equals(id))
+                return;
+
+            if (av.IsChildAgent || av.IsNPC || av.IsInTransit || av.Flying || av.ParentID != 0 || av.ParentUUID.IsNotZero())
+                return;
+
+            Vector3 offset = av.AbsolutePosition - rootPos;
+            if (offset.X < minX - gate || offset.X > maxX + gate || offset.Y < minY - gate || offset.Y > maxY + gate)
+            {
+                av.RideOn.Clear();
+                return;
+            }
+
+            // The question also asks whether the destination can take an avatar that arrives carried. One that cannot
+            // (a region from before this existed) would take it for an ordinary crossing avatar and could send it
+            // straight back, so a rider is carried only to a region that says it can.
+            if (!entityTransfer.checkAgentAccessToRegion(av, destination, newpos + offset, ctx, out string refusal))
+            {
+                LeaveRiderBehind(av, string.IsNullOrWhiteSpace(refusal)
+                    ? $"The region ahead would not take you along with {Name}."
+                    : $"The region ahead would not take you along with {Name}: {refusal}");
+                return;
+            }
+
+            if (!ctx.CarriedRiders)
+            {
+                LeaveRiderBehind(av, $"The region ahead cannot take avatars standing on {Name}.");
+                return;
+            }
+
+            av.CarriedByGroup = id;
+            av.CarriedOffset = offset;
+            riders.Add(av);
+            av.FreezeForCrossing();
+            av.RemoveFromPhysicalScene();
+        });
+    }
+
+    /// <summary>
+    /// An avatar standing on an object that crosses, which the other region will not take: it is not touched (still
+    /// in physics, no input lost), its link to the object is ended, and it is told why the object leaves without it.
+    /// </summary>
+    private static void LeaveRiderBehind(ScenePresence rider, string reason)
+    {
+        rider.RideOn.Clear();
+        rider.ControllingClient.SendAlertMessage(reason);
+    }
+
+    private void ReleaseStandingRiders(List<ScenePresence> riders, Vector3 rootPos)
+    {
+        if (riders is null)
+            return;
+
+        foreach (ScenePresence rider in riders)
+            ReleaseStandingRider(rider, rootPos);
+    }
+
+    /// <summary>
+    /// Puts a frozen rider back in this region, at its place relative to where the object is put back
+    /// (0.5 m inside the border, as <see cref="CrossAsyncCompleted"/> does).
+    /// </summary>
+    private void ReleaseStandingRider(ScenePresence rider, Vector3 rootPos)
+    {
+        Vector3 rootBack = rootPos;
+        rootBack.X = Utils.Clamp(rootBack.X, 0.5f, m_scene.RegionInfo.RegionSizeX - 0.5f);
+        rootBack.Y = Utils.Clamp(rootBack.Y, 0.5f, m_scene.RegionInfo.RegionSizeY - 0.5f);
+        Vector3 pos = rootBack + rider.CarriedOffset;
+        pos.X = Utils.Clamp(pos.X, 0.5f, m_scene.RegionInfo.RegionSizeX - 0.5f);
+        pos.Y = Utils.Clamp(pos.Y, 0.5f, m_scene.RegionInfo.RegionSizeY - 0.5f);
+
+        rider.CarriedByGroup = UUID.Zero;
+        rider.m_crossingFlags = 0;
+        rider.AbsolutePosition = pos;
+        rider.IsInLocalTransit = false;
+        rider.IsInTransit = false;
+        rider.ThawAfterCrossing();
+        rider.AddToPhysicalScene(false);
     }
 
     public void CrossAsyncCompleted(SceneObjectGroup sog)
     {
         if (sog is null || sog.IsDeleted)
             return;
+
+        // the object stays: its scripts run again
+        List<UUID> frozenScripts = sog.m_crossSuspendedScripts;
+        sog.m_crossSuspendedScripts = null;
+        ResumeScripts(sog.m_scene.RequestModuleInterfaces<IScriptModule>(), frozenScripts);
 
         SceneObjectPart rootp = sog.m_rootPart;
 
@@ -1172,8 +1753,11 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
 
         sog.m_rootPart.KeyframeMotion?.CrossingFailure();
         sog.RootPart.PhysActor?.CrossingFailure();
+        sog.RootPart.VehicleParams?.ClearRunningState();
+        sog.RootPart.CrossingTargets = null;
 
         sog.inTransit = false;
+        sog.ShowToViewers();
         AttachToBackup();
         sog.ScheduleGroupForUpdate(PrimUpdateFlags.FullUpdatewithAnimMatOvr);
 
@@ -1309,12 +1893,7 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
             sourceID = sourceID
         };
 
-        SceneObjectGroup sog = this;
-        Util.FireAndForget(delegate
-        {
-            sog = CrossAsync(sog, targetPosition, tdata);
-            CrossAsyncCompleted(sog);
-        }, null, "ObjTeleport-" + sog.UUID.ToString(), false);
+        StartCrossing(targetPosition, tdata, "ObjTeleport-" + UUID.ToString());
         return 0;
     }
 
@@ -1685,6 +2264,8 @@ public partial class SceneObjectGroup : EntityBase, ISceneObject, IDisposable
         for (int i = 0; i < parts.Length; i++)
         {
             SceneObjectPart part = parts[i];
+            if (HeldForRiders)
+                part.KeyframeMotion?.HoldStart();
             part.KeyframeMotion?.UpdateSceneObject(this);
 
             if (Object.ReferenceEquals(part, m_rootPart))
@@ -2441,6 +3022,19 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
     /// </summary>
     public void ApplyPhysics()
     {
+        BeginPhysicsApply(false);
+        try
+        {
+            ApplyPhysicsToParts();
+        }
+        finally
+        {
+            EndPhysicsApply();
+        }
+    }
+
+    private void ApplyPhysicsToParts()
+    {
         SceneObjectPart[] parts = m_parts.GetArray();
         if (parts.Length > 1)
         {
@@ -2692,6 +3286,12 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
         // a copy is not in transit hopefully
         dupe.inTransit = false;
 
+        // a copy is not being dragged: the drag belongs to the original's actor and to the subscriptions it made
+        dupe.m_grabLock = new object();
+        dupe.m_grabbed = false;
+        dupe.m_grabAgent = UUID.Zero;
+        dupe.m_grabActor = null;
+
         // a copy is not in the scene yet; adding it records its first parcel
         dupe.m_parcelTracking = false;
         dupe.ForgetParcel();
@@ -2770,6 +3370,102 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
             RootPart.Velocity = Vector3.Zero; // In case source is moving
     }
 
+    // How many operations that give this object's parts their physical status are running (UpdateFlags, ApplyPhysics,
+    // LinkToGroup), and whether the physics engine said, during them, that the object is too complex to be physical.
+    // The refusal is carried out when the outermost of them ends, never in the middle of one that is going through the parts.
+    // The engine may report from any thread (the Jolt module does from the asset service's thread when a mesh arrives), so
+    // the four fields below are read and written under m_physicsRefusalLock. The lock only decides: the alert and the change
+    // of physical status are done outside it, so no physics or scene call is made while holding it.
+    private readonly object m_physicsRefusalLock = new();
+    private int m_physicsApplyDepth;
+    private bool m_physicsTooComplex;
+    private string m_physicsTooComplexDetail = "";
+    private bool m_physicsTooComplexTold;
+
+    // The owner's message and the refusal follow what InWorldz Halcyon does when an object is over its limit
+    // (an alert, then the physics flag cleared). No Halcyon code is copied.
+    /// <summary>
+    /// The physics engine says this object is over its limit on how complex a physical object may be (see
+    /// <see cref="PhysicsActor.OnComplexityError"/>). The owner is told, and the object is made non-physical, as
+    /// llSetStatus(STATUS_PHYSICS, FALSE) would: when the operation that is making it physical has finished, or at once
+    /// when none is running. An engine that counts as the parts arrive reports again as the count grows; the owner is
+    /// told the last count.
+    /// </summary>
+    /// <param name="detail">What the engine counted, for example "(300 of 256 convex hulls)".</param>
+    public void PhysicsTooComplex(string detail)
+    {
+        if (m_scene is null || IsDeleted || !UsesPhysics)
+            return;
+
+        string carryOut = null;
+        lock (m_physicsRefusalLock)
+        {
+            m_physicsTooComplex = true;
+            m_physicsTooComplexDetail = detail;
+            if (m_physicsApplyDepth == 0)
+                carryOut = TakePhysicsRefusal();
+        }
+
+        if (carryOut is not null)
+            CarryOutPhysicsRefusal(carryOut);
+    }
+
+    /// <summary>
+    /// True once, after the owner has been told this object was too complex to be physical. The build tool uses it to
+    /// skip its own, less specific, message.
+    /// </summary>
+    public bool TakePhysicsTooComplexTold()
+    {
+        lock (m_physicsRefusalLock)
+        {
+            bool told = m_physicsTooComplexTold;
+            m_physicsTooComplexTold = false;
+            return told;
+        }
+    }
+
+    // resetTold: an operation that starts the outermost change clears the mark of an earlier refusal.
+    private void BeginPhysicsApply(bool resetTold)
+    {
+        lock (m_physicsRefusalLock)
+        {
+            if (resetTold && m_physicsApplyDepth == 0)
+                m_physicsTooComplexTold = false;
+            m_physicsApplyDepth++;
+        }
+    }
+
+    private void EndPhysicsApply()
+    {
+        string carryOut = null;
+        lock (m_physicsRefusalLock)
+        {
+            if (--m_physicsApplyDepth == 0)
+                carryOut = TakePhysicsRefusal();
+        }
+
+        if (carryOut is not null)
+            CarryOutPhysicsRefusal(carryOut);
+    }
+
+    // Called with m_physicsRefusalLock held. Returns the detail of a refusal that is to be carried out now, or null.
+    private string TakePhysicsRefusal()
+    {
+        if (!m_physicsTooComplex)
+            return null;
+        m_physicsTooComplex = false;
+        return m_physicsTooComplexDetail;
+    }
+
+    // Called without the lock: it alerts the owner and changes the physical status, which calls into the scene and the engine.
+    private void CarryOutPhysicsRefusal(string detail)
+    {
+        m_scene?.RequestModuleInterface<IDialogModule>()?.SendAlertToUser(OwnerID, "Object was too complex to be made physical: " + detail);
+        ScriptSetPhysicsStatus(false);
+        lock (m_physicsRefusalLock)
+            m_physicsTooComplexTold = true;   // after it: making the object non-physical clears the mark for the next change
+    }
+
     public void ScriptSetPhysicsStatus(bool usePhysics)
     {
         if (usePhysics)
@@ -2834,6 +3530,8 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
      // This is used by both Double-Click Auto-Pilot and llMoveToTarget() in an attached object
     public void MoveToTarget(Vector3 target, float tau)
     {
+        // A tau of 0 or less does nothing, and leaves an earlier target as it is: "Calling llMoveToTarget with a
+        // tau of 0.0 or less will silently fail, and do nothing" (SL wiki llMoveToTarget). StopMoveToTarget stops.
         if(tau > 0)
         {
             if (IsAttachment)
@@ -2844,17 +3542,25 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
             }
             else
             {
-                PhysicsActor pa = RootPart.PhysActor;
-                if (pa is not null)
+                lock (m_grabLock)
                 {
-                    pa.PIDTarget = target;
-                    pa.PIDTau = tau;
-                    pa.PIDActive = true;
+                    PhysicsActor pa = RootPart.PhysActor;
+                    if (pa is not null)
+                    {
+                        // remembered so a drag can put it back; while a drag holds the target it is only remembered
+                        m_scriptMoveActive = true;
+                        m_scriptMoveTarget = target;
+                        m_scriptMoveTau = tau;
+                        if (m_grabbed)
+                            return;
+
+                        pa.PIDTarget = target;
+                        pa.PIDTau = tau;
+                        pa.PIDActive = true;
+                    }
                 }
             }
         }
-        else
-            StopMoveToTarget();
     }
 
     public void StopMoveToTarget()
@@ -2866,11 +3572,104 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
         }
         else
         {
-            PhysicsActor pa = RootPart.PhysActor;
-            if (pa is not null)
-                pa.PIDActive = false;
+            lock (m_grabLock)
+            {
+                m_scriptMoveActive = false;
+                if (m_grabbed)
+                    return; // the drag holds the target; nothing is put back when it ends
+
+                PhysicsActor pa = RootPart.PhysActor;
+                if (pa is not null)
+                    pa.PIDActive = false;
+            }
 
             RootPart.ScheduleTerseUpdate(); // send a stop information
+        }
+    }
+
+    /// <summary>
+    /// Core calls this as it starts to cross a physical object into another region: what the object's scripts have asked
+    /// of its engine (move-to, hover, look-at) is written into the root part, so that the saved object carries it. Only for
+    /// an actor that wants this (<see cref="PhysicsActor.CarriesTargetsAcrossCrossing"/>). The move-to target is a point in
+    /// this region's coordinates, so it is moved by the crossing's shift (where the object arrives less where it left).
+    /// </summary>
+    internal void CaptureCrossingTargets(Vector3 regionShift)
+    {
+        SceneObjectPart root = m_rootPart;
+        root.CrossingTargets = null;
+
+        PhysicsActor pa = root.PhysActor;
+        if (IsAttachment || pa is null || !pa.IsPhysical || !pa.CarriesTargetsAcrossCrossing)
+            return;
+
+        CrossingTargets carried = new();
+        lock (m_grabLock)
+        {
+            // a drag holds the actor's own target; what the script set is what is kept
+            if (m_scriptMoveActive && (m_grabbed || pa.PIDActive))
+            {
+                carried.MoveTarget = m_scriptMoveTarget + regionShift;
+                carried.MoveTau = m_scriptMoveTau;
+            }
+
+            if (m_scriptHoverActive && (m_grabbed || pa.PIDHoverActive))
+            {
+                carried.HoverHeight = m_scriptHoverHeight;
+                carried.HoverType = (int)m_scriptHoverType;
+                carried.HoverTau = m_scriptHoverTau;
+                carried.HoverRepel = m_scriptHoverRepel;
+            }
+
+            // a drag in progress goes on in the next region (Halcyon moves the grab target by the region size, PhysxPrim.cs
+            // SuspendPhysicsSync)
+            if (m_grabbed && ReferenceEquals(m_grabActor, pa))
+            {
+                carried.DragAgent = m_grabAgent;
+                carried.DragAnchor = m_grabAnchor;
+                carried.DragTarget = m_grabTarget + regionShift;
+            }
+        }
+
+        if (root.TryGetLookAt(out Quaternion lookTarget, out float lookStrength, out float lookDamping))
+        {
+            carried.LookTarget = lookTarget;
+            carried.LookStrength = lookStrength;
+            carried.LookDamping = lookDamping;
+        }
+
+        if (!carried.IsEmpty)
+            root.CrossingTargets = carried;
+    }
+
+    /// <summary>
+    /// The root's new actor takes up the targets a crossing carried in: through the same calls a script's llMoveToTarget,
+    /// llSetHoverHeight and llRotLookAt make. The record is cleared, so a saved or copied object does not start them again.
+    /// </summary>
+    internal void TakeUpCrossingTargets()
+    {
+        SceneObjectPart root = m_rootPart;
+        CrossingTargets carried = root?.CrossingTargets;
+        if (carried is null)
+            return;
+        root.CrossingTargets = null;
+
+        if (IsAttachment || root.PhysActor is null)
+            return;
+
+        try
+        {
+            if (carried.HasMove)
+                MoveToTarget(carried.MoveTarget.Value, carried.MoveTau.Value);
+            if (carried.HasHover)
+                SetHoverHeight(carried.HoverHeight.Value, (PIDHoverType)carried.HoverType.Value, carried.HoverTau.Value, carried.HoverRepel ?? false);
+            if (carried.HasLook)
+                RotLookAt(carried.LookTarget.Value, carried.LookStrength.Value, carried.LookDamping.Value);
+            if (carried.HasDrag)
+                ResumeGrab(carried.DragAgent.Value, carried.DragAnchor.Value, carried.DragTarget.Value);
+        }
+        catch (Exception e)
+        {
+            m_log.LogWarning(e, $"[SCENE OBJECT]: Taking up the targets that crossed with {Name} {UUID} failed: {e.GetType().Name}: {e.Message}");
         }
     }
 
@@ -2917,7 +3716,8 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
         SceneObjectPart rootpart = m_rootPart;
         if (rootpart is not null)
         {
-            if (rootpart.PhysActor is not null)
+            // a target core gave the actor is switched off by the part, unless a rotate-drag holds it
+            if (rootpart.PhysActor is not null && !rootpart.HasGivenRotationTarget)
             {
                 rootpart.PhysActor.APIDActive = false;
             }
@@ -2931,30 +3731,49 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
     /// <param name="height">Height to hover.  Height of zero disables hover.</param>
     /// <param name="hoverType">Determines what the height is relative to </param>
     /// <param name="tau">Number of seconds over which to reach target</param>
-    public void SetHoverHeight(float height, PIDHoverType hoverType, float tau)
+    public void SetHoverHeight(float height, PIDHoverType hoverType, float tau, bool repel = false)
     {
-        PhysicsActor pa = null;
-        if(IsAttachment)
-            {
-                ScenePresence avatar = m_scene.GetScenePresence(AttachedAvatar);
-                if (avatar is not null)
-                    pa = avatar.PhysicsActor;
-            }
-        else
-            pa = RootPart.PhysActor;
+        if (IsAttachment)
+        {
+            // While worn the prims have no actor; the wearer's presence holds the hover and gives it to the
+            // avatar's actor, now and after any later actor is made.
+            m_scene?.GetScenePresence(AttachedAvatar)?.SetAttachmentHover(this, height, hoverType, tau);
+            return;
+        }
+
+        PhysicsActor pa = RootPart.PhysActor;
 
         if (pa is not null)
         {
-            if (height != 0f)
+            lock (m_grabLock)
             {
-                pa.PIDHoverHeight = height;
-                pa.PIDHoverType = hoverType;
-                pa.PIDHoverTau = tau;
-                pa.PIDHoverActive = true;
-            }
-            else
-            {
-                pa.PIDHoverActive = false;
+                if (!IsAttachment)
+                {
+                    // remembered so a drag can put it back; while a drag is held it is only remembered
+                    m_scriptHoverActive = height != 0f;
+                    if (m_scriptHoverActive)
+                    {
+                        m_scriptHoverHeight = height;
+                        m_scriptHoverType = hoverType;
+                        m_scriptHoverTau = tau;
+                        m_scriptHoverRepel = repel;
+                    }
+                    if (m_grabbed)
+                        return;
+                }
+
+                if (height != 0f)
+                {
+                    pa.PIDHoverHeight = height;
+                    pa.PIDHoverType = hoverType;
+                    pa.PIDHoverTau = tau;
+                    pa.PIDHoverRepel = repel;
+                    pa.PIDHoverActive = true;
+                }
+                else
+                {
+                    pa.PIDHoverActive = false;
+                }
             }
         }
     }
@@ -3312,6 +4131,19 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
     // The group being linked need not be a linkset -- it can have just one prim.
     public void LinkToGroup(SceneObjectGroup objectGroup, bool insert)
     {
+        BeginPhysicsApply(false);
+        try
+        {
+            LinkPartsToGroup(objectGroup, insert);
+        }
+        finally
+        {
+            EndPhysicsApply();
+        }
+    }
+
+    private void LinkPartsToGroup(SceneObjectGroup objectGroup, bool insert)
+    {
 //            m_log.LogDebug(
 //                "[SCENE OBJECT GROUP]: Linking group with root part {0}, {1} to group with root part {2}, {3}",
 //                objectGroup.RootPart.Name, objectGroup.RootPart.UUID, RootPart.Name, RootPart.UUID);
@@ -3644,6 +4476,8 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
             linkPart.PhysActor = null;
         }
 
+        GiveDelinkedPartTheLinksetMotion(linkPart, worldPos);
+
         // We need to reset the child part's position
         // ready for life as a separate object after being a part of another object
 
@@ -3678,6 +4512,35 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
             linkPart.TriggerScriptChangedEvent(Changed.LINK);
 
         return objectGroup;
+    }
+
+    /// <summary>
+    /// Sets the velocity and angular velocity a part leaves a physical linkset with. The part's new physics actor
+    /// is made from these when it is added to the scene as a group of its own.
+    /// </summary>
+    /// <remarks>
+    /// The part moves as it did in the linkset: at the root's velocity plus the root's spin crossed with the part's
+    /// offset from the root's centre of mass (from the root's position when the physics engine reports no centre
+    /// of mass), and it keeps the root's angular velocity. A linkset that is not physical, or a root with no physics
+    /// actor, leaves the part as it is.
+    /// </remarks>
+    /// <param name="linkPart">The part being delinked, already out of the physics scene.</param>
+    /// <param name="worldPos">The part's world position in the linkset.</param>
+    private void GiveDelinkedPartTheLinksetMotion(SceneObjectPart linkPart, Vector3 worldPos)
+    {
+        PhysicsActor rootPa = m_rootPart.PhysActor;
+        if (linkPart == m_rootPart || rootPa is null || !rootPa.IsPhysical)
+            return;
+
+        Vector3 velocity = m_rootPart.Velocity;
+        Vector3 angularVelocity = m_rootPart.AngularVelocity;
+
+        Vector3 pivot = rootPa.CenterOfMass;
+        if (pivot == Vector3.Zero || Util.IsNanOrInfinity(pivot))
+            pivot = m_rootPart.AbsolutePosition;
+
+        linkPart.Velocity = velocity + Vector3.Cross(angularVelocity, worldPos - pivot);
+        linkPart.AngularVelocity = angularVelocity;
     }
 
 /* working on it
@@ -3854,20 +4717,44 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
 
     double lastTouchTime = 0;
 
+    // Click-and-drag of a physical object. The viewer sends ObjectGrabUpdate only while the mouse moves, so a drag
+    // steers the root actor with its move-to-target (a velocity of distance / tau, gravity not applied) instead of
+    // pushing it: a push per update is a spring with no damper that does nothing while the mouse is still.
+    private const float GrabTau = 0.25f;
+    private object m_grabLock = new();
+    private bool m_grabbed;
+    private UUID m_grabAgent;
+    private Vector3 m_grabAnchor;
+    private Vector3 m_grabTarget;
+    private PhysicsActor m_grabActor;
+
+    // What scripts last set on the root actor (llMoveToTarget, llSetHoverHeight), put back when a drag ends.
+    private bool m_scriptMoveActive;
+    private Vector3 m_scriptMoveTarget;
+    private float m_scriptMoveTau;
+    private bool m_scriptHoverActive;
+    private float m_scriptHoverHeight;
+    private float m_scriptHoverTau;
+    private PIDHoverType m_scriptHoverType;
+    private bool m_scriptHoverRepel;
+
     /// <summary>
-    /// If object is physical, apply force to move it around
+    /// If object is physical, steer it to the cursor with the physics actor's move-to-target
     /// If object is not physical, just put it at the resulting location
     /// </summary>
     /// <param name="partID">Part ID to check for grab</param>
-    /// <param name="offset">Always seems to be 0,0,0, so ignoring</param>
-    /// <param name="pos">New position.  We do the math here to turn it into a force</param>
+    /// <param name="offset">Not used: the offset of the grabbed point from the root is taken from the first update of a drag</param>
+    /// <param name="pos">New position of the grabbed point</param>
     /// <param name="remoteClient"></param>
     public void GrabMovement(UUID partID, Vector3 offset, Vector3 pos, IClientAPI remoteClienth)
     {
         if (m_scene.EventManager.TriggerGroupMove(UUID, pos))
         {
             if (BlockGrabOverride)
+            {
+                EndGrab();
                 return;
+            }
 
             SceneObjectPart part = GetPart(partID);
 
@@ -3875,19 +4762,27 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
                 return;
 
             if (part.BlockGrab)
+            {
+                EndGrab();
                 return;
+            }
 
             PhysicsActor pa = m_rootPart.PhysActor;
 
             if (pa is not null && pa.IsPhysical)
             {
-                // empirically convert distance diference to a impulse
-                Vector3 grabforce = pos - AbsolutePosition;
-                grabforce *= pa.Mass * 0.1f;
-                pa.AddForce(grabforce, false);
+                if (IsPhysicalDragRefused(pa.AllowsVehicleGrab))
+                {
+                    EndGrab();
+                    return;
+                }
+
+                SteerGrab(pa, pos, remoteClienth is null ? UUID.Zero : remoteClienth.AgentId);
             }
             else
             {
+                EndGrab();
+
                 if(IsAttachment)
                     return;
 
@@ -3913,63 +4808,344 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
     }
 
     /// <summary>
-    /// If object is physical, prepare for spinning torques (set flag to save old orientation)
+    /// Whether a drag or a turn of the physical root body is refused, for the mouse drag and the rotate-drag alike.
+    /// A drag moves the root's body, so the root's block applies whichever part was grabbed. A vehicle is refused unless the
+    /// engine says it runs a drag of a vehicle (<see cref="PhysicsActor.AllowsVehicleGrab"/>); the rotate-drag never does.
     /// </summary>
-    /// <param name="rotation">Rotation.  We do the math here to turn it into a torque</param>
-    /// <param name="remoteClient"></param>
-    public void SpinStart(IClientAPI remoteClient)
+    private bool IsPhysicalDragRefused(bool allowVehicle = false)
+        => m_rootPart.BlockGrab || IsSelected || IsAttachment
+            || (!allowVehicle && m_rootPart.VehicleType != (int)Vehicle.TYPE_NONE) || GetSittingAvatarsCount() > 0;
+
+    /// <summary>
+    /// Point the root actor's move-to-target at the dragged point. The first update of a drag also takes the target
+    /// from any script and sets the drag's tau.
+    /// </summary>
+    private void SteerGrab(PhysicsActor pa, Vector3 pos, UUID agent)
     {
-        if (BlockGrabOverride || m_rootPart.BlockGrab)
-                return;
-        if (m_scene.EventManager.TriggerGroupSpinStart(UUID))
+        if (!pos.IsFinite())
+            return;
+
+        lock (m_grabLock)
         {
-            PhysicsActor pa = m_rootPart.PhysActor;
-            if (pa is not null)
+            bool wasHeld = m_grabbed;
+            if (!wasHeld || m_grabAgent != agent)
+                m_grabAnchor = AbsolutePosition - pos; // keeps the grabbed point under the cursor instead of the centre
+
+            Vector3 target = pos + m_grabAnchor;
+            if (wasHeld && ReferenceEquals(m_grabActor, pa))
             {
-                if (pa.IsPhysical)
-                {
-                    m_rootPart.IsWaitingForFirstSpinUpdatePacket = true;
-                }
+                m_grabAgent = agent;
+                m_grabTarget = target;
+                pa.PIDTarget = target;
+                return;
+            }
+
+            StartGrab(pa, agent, target, wasHeld);
+        }
+    }
+
+    /// <summary>
+    /// A new drag, or the root's actor was replaced and the new one is switched on: the actor is told it is dragged and
+    /// given the drag's target and tau.
+    /// </summary>
+    private void StartGrab(PhysicsActor pa, UUID agent, Vector3 target, bool wasHeld)
+    {
+        lock (m_grabLock)
+        {
+            m_grabbed = true;
+            m_grabAgent = agent;
+            m_grabActor = pa;
+            m_grabTarget = target;
+
+            // only what the actor still has active is put back: a record left from an actor that has since been replaced is dropped
+            m_scriptMoveActive &= pa.PIDActive;
+            m_scriptHoverActive &= pa.PIDHoverActive;
+            if (m_scriptHoverActive)
+                pa.PIDHoverActive = false; // a hover can override the target's height
+            if (m_scriptMoveActive)
+                pa.PIDActive = false; // so an engine that reads tau when the target is switched on takes the drag's
+
+            pa.Grabbed = true; // before the target is switched on: the engine reads it when the target starts to act
+            pa.PIDTau = GrabTau;
+            pa.PIDTarget = target;
+            pa.PIDActive = true;
+
+            if (!wasHeld)
+            {
+                m_scene.EventManager.OnRemovePresence += GrabHolderRemoved;
+                m_scene.EventManager.OnMakeChildAgent += GrabHolderMadeChild;
             }
         }
     }
 
     /// <summary>
-    /// If object is physical, apply torque to spin it around
+    /// The drag carries on in the next region as a record in the saved object (<see cref="CrossingTargets"/>): the point it
+    /// steers to, moved by the crossing's shift, the grabbed point's offset from the root, and who holds it. The next region
+    /// asks for it again only if the agent is known there, so that the viewer's release has someone to end it.
     /// </summary>
-    /// <param name="rotation">Rotation.  We do the math here to turn it into a torque</param>
+    private void ResumeGrab(UUID agent, Vector3 anchor, Vector3 target)
+    {
+        PhysicsActor pa = m_rootPart.PhysActor;
+        if (pa is null || !pa.IsPhysical || m_scene is null || !target.IsFinite() || !anchor.IsFinite())
+            return;
+        if (IsPhysicalDragRefused(pa.AllowsVehicleGrab) || m_scene.GetScenePresence(agent) is null)
+            return;
+
+        lock (m_grabLock)
+        {
+            m_grabAnchor = anchor;
+            StartGrab(pa, agent, target, false);
+        }
+    }
+
+    /// <summary>
+    /// The object has been sent to the next region, which now holds the drag if it is carried: this copy lets go of it, so
+    /// that no actor of this region is left steering to the cursor and no event of this region keeps the object. A copy
+    /// that is only kept for a recall comes back free of the drag.
+    /// </summary>
+    internal void EndGrabAfterSend()
+    {
+        try
+        {
+            EndGrab();
+        }
+        catch (Exception e)
+        {
+            m_log.LogWarning(e, $"[SCENE OBJECT]: Ending the drag of {Name} {UUID} after it was sent failed: {e.GetType().Name}: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// The viewer let go (ObjectDeGrab) or grabbed again (ObjectGrab, which means the earlier release was lost).
+    /// Only the agent that holds the drag can end it.
+    /// </summary>
+    public void ReleaseGrab(UUID agent)
+    {
+        lock (m_grabLock)
+        {
+            if (m_grabbed && m_grabAgent == agent)
+                EndGrab();
+        }
+    }
+
+    private void GrabHolderRemoved(UUID agentId) => ReleaseGrab(agentId);
+
+    private void GrabHolderMadeChild(ScenePresence presence)
+    {
+        if (presence is not null)
+            ReleaseGrab(presence.UUID);
+    }
+
+    /// <summary>
+    /// End a drag: the move-to-target is switched off, or put back to what a script had set, and so is a script's hover.
+    /// The velocity the object has is left alone and gravity acts again.
+    /// </summary>
+    private void EndGrab()
+    {
+        lock (m_grabLock)
+        {
+            if (!m_grabbed)
+                return;
+
+            PhysicsActor pa = m_grabActor;
+            DropGrabState();
+            if (pa is null)
+                return;
+
+            if (m_scriptMoveActive)
+            {
+                pa.PIDTarget = m_scriptMoveTarget;
+                pa.PIDTau = m_scriptMoveTau;
+                pa.PIDActive = true;
+            }
+            else
+                pa.PIDActive = false;
+            pa.Grabbed = false;
+
+            if (m_scriptHoverActive)
+            {
+                pa.PIDHoverHeight = m_scriptHoverHeight;
+                pa.PIDHoverType = m_scriptHoverType;
+                pa.PIDHoverTau = m_scriptHoverTau;
+                pa.PIDHoverRepel = m_scriptHoverRepel;
+                pa.PIDHoverActive = true;
+            }
+        }
+    }
+
+    private void DropGrabState()
+    {
+        m_grabbed = false;
+        m_grabAgent = UUID.Zero;
+        m_grabActor = null;
+        m_scene.EventManager.OnRemovePresence -= GrabHolderRemoved;
+        m_scene.EventManager.OnMakeChildAgent -= GrabHolderMadeChild;
+    }
+
+    // Ctrl-Shift drag (rotate-drag) of a physical object. The viewer sends the rotation it wants, absolute, each time the
+    // mouse moves, so the turn steers the root with the look-at controller (SceneObjectPart.UpdateLookAt, the one
+    // llRotLookAt uses) toward that rotation instead of pushing it with an angular force per update.
+    internal const float SpinStrength = 1.0f; // llRotLookAt strength: a time constant of 1/pi s, no overshoot at the heartbeat's rate
+    internal const float SpinTargetSeconds = 0.1f; // strength and damping given to an engine with a rotation target: a short lag behind the mouse
+    private readonly object m_spinLock = new();
+    private bool m_spinning;
+    private UUID m_spinAgent;
+    private Quaternion m_spinTarget = Quaternion.Identity;
+
+    // The last llTargetOmega on the root, put back when a turn ends. While a turn is held it is only remembered.
+    private bool m_scriptOmegaSet;
+    private Vector3 m_scriptOmega;
+
+    /// <summary>
+    /// A new start by the agent that holds a turn means the earlier stop never arrived, so that turn ends. The turn
+    /// itself begins with the first update, which carries the rotation to steer to.
+    /// </summary>
+    public void SpinStart(IClientAPI remoteClient)
+    {
+        if (BlockGrabOverride || m_rootPart.BlockGrab)
+            return;
+
+        if (m_scene.EventManager.TriggerGroupSpinStart(UUID))
+            ReleaseSpin(remoteClient is null ? UUID.Zero : remoteClient.AgentId);
+    }
+
+    /// <summary>
+    /// Whether a rotate-drag holds the root, and the rotation it steers to. Read once a frame by the look-at controller.
+    /// </summary>
+    internal bool TryGetSpinTarget(out Quaternion target)
+    {
+        lock (m_spinLock)
+        {
+            target = m_spinTarget;
+            return m_spinning;
+        }
+    }
+
+    internal bool IsSpinning
+    {
+        get { lock (m_spinLock) return m_spinning; }
+    }
+
+    /// <summary>
+    /// What a script last set with llTargetOmega on the root. While a turn is held it is remembered and not applied.
+    /// </summary>
+    /// <returns>true if it was only remembered</returns>
+    internal bool RecordScriptOmega(SceneObjectPart part, Vector3 omega)
+    {
+        if (part != m_rootPart)
+            return false;
+
+        lock (m_spinLock)
+        {
+            PhysicsActor pa = part.PhysActor;
+            m_scriptOmegaSet = pa is not null && pa.IsPhysical && omega != Vector3.Zero;
+            m_scriptOmega = omega;
+            return m_spinning;
+        }
+    }
+
+    /// <summary>
+    /// The viewer let go (ObjectSpinStop), grabbed again or started a new turn. Only the agent that holds the turn can end it.
+    /// </summary>
+    public void ReleaseSpin(UUID agent)
+    {
+        lock (m_spinLock)
+        {
+            if (m_spinning && m_spinAgent == agent)
+                EndSpin();
+        }
+    }
+
+    private void SpinHolderRemoved(UUID agentId) => ReleaseSpin(agentId);
+
+    private void SpinHolderMadeChild(ScenePresence presence)
+    {
+        if (presence is not null)
+            ReleaseSpin(presence.UUID);
+    }
+
+    /// <summary>
+    /// End a turn: the controller stops and so does the spin it left. A script's look-at, which the turn took over, runs
+    /// again from the next frame and a script's llTargetOmega is applied again.
+    /// </summary>
+    internal void EndSpin()
+    {
+        lock (m_spinLock)
+        {
+            if (!m_spinning)
+                return;
+
+            m_spinning = false;
+            m_spinAgent = UUID.Zero;
+            m_scene.EventManager.OnRemovePresence -= SpinHolderRemoved;
+            m_scene.EventManager.OnMakeChildAgent -= SpinHolderMadeChild;
+
+            // an engine with a rotation target stops the turn when the target is switched off
+            bool switchedOff = m_rootPart.ReleaseRotationTarget();
+
+            PhysicsActor pa = m_rootPart.PhysActor;
+            if (pa is null || !pa.IsPhysical)
+                return;
+
+            if (!switchedOff)
+                m_rootPart.AngularVelocity = Vector3.Zero;
+
+            if (m_scriptOmegaSet)
+                m_rootPart.ApplyAngularVelocity(m_scriptOmega); // not compared with the part's copy, which may be stale
+            else
+                m_rootPart.ScheduleTerseUpdate();
+
+            QueueForUpdateCheck(); // a script's look-at picks up again
+        }
+    }
+
+    /// <summary>
+    /// Take the rotation the viewer asks for as the controller's target. The first update of a turn starts it.
+    /// </summary>
+    private void SteerSpin(Quaternion rotation, UUID agent)
+    {
+        if (!float.IsFinite(rotation.X) || !float.IsFinite(rotation.Y) || !float.IsFinite(rotation.Z) || !float.IsFinite(rotation.W))
+            return;
+
+        float length = MathF.Sqrt(rotation.X * rotation.X + rotation.Y * rotation.Y + rotation.Z * rotation.Z + rotation.W * rotation.W);
+        if (length < 1e-6f)
+            return;
+
+        lock (m_spinLock)
+        {
+            if (!m_spinning)
+            {
+                m_spinning = true;
+                m_scene.EventManager.OnRemovePresence += SpinHolderRemoved;
+                m_scene.EventManager.OnMakeChildAgent += SpinHolderMadeChild;
+            }
+
+            m_spinAgent = agent;
+            m_spinTarget = new Quaternion(rotation.X / length, rotation.Y / length, rotation.Z / length, rotation.W / length);
+        }
+
+        QueueForUpdateCheck(); // the controller runs from the update list
+    }
+
+    /// <summary>
+    /// If object is physical, steer it to the rotation the viewer asks for
+    /// If object is not physical, just put it at that rotation
+    /// </summary>
+    /// <param name="newOrientation">The absolute rotation the viewer wants, sent each time the mouse moves</param>
     /// <param name="remoteClient"></param>
     public void SpinMovement(Quaternion newOrientation, IClientAPI remoteClient)
-    {
-        // The incoming newOrientation, sent by the client, "seems" to be the
-        // desired target orientation. This needs further verification; in particular,
-        // one would expect that the initial incoming newOrientation should be
-        // fairly close to the original prim's physical orientation,
-        // m_rootPart.PhysActor.Orientation. This however does not seem to be the
-        // case (might just be an issue with different quaternions representing the
-        // same rotation, or it might be a coordinate system issue).
-        //
-        // Since it's not clear what the relationship is between the PhysActor.Orientation
-        // and the incoming orientations sent by the client, we take an alternative approach
-        // of calculating the delta rotation between the orientations being sent by the
-        // client. (Since a spin is invoked by ctrl+shift+drag in the client, we expect
-        // a steady stream of several new orientations coming in from the client.)
-        // This ensures that the delta rotations are being calculated from self-consistent
-        // pairs of old/new rotations. Given the delta rotation, we apply a torque around
-        // the delta rotation axis, scaled by the object mass times an arbitrary scaling
-        // factor (to ensure the resulting torque is not "too strong" or "too weak").
-        //
-        // Ideally we need to calculate (probably iteratively) the exact torque or series
-        // of torques needed to arrive exactly at the destination orientation. However, since
-        // it is not yet clear how to map the destination orientation (provided by the viewer)
-        // into PhysActor orientations (needed by the physics engine), we omit this step.
-        // This means that the resulting torque will at least be in the correct direction,
-        // but it will result in over-shoot or under-shoot of the target orientation.
-        // For the end user, this means that ctrl+shift+drag can be used for relative,
-        // but not absolute, adjustments of orientation for physical prims.
+        => SpinMovement(m_rootPart.UUID, newOrientation, remoteClient);
 
+    /// <param name="partID">The part that was grabbed</param>
+    /// <param name="newOrientation">The absolute rotation the viewer wants, sent each time the mouse moves</param>
+    /// <param name="remoteClient"></param>
+    public void SpinMovement(UUID partID, Quaternion newOrientation, IClientAPI remoteClient)
+    {
         if (BlockGrabOverride || m_rootPart.BlockGrab)
-                return;
+        {
+            EndSpin();
+            return;
+        }
 
         if (m_scene.EventManager.TriggerGroupSpin(UUID, newOrientation))
         {
@@ -3977,39 +5153,21 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
 
             if (pa is not null && pa.IsPhysical)
             {
-                if (m_rootPart.IsWaitingForFirstSpinUpdatePacket)
+                SceneObjectPart part = GetPart(partID);
+                if (part is null)
+                    return;
+
+                if (part.BlockGrab || IsPhysicalDragRefused())
                 {
-                  // first time initialization of "old" orientation for calculation of delta rotations
-                    m_rootPart.SpinOldOrientation = newOrientation;
-                    m_rootPart.IsWaitingForFirstSpinUpdatePacket = false;
+                    EndSpin();
+                    return;
                 }
-                else
-                {
-                    // save and update old orientation
-                    Quaternion old = m_rootPart.SpinOldOrientation;
-                    m_rootPart.SpinOldOrientation = newOrientation;
-                    //m_log.LogError("[SCENE OBJECT GROUP]: Old orientation is " + old);
-                    //m_log.LogError("[SCENE OBJECT GROUP]: Incoming new orientation is " + newOrientation);
 
-                    // compute difference between previous old rotation and new incoming rotation
-                    Quaternion minimalRotationFromQ1ToQ2 = newOrientation * Quaternion.Inverse(old);
-
-                    minimalRotationFromQ1ToQ2.GetAxisAngle(out Vector3 spinforce, out float rotationAngle);
-                    if(Math.Abs(rotationAngle)< 0.001)
-                        return;
-
-                    spinforce.Normalize();
-
-                    //m_log.LogError("SCENE OBJECT GROUP]: rotation axis is " + rotationAxis);
-                    if(rotationAngle > 0)
-                        spinforce = spinforce * pa.Mass * 0.1f; // 0.1 is an arbitrary torque scaling factor
-                    else
-                       spinforce = spinforce * pa.Mass * -0.1f; // 0.1 is an arbitrary torque scaling
-                    pa.AddAngularForce(spinforce,true);
-                }
+                SteerSpin(newOrientation, remoteClient is null ? UUID.Zero : remoteClient.AgentId);
             }
             else
             {
+                EndSpin();
                 NonPhysicalSpinMovement(newOrientation);
             }
         }
@@ -4084,6 +5242,19 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
     /// <param name="SetPhantom"></param>
     /// <param name="SetVolumeDetect"></param>
     public void UpdateFlags(bool UsePhysics, bool SetTemporary, bool SetPhantom, bool SetVolumeDetect)
+    {
+        BeginPhysicsApply(true);
+        try
+        {
+            UpdatePartFlags(UsePhysics, SetTemporary, SetPhantom, SetVolumeDetect);
+        }
+        finally
+        {
+            EndPhysicsApply();
+        }
+    }
+
+    private void UpdatePartFlags(bool UsePhysics, bool SetTemporary, bool SetPhantom, bool SetVolumeDetect)
     {
         if (m_scene is null || IsDeleted)
             return;
@@ -5261,7 +6432,8 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
 
         TotalMass = GetMass();
         CenterOfMass = GetCenterOfMass() - AbsolutePosition;
-        CenterOfMass *= Quaternion.Conjugate(RootPart.RotationOffset);
+        Quaternion rootRotation = RootPart.RotationOffset;
+        CenterOfMass *= Quaternion.Conjugate(in rootRotation);
         Inertia = Vector3.Zero;
         aux =  Vector4.Zero;
     }
@@ -5491,14 +6663,15 @@ public void GetAxisAlignedBoundingBoxRaw(out float minX, out float maxX, out flo
     public void SetBuoyancy(float fvalue)
     {
         if(IsAttachment)
-        {
-            ScenePresence avatar = m_scene.GetScenePresence(AttachedAvatar);
-            PhysicsActor pa = avatar?.PhysicsActor;
-            if( pa is not null )
-                pa.Buoyancy = fvalue;
-        }
+            SetWearerBuoyancy(fvalue);
         else
             RootPart.Buoyancy = fvalue;
+    }
+
+    /// <summary>Set the buoyancy of the avatar wearing this attachment, on behalf of this attachment.</summary>
+    internal void SetWearerBuoyancy(float fvalue)
+    {
+        m_scene?.GetScenePresence(AttachedAvatar)?.SetAttachmentBuoyancy(this, fvalue);
     }
 
     public override string ToString()

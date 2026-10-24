@@ -169,10 +169,15 @@ class Program
                 AsImplementedInterfaces().
                 SingleInstance();
         })
-        .ConfigureLogging(loggingBuilder =>
+        .ConfigureLogging((context, loggingBuilder) =>
         {
             loggingBuilder.ClearProviders();
-            loggingBuilder.AddOpenSimLogging("OpenSim.Server.GridServer", logPath);
+            loggingBuilder.AddOpenSimLogging(
+                "OpenSim.Server.GridServer",
+                logPath,
+                context.Configuration["Startup:logfile"],
+                context.Configuration["Startup:StatsLogFile"],
+                context.Configuration);
 
             LoggerProvider.LoggerFactory = loggingBuilder.Services.BuildServiceProvider().GetRequiredService<ILoggerFactory>();
         })

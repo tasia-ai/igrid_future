@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Collections.Generic;
 using OpenMetaverse;
@@ -5,7 +12,7 @@ using OpenMetaverse;
 namespace OpenSim.Region.Framework.Scenes;
 
 /// <summary>
-/// PHLOX-10. One pending damage against a presence, as the SL damage pipeline sees it: who did it,
+/// One pending damage against a presence, as the SL damage pipeline sees it: who did it,
 /// how much they asked for, what it was adjusted to, and what kind it was. A batch of these is what
 /// <see cref="ScenePresence.ApplyDamage(System.Collections.Generic.List{DamageEntry}, bool)"/> applies
 /// in one go - the physics frame's collisions, or a single scripted call - and what on_damage /

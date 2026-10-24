@@ -537,6 +537,38 @@ public class EventManager
     public event ScriptControlsReleased OnScriptControlsReleased;
 
     /// <summary>
+    /// Triggered when the core ends a script's permission grant because the avatar who gave it may no longer be
+    /// reached through the script's Experience: the avatar blocked the Experience (reason 4,
+    /// XP_ERROR_NOT_PERMITTED) or entered a parcel where it cannot run (reason 17, XP_ERROR_NOT_PERMITTED_LAND).
+    /// </summary>
+    /// <remarks>
+    /// Raised once per script item, after the item's PermsGranter and PermsMask have been cleared and
+    /// experience_permissions_denied has been posted to every script module. revokedMask is the mask the grant
+    /// had. Any script engine can subscribe and release what it keeps for the grant (taken controls, a saved
+    /// grant); an engine ignores items it does not run. Triggered by <see cref="TriggerExperiencePermissionsRevoked"/>
+    /// in OpenSim.Region.ClientStack.LindenCaps.ExperienceModule.
+    /// </remarks>
+    public delegate void ExperiencePermissionsRevoked(UUID partId, UUID itemId, UUID granterId, UUID experienceId, int revokedMask, int reason);
+    public event ExperiencePermissionsRevoked OnExperiencePermissionsRevoked;
+
+    /// <summary>
+    /// Triggered when the core takes permissions away from a script item without the script asking: the avatar
+    /// stood up from the object, detached it, used Release Keys, or revoked animation permissions from the viewer
+    /// (SceneObjectPartInventory.RemoveScriptsPermissions).
+    /// SL llSetCameraParams: "The PERMISSION_CONTROL_CAMERA permission is automatically revoked when the avatar stands
+    /// up from or detaches the object".
+    /// </summary>
+    /// <remarks>
+    /// Raised once per script item whose grant changed, after the item's PermsMask (and PermsGranter, when nothing is
+    /// left) have been updated and any taken controls released. removedMask holds the bits the item lost; granterId
+    /// is the avatar who had granted them. No script event is posted, so an engine that keeps the grant in its own
+    /// saved state can subscribe and note the change; an engine ignores items it does not run. Triggered by
+    /// <see cref="TriggerScriptPermissionsRemoved"/>.
+    /// </remarks>
+    public delegate void ScriptPermissionsRemoved(UUID partId, UUID itemId, UUID granterId, int removedMask);
+    public event ScriptPermissionsRemoved OnScriptPermissionsRemoved;
+
+    /// <summary>
     /// TODO: Should be triggered when a physics object starts moving.
     /// </summary>
     public delegate void ScriptMovingStartEvent(uint localID);
@@ -730,13 +762,13 @@ public class EventManager
     public event AvatarKillData OnAvatarKilled;
 
     /// <summary>
-    /// PHLOX-10. Damage is about to be applied to a presence: the batch is MUTABLE - a handler
+    /// Damage is about to be applied to a presence: the batch is MUTABLE - a handler
     /// (the script engine's on_damage) may rewrite each entry's Amount before it lands. Raised
     /// synchronously from ScenePresence.ApplyDamage; handlers must return before the damage applies.
     /// </summary>
     public delegate void AvatarDamageData(ScenePresence avatar, List<DamageEntry> batch);
     public event AvatarDamageData OnAvatarDamage;
-    /// <summary>PHLOX-10. The batch has been applied; Amount is what landed. final_damage hangs here.</summary>
+    /// <summary>The batch has been applied; Amount is what landed. final_damage hangs here.</summary>
     public event AvatarDamageData OnAvatarDamageApplied;
 
     /*
@@ -851,6 +883,31 @@ public class EventManager
     /// </remarks>
     public event ObjectOwnerOrGroupChanged OnObjectOwnerOrGroupChanged;
     public delegate void ObjectOwnerOrGroupChanged(SceneObjectGroup group, UUID oldOwner, UUID newOwner, UUID oldGroup, UUID newGroup);
+
+    /// <summary>
+    /// Triggered when a scene object starts to leave this region by a region crossing or an object teleport to
+    /// another region (<see cref="SceneObjectGroup.inTransit"/> has just been set).
+    /// </summary>
+    /// <remarks>
+    /// Raised on the thread that started the crossing, before the transfer starts, so a script engine can hold the
+    /// object's scripts before their state is captured. Every begin is followed by exactly one
+    /// <see cref="OnGroupEndInTransit"/> for the same group. Not raised for attachments, or for a teleport inside the
+    /// region. Halcyon raised the same pair (SceneObjectGroup.StartTransit and EndTransit).
+    /// </remarks>
+    public event GroupBeginInTransit OnGroupBeginInTransit;
+    public delegate void GroupBeginInTransit(SceneObjectGroup group);
+
+    /// <summary>
+    /// Triggered when a crossing that <see cref="OnGroupBeginInTransit"/> announced has ended.
+    /// </summary>
+    /// <remarks>
+    /// <c>crossed</c> is true when the object reached the other region: its copy here has been removed. When false the
+    /// object stays in this region: it has been put back inside the region and <see cref="SceneObjectGroup.inTransit"/>
+    /// is clear again, unless the crossing deleted or returned it (die or return at the region's edge), in which case
+    /// the group is deleted. Raised on the crossing's own thread.
+    /// </remarks>
+    public event GroupEndInTransit OnGroupEndInTransit;
+    public delegate void GroupEndInTransit(SceneObjectGroup group, bool crossed);
 
     public event GetScriptRunning OnGetScriptRunning;
 
@@ -2596,6 +2653,48 @@ public class EventManager
         }
     }
 
+    public void TriggerExperiencePermissionsRevoked(UUID partId, UUID itemId, UUID granterId, UUID experienceId, int revokedMask, int reason)
+    {
+        ExperiencePermissionsRevoked handlerExperiencePermissionsRevoked = OnExperiencePermissionsRevoked;
+        if (handlerExperiencePermissionsRevoked != null)
+        {
+            foreach (ExperiencePermissionsRevoked d in handlerExperiencePermissionsRevoked.GetInvocationList())
+            {
+                try
+                {
+                    d(partId, itemId, granterId, experienceId, revokedMask, reason);
+                }
+                catch (Exception e)
+                {
+                    m_log.LogError(
+                        "[EVENT MANAGER]: Delegate for TriggerExperiencePermissionsRevoked failed - continuing.  {0} {1}",
+                        e.Message, e.StackTrace);
+                }
+            }
+        }
+    }
+
+    public void TriggerScriptPermissionsRemoved(UUID partId, UUID itemId, UUID granterId, int removedMask)
+    {
+        ScriptPermissionsRemoved handlerScriptPermissionsRemoved = OnScriptPermissionsRemoved;
+        if (handlerScriptPermissionsRemoved != null)
+        {
+            foreach (ScriptPermissionsRemoved d in handlerScriptPermissionsRemoved.GetInvocationList())
+            {
+                try
+                {
+                    d(partId, itemId, granterId, removedMask);
+                }
+                catch (Exception e)
+                {
+                    m_log.LogError(
+                        "[EVENT MANAGER]: Delegate for TriggerScriptPermissionsRemoved failed - continuing.  {0} {1}",
+                        e.Message, e.StackTrace);
+                }
+            }
+        }
+    }
+
     public void TriggerNoticeNoLandDataFromStorage()
     {
         NoticeNoLandDataFromStorage handlerNoticeNoLandDataFromStorage = OnNoticeNoLandDataFromStorage;
@@ -2716,6 +2815,48 @@ public class EventManager
                 {
                     m_log.LogError(
                         "[EVENT MANAGER]: Delegate for TriggerGroupCrossedToNewParcel failed - continuing.  {0} {1}",
+                        e.Message, e.StackTrace);
+                }
+            }
+        }
+    }
+
+    public void TriggerGroupBeginInTransit(SceneObjectGroup group)
+    {
+        GroupBeginInTransit handler = OnGroupBeginInTransit;
+        if (handler is not null)
+        {
+            foreach (GroupBeginInTransit d in handler.GetInvocationList())
+            {
+                try
+                {
+                    d(group);
+                }
+                catch (Exception e)
+                {
+                    m_log.LogError(
+                        "[EVENT MANAGER]: Delegate for TriggerGroupBeginInTransit failed - continuing.  {0} {1}",
+                        e.Message, e.StackTrace);
+                }
+            }
+        }
+    }
+
+    public void TriggerGroupEndInTransit(SceneObjectGroup group, bool crossed)
+    {
+        GroupEndInTransit handler = OnGroupEndInTransit;
+        if (handler is not null)
+        {
+            foreach (GroupEndInTransit d in handler.GetInvocationList())
+            {
+                try
+                {
+                    d(group, crossed);
+                }
+                catch (Exception e)
+                {
+                    m_log.LogError(
+                        "[EVENT MANAGER]: Delegate for TriggerGroupEndInTransit failed - continuing.  {0} {1}",
                         e.Message, e.StackTrace);
                 }
             }

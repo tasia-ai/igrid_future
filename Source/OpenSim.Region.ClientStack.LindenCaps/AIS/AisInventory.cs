@@ -1,3 +1,11 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
@@ -26,6 +34,16 @@ public static class AisInventory
 {
     private static readonly ILogger m_log = LoggerProvider.CreateLogger(typeof(AisInventory));
 
+    /// <summary>
+    /// The (agent, folder type) pairs already warned about in this process. The duplicate-folder warning is written
+    /// once for each pair; later lookups find the same duplicates and log at Debug, so a data fault that stays in
+    /// the inventory does not repeat on every login and every region the agent enters.
+    /// </summary>
+    private static readonly ConcurrentDictionary<(UUID Agent, short Type), byte> s_warnedDuplicates = new();
+
+    /// <summary>Forgets which agents have been warned about duplicate system folders, so the next lookup warns again.</summary>
+    public static void ResetDuplicateWarnings() => s_warnedDuplicates.Clear();
+
     /// <summary>A folder's contents with links separated from items; null when the folder is not the agent's.</summary>
     public static AisFolderContents GetContents(IAisInventoryBackend backend, UUID agentId, UUID folderId)
     {
@@ -42,8 +60,8 @@ public static class AisInventory
     }
 
     /// <summary>
-    /// The items a set of links points at. There is no link-aware fetch in <c>IInventoryService</c> (tree state
-    /// T5), so this does what the existing descendents cap does: collect the <c>AssetType.Link</c> rows' asset ids
+    /// The items a set of links points at. There is no link-aware fetch in <c>IInventoryService</c>,
+    /// so this does what the existing descendents cap does: collect the <c>AssetType.Link</c> rows' asset ids
     /// and resolve them with one <c>GetMultipleItems</c>
     /// (<c>Source/OpenSim.Capabilities.Handlers/FetchInventory/FetchInvDescHandler.cs:424-460</c>,
     /// <c>ProcessLinks</c>). Links to links are dropped for the same reason that handler drops them (:454-457):
@@ -113,7 +131,7 @@ public static class AisInventory
         return expanded;
     }
 
-    /// <summary>The agent's Current Outfit folder (spec §1b, tree state T2); null when the agent has none.</summary>
+    /// <summary>The agent's Current Outfit folder (spec §1b); null when the agent has none.</summary>
     public static InventoryFolderBase GetCurrentOutfit(IAisInventoryBackend backend, UUID agentId)
         => GetSystemFolder(backend, agentId, FolderType.CurrentOutfit);
 
@@ -163,7 +181,8 @@ public static class AisInventory
 
         // An operator has to be able to see this without opening the database, because the visible symptom is an
         // outfit change that quietly does not stick.
-        m_log.LogWarning(
+        var level = s_warnedDuplicates.TryAdd((agentId, (short)type), 0) ? LogLevel.Warning : LogLevel.Debug;
+        m_log.Log(level,
             "[AIS]: agent {Agent} has {Count} folders of type {Type} ({Candidates}); using {Chosen} version {Version}. "
             + "Duplicate system folders DIRECTLY UNDER THE ROOT are a data fault, not an AIS one. A second "
             + "folder of this type inside My Suitcase is EXPECTED (HGSuitcaseInventoryService.CreateSystemFolders "
@@ -180,7 +199,7 @@ public static class AisInventory
     /// Folders whose <c>ParentID</c> names a folder that is not in the agent's skeleton — the only orphan class
     /// this tree can find without walking every folder's contents. Orphaned **items** are not reported: the
     /// inventory service has no query for them and finding them would mean listing every folder
-    /// (<c>IInventoryService</c> surface, tree state T5). An empty result is therefore "no orphan folders", not
+    /// (<c>IInventoryService</c> surface). An empty result is therefore "no orphan folders", not
     /// "no orphans of any kind", and the route says so in its own documentation.
     /// </summary>
     public static AisOrphans FindOrphans(IAisInventoryBackend backend, UUID agentId)

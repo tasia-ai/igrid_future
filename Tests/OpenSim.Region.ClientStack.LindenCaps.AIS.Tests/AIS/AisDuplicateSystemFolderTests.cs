@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Linq;
 using NUnit.Framework;
@@ -23,12 +30,16 @@ public class AisDuplicateSystemFolderTests
 {
     private static readonly UUID Agent = new("a7d2ff2e-dc32-44d8-aa61-3d22070a4964");
 
+    /// <summary>The warning is written once per agent for the life of the process, so each test starts with none written.</summary>
+    [SetUp]
+    public void ForgetEarlierWarnings() => AisInventory.ResetDuplicateWarnings();
+
     // The live ids, so the test reads as the incident it encodes.
     private static readonly UUID RealCof = new("71c3c184-410b-4dae-b20a-855741cf1faf");   // version 457, the one the viewer uses
     private static readonly UUID DupeCof = new("52c327c4-cb7d-4365-a7f0-62a6f7545265");   // version 1, the one we returned
 
     /// <summary>
-    /// Truly Bazar's inventory as it actually is: a root, two type-46 folders, and a backend whose
+    /// A real account's inventory as it actually was: a root, two type-46 folders, and a backend whose
     /// <c>GetFolderForType</c> returns the version-1 duplicate — which is what the unordered
     /// <c>folders[0]</c> query did on the day.
     /// </summary>

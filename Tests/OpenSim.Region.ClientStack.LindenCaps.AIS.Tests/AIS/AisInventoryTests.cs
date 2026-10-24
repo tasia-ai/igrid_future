@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System.Linq;
 using NUnit.Framework;
 using OpenMetaverse;
@@ -7,9 +14,9 @@ using OpenSim.Region.ClientStack.LindenCaps.AIS;
 namespace OpenSim.Region.ClientStack.LindenCaps.AIS.Tests;
 
 /// <summary>
-/// The backend surface the fetch routes need (A1 Part 1), against an in-memory inventory: folder and item reads,
+/// The backend surface the fetch routes need, against an in-memory inventory: folder and item reads,
 /// sub-folders, the COF resolve, link-target resolution and the depth walk. No Scene, no ScenePresence — the
-/// composition is exactly what Phase 2 will reuse on Robust (Ledger P-2).
+/// composition is exactly what Phase 2 will reuse on Robust.
 /// </summary>
 [TestFixture]
 public class AisInventoryTests

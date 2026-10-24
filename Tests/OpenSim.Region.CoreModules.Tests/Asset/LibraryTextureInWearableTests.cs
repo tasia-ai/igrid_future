@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Collections.Generic;
 using Xunit;
@@ -15,7 +22,7 @@ namespace OpenSim.Region.CoreModules.Tests.Asset;
 /// Before this, <c>AssetXferUploader.ValidateAssets</c> asked <c>GetAssetPermissions</c> for the texture under
 /// the <b>resident's</b> id only (<c>AssetXferUploader.cs:566</c>). A library texture is not in the resident's
 /// inventory, so that returns nothing, the full-rights test failed, and the whole save was refused - observed on
-/// Ebony at 2026-09-06 09:52:55 with the library texture
+/// a running region at 2026-09-06 09:52:55 with the library texture
 /// <c>00000000-0000-2222-3333-100000001002</c>: <i>"REJECTED update with texture ... because they do not own the
 /// texture"</i>. The built-in system ids in <c>defaultIDs</c> (<c>AssetXferUploader.cs:40-54</c>) were already
 /// exempt; a library asset was not.

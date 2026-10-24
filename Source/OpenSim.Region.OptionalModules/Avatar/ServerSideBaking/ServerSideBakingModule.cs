@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,8 +28,8 @@ using Microsoft.Extensions.Logging;
 namespace OpenSim.Region.OptionalModules.Avatar.ServerSideBaking;
 
 /// <summary>
-/// Server-side baking (Design Brief §4.2 C2, ADR-001/002/004/005). S1 was the orchestrator plus a console
-/// command; S2 added the ADR-004 index and the input-hash skip; S3 is the wire — <c>RegionProtocols</c> bit 0,
+/// Server-side baking (Design Brief §4.2, ADR-001/002/004/005): the orchestrator plus a console
+/// command; the ADR-004 index and the input-hash skip; and the wire — <c>RegionProtocols</c> bit 0,
 /// the <c>AppearanceData</c> block, the <c>UpdateAvatarAppearance</c> cap with the §4.3 handshake, and a
 /// login-time bake. Config:
 /// <code>
@@ -51,7 +58,7 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
     private readonly List<Scene> m_scenes = new();
     private readonly Dictionary<Scene, ServerSideBakingRegion> m_regions = new();
     private IBakeBackend m_backend;
-    private TexLayerCompositor m_compositor;
+    private AvatarBakeCompositor m_compositor;
 
     /// <summary>The cap the LL viewer POSTs to after every COF change (viewer contract V3).</summary>
     public const string CapName = "UpdateAvatarAppearance";
@@ -120,9 +127,9 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
         var enabled = ServerSideBakingRegion.ResolveEnabled(ServerSideBakingEnabled, scene.Config, regionName);
         var source = ServerSideBakingRegion.EnabledSource(scene.Config, regionName);
 
-        // S12: one line per region, naming which config decided. This is what the flip verify reads - after the
+        // One line per region, naming which config decided. This is what an operator checks - after the
         // two global lines go in and a region section comes out, every region must say "on (global)".
-        m_log.LogInformation("[SSB]: region {Region}: server-side baking {State} ({Source})",
+        m_log.LogDebug("[SSB]: region {Region}: server-side baking {State} ({Source})",
             scene.Name, enabled ? "ON" : "off", source);
 
         var region = new ServerSideBakingRegion(enabled, new CofHandshake());
@@ -141,14 +148,14 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
             scene.EventManager.OnMakeRootAgent += OnMakeRootAgent;
             scene.EventManager.OnRemovePresence += region.Forget;
             scene.EventManager.OnAvatarAppearanceChange += OnAvatarAppearanceChanged;
-            m_log.LogInformation(
+            m_log.LogDebug(
                 "[SSB]: region {Region} has server-side baking ON: RegionProtocols bit 0 set, {Cap} advertised, "
                 + "login bake armed, appearances carry AppearanceData. Firestorm there will stop client-baking.",
                 scene.Name, CapName);
         }
         else
         {
-            m_log.LogInformation("[SSB]: region {Region} has server-side baking off; the wire is unchanged there", scene.Name);
+            m_log.LogDebug("[SSB]: region {Region} has server-side baking off; the wire is unchanged there", scene.Name);
         }
 
         scene.AddCommand(
@@ -170,7 +177,7 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
                 {
                     if (m_backend is null)
                     {
-                        m_compositor = new TexLayerCompositor();
+                        m_compositor = new AvatarBakeCompositor();
                         m_backend = new SkiaBakeBackend(m_compositor) { Quality = BakeQuality };
                     }
                 }
@@ -185,17 +192,29 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
     {
         ArgumentNullException.ThrowIfNull(sp);
         if (sp.IsChildAgent) throw new InvalidOperationException($"{sp.Name} is a child agent here");
+
+        // A queued bake can outlive its presence. Logging out with an appearance save pending flushes that save
+        // (AvatarFactoryModule.FlushAppearanceSaveOnClose), which raises the change trigger; Scene.RemoveClient
+        // then disposes the presence, and ScenePresence.Dispose sets Appearance to null. So the appearance is read
+        // once, here, and the bake uses that object throughout.
+        var appearance = sp.Appearance;
+        if (appearance is null)
+        {
+            m_log.LogDebug("[SSB]: bake for {Name} ({Agent}) reason={Reason} not run: the presence has closed", sp.Name, sp.UUID, reason);
+            return new BakeOutcome(sp.UUID, reason, Array.Empty<ChannelOutcome>(), 0);
+        }
+
         var scene = sp.Scene;
         var backend = Backend;
 
         var cofVersion = CofVersionOf(scene, sp.UUID);
         var region = RegionOf(scene);
 
-        // S8, step 0: refuse a bake whose wearable set has lost a body part since the last one. Composing from a
+        // Step 0: refuse a bake whose wearable set has lost a body part since the last one. Composing from a
         // set with no skin produces a valid-looking bake of nothing, and storing it supersedes - deletes - the
         // good bakes it replaces, so the damage is not recoverable by baking again. Observed 2026-09-05: four
         // unresolvable item ids emptied slots 1-4 and the CofChanged bake that followed stored 4 and superseded 4.
-        var refusal = region?.RefusalForBodyPartLoss(sp.UUID, sp.Appearance.Wearables);
+        var refusal = region?.RefusalForBodyPartLoss(sp.UUID, appearance.Wearables);
         if (refusal is not null)
         {
             m_log.LogWarning("[SSB]: bake for {Name} ({Agent}) reason={Reason} REFUSED: {Reason2}",
@@ -205,18 +224,28 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
 
         // steps 2, 4-6, scene-free; the ADR-004 index in the avatar service is read for the reuse decision and
         // written back at the end of the run
-        var outcome = await Task.Run(() => BakeOrchestrator.Run(sp.UUID, reason, sp.Appearance.Wearables, sp.Appearance.VisualParams, sp.Appearance,
+        var outcome = await Task.Run(() => BakeOrchestrator.Run(sp.UUID, reason, appearance.Wearables, appearance.VisualParams, appearance,
             scene.AssetService, scene.AvatarService, backend, m_compositor, BakeSize, cofVersion, ct), ct).ConfigureAwait(false);
+
+        // The presence can also close while the bake runs. The bake itself is kept: it is stored and its index
+        // written, which is where the next login's bake finds it. Nothing is written back, though: the region
+        // forgot the agent on close (ServerSideBakingRegion.Forget), and recording now would put back what that
+        // removed, for an agent that is no longer here. There is nobody to send to either.
+        var closed = sp.IsDeleted;
+        var live = outcome.Count(ChannelStatus.Baked) + outcome.Count(ChannelStatus.Reused) > 0;
+        if (closed)
+            m_log.LogDebug("[SSB]: bake for {Name} ({Agent}) reason={Reason}: the presence closed during the bake; stored, not recorded or sent",
+                sp.Name, sp.UUID, reason);
 
         // Record the bake before sending: SendAppearanceToAgentNF asks IServerSideBakingRegion for the version,
         // and an appearance sent before the record would go out without its AppearanceData block. RecordBake
         // ignores the call on a flag-off region, which is what keeps a console bake there off the wire.
-        if (outcome.Count(ChannelStatus.Baked) + outcome.Count(ChannelStatus.Reused) > 0)
+        if (live && !closed)
         {
             region?.RecordBake(sp.UUID, cofVersion);
             // The baseline for the next body-part check is what a bake actually succeeded from, never what one
             // was refused for: recording a refused set would let the second attempt through unchallenged.
-            region?.RecordGoodBodyParts(sp.UUID, sp.Appearance.Wearables);
+            region?.RecordGoodBodyParts(sp.UUID, appearance.Wearables);
         }
 
         // step 7: send to everyone in view and to self. A reused channel is sent exactly like a fresh one — the
@@ -228,15 +257,17 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
         // save would do is destroy this bake's index, because AvatarService.SetAvatar deletes every row for the
         // agent before rewriting those keys (AvatarService.cs:93). The bake index written above IS the
         // persistence of the baked faces.
-        if (outcome.Count(ChannelStatus.Baked) + outcome.Count(ChannelStatus.Reused) > 0)
+        if (live && !closed)
         {
             sp.SendAppearanceToAllOtherAgents();
             sp.SendAppearanceToAgent(sp);
         }
 
-        // step 8: one INFO line per bake, carrying the phase split (Ledger Q-10); the fidelity evidence at DEBUG
+        // step 8: one line per bake, carrying the phase split, and the fidelity evidence at DEBUG. A bake runs on
+        // every login and every outfit change, so a normal one is written at DEBUG; the line is INFORMATION only
+        // when the bake failed, partly failed, or took longer than SlowBakeMs.
         var t = outcome.Timings;
-        m_log.LogInformation("[SSB]: bake for {Name} ({Agent}) reason={Reason}: {Summary} in {Ms} ms [{Split}, other={Other} ms]",
+        m_log.Log(LogLevelFor(outcome), "[SSB]: bake for {Name} ({Agent}) reason={Reason}: {Summary} in {Ms} ms [{Split}, other={Other} ms]",
             sp.Name, sp.UUID, reason, Summarise(outcome), outcome.ElapsedMs, t.Summary,
             Math.Max(0, outcome.ElapsedMs - (long)t.Accounted.TotalMilliseconds));
         if (m_log.IsEnabled(LogLevel.Debug))
@@ -248,6 +279,25 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
                 foreach (var note in c.Fidelity.Notes) m_log.LogDebug("[SSB]: {Channel} layer {Note}", c.Channel, note);
             }
         return outcome;
+    }
+
+    /// <summary>
+    /// A bake slower than this is logged at Information. Bake times on a running grid: a bake that reuses the stored
+    /// bakes takes tens of milliseconds (median 45 ms, 99th percentile 348 ms) and one that composites takes about a
+    /// second (median 1.0 s, 95th percentile 1.8 s), so five seconds is several times what a healthy bake needs and
+    /// only a stalled asset or avatar service gets there.
+    /// </summary>
+    public const long SlowBakeMs = 5000;
+
+    /// <summary>
+    /// The level of a bake's log line: Information when a channel failed, when the bake index could not be written
+    /// for a bake that produced live channels, or when the bake took longer than <see cref="SlowBakeMs"/>; Debug otherwise.
+    /// </summary>
+    public static LogLevel LogLevelFor(BakeOutcome o)
+    {
+        if (o.ElapsedMs > SlowBakeMs || o.Count(ChannelStatus.Failed) > 0) return LogLevel.Information;
+        var live = o.Count(ChannelStatus.Baked) + o.Count(ChannelStatus.Reused) > 0;
+        return live && !o.IndexWritten ? LogLevel.Information : LogLevel.Debug;
     }
 
     private static string Summarise(BakeOutcome o)
@@ -284,7 +334,7 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
         }
     }
 
-    // ------------------------------------------------------------------ S3: the cap and the login trigger
+    // ------------------------------------------------------------------ the cap and the login trigger
 
     /// <summary>
     /// Register <c>UpdateAvatarAppearance</c> for one agent. Only ever called on a flag-on region: advertising it
@@ -359,11 +409,11 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
         // that is measured. Baking now would composite an outfit whose wearables still carry UUID.Zero asset ids
         // and store the result as if it were the new look.
         //
-        // S10: but DO read the folder. On a bit-0 region this POST is the only notice the sim gets that the worn
+        // But DO read the folder. On a bit-0 region this POST is the only notice the sim gets that the worn
         // SET changed - the LL viewer's AgentIsNowWearing is a four-item dummy with no callers
         // (llagentwearables.cpp:819-851), so nothing else turns a COF link into a wearable. Without this the save
         // below persists the wearables the sim already had and the bake reuses every channel, which is exactly
-        // what happened on Ebony on 2026-09-06: two shirts linked in the COF, one shirt in the Avatars record.
+        // what was seen in practice: two shirts linked in the COF, one shirt in the Avatars record.
         ApplyCofToWearables(scene, sp);
 
         // Instead the cap joins the same path the legacy route already takes: queue an appearance save, and let
@@ -376,13 +426,13 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
     }
 
     /// <summary>
-    /// S10. Read the agent's Current Outfit Folder and put every wearable link it holds into the presence's
+    /// Read the agent's Current Outfit Folder and put every wearable link it holds into the presence's
     /// <see cref="AvatarAppearance.Wearables"/>, in the viewer's order. The rules are
     /// <see cref="CofWearables.Derive"/>'s; this is only the read.
     ///
     /// <para>
     /// A link is kept when its target resolves in this region and is a wearable. A link whose target cannot be
-    /// read is dropped rather than guessed at, which is what makes the S8 rule hold: its type then looks
+    /// read is dropped rather than guessed at, which is what makes the unresolvable-link rule hold: its type then looks
     /// untouched by this read and keeps what the agent already wears, instead of being emptied by an inventory
     /// lookup that failed.
     /// </para>
@@ -463,7 +513,7 @@ public class ServerSideBakingModule : ISharedRegionModule, IServerSideBaker
     /// (see <see cref="HandleUpdateAvatarAppearance"/>). Attachment changes and the login/teleport cache check
     /// also queue saves, so this fires for those as well — deliberately. A spurious trigger costs one hash check
     /// per channel and re-sends the appearance; a missed one leaves the avatar wrong until relog, so the bias is
-    /// towards triggering (S5 brief).
+    /// towards triggering.
     /// </para>
     ///
     /// <para>Runs on the appearance-save thread pool thread. The bake goes to its own work item so a slow bake

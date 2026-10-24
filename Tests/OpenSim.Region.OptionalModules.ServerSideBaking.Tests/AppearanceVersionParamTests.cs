@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using OpenMetaverse;
 using OpenSim.Framework;
 using Xunit;
@@ -5,14 +12,14 @@ using Xunit;
 namespace OpenSim.Region.OptionalModules.ServerSideBaking.Tests;
 
 /// <summary>
-/// S4b — the appearance-version parameter. The <c>AppearanceData</c> block S3 added is not sufficient on its own:
+/// The appearance-version parameter. The <c>AppearanceData</c> block is not sufficient on its own:
 /// the viewer reads the version from the block <b>and</b> from visual parameter 11000, prefers the parameter, and
 /// throws the whole message away when the two disagree.
 ///
 /// <list type="bullet">
-///   <item><c>resolve_appearance_version</c> — both set and different → warns "inconsistent appearance_version
-///     settings" and returns false (<c>llvoavatar.cpp:9663-9690</c>).</item>
-///   <item>the caller then logs "bad appearance version info, discarding" and returns
+///   <item>the viewer's version resolution — both versions set and different → logs a warning about inconsistent
+///     version settings and reports failure (<c>llvoavatar.cpp:9663-9690</c>).</item>
+///   <item>the caller then logs that the version info is bad, discards the message and returns
 ///     (<c>llvoavatar.cpp:9720-9723</c>) — no TextureEntry applied, so no bake is ever fetched.</item>
 ///   <item>the parameter is transmitted as a byte through the parameter's own range, and id 11000 is
 ///     <c>value_min="0" value_max="255"</c>, so the mapping is the identity and the byte must literally equal the
@@ -82,7 +89,7 @@ public class AppearanceVersionParamTests
     /// <summary>
     /// The choice <c>ScenePresence.SendAppearanceToAgentNF</c> makes, replayed: 1 on a copy for an avatar this region
     /// baked; the stored array itself otherwise - except for an NPC, which is never baked anywhere and says 0 on a
-    /// copy (SSB-NPC-1: its stored byte is the owner's, which is 1 on a server-bake region).
+    /// copy (its stored byte is the owner's, which is 1 on a server-bake region).
     /// </summary>
     private static byte[] ParamsForSend(byte[] stored, int cofVersion, bool isNpc = false)
         => cofVersion >= 0 ? AvatarAppearance.WithAppearanceVersion(stored, 1)
@@ -124,7 +131,7 @@ public class AppearanceVersionParamTests
         Assert.Equal(storedBefore, stored);
         Assert.Equal(0, sent[AvatarAppearance.APPEARANCE_VERSION_PARAM_INDEX]);
 
-        // and the packet body is byte-identical to the pre-S3 form
+        // and the packet body is byte-identical to the form before the AppearanceData block
         Assert.Equal(AppearanceBodyBeforeS3(stored), AppearanceBody(sent, -1));
     }
 
@@ -148,10 +155,10 @@ public class AppearanceVersionParamTests
     }
 
     /// <summary>
-    /// SSB-NPC-1: an NPC's stored parameters are a clone of its owner's, so on a server-bake region slot 251 holds
+    /// An NPC's stored parameters are a clone of its owner's, so on a server-bake region slot 251 holds
     /// the owner's 1 - while the region never baked the NPC and sends no block. A 1 beside no block sends the viewer
     /// to the appearance service under the NPC's UUID, where there is no index. The NPC's message says 0, on a
-    /// copy: the stored clone is untouched, and the body is the pre-S3 form for the same parameters with 0 in it.
+    /// copy: the stored clone is untouched, and the body is the form before the AppearanceData block for the same parameters with 0 in it.
     /// </summary>
     [Fact]
     public void AnUnbakedNpcSaysZeroOnACopyWhateverItsOwnerStored()

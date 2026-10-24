@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2026 Legion Builds
  * Copyright (c) Contributors, http://opensimulator.org/
  * See CONTRIBUTORS.TXT for a full list of copyright holders.
  *
@@ -48,6 +49,7 @@ namespace OpenSim.Region.CoreModules.Scripting.OutboundHardening.Tests;
 /// is answered there, never forwarded: no test here, and no version of the module under test, sends a packet off
 /// this machine.
 /// </remarks>
+[Collection("OutboundProcessWideState")]
 public class XmlRpcOutboundFilterTests : OpenSimTestCase
 {
     private const string PortToken = "PORT";
@@ -56,7 +58,7 @@ public class XmlRpcOutboundFilterTests : OpenSimTestCase
     private readonly SocketsHttpHandler m_savedRedir;
     private readonly SocketsHttpHandler m_savedNoRedir;
     private readonly ICommandConsole m_savedConsole;
-    private XMLRPCModule m_module;
+    private XMLRPCModule m_module = null!;
 
     public XmlRpcOutboundFilterTests()
     {
@@ -99,7 +101,7 @@ public class XmlRpcOutboundFilterTests : OpenSimTestCase
         "<member><name>IntValue</name><value><i4>7</i4></value></member>" +
         "</struct></value></param></params></methodResponse>";
 
-    private void StartModule(string except = null)
+    private void StartModule(string? except = null)
     {
         IConfigSource config = new IniConfigSource();
         IConfig network = config.AddConfig("Network");

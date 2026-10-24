@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -198,7 +205,7 @@ public sealed class FakeAisBackend : IAisInventoryBackend
     /// <summary>Runs after every successful write, so a test can change the store underneath the handler.</summary>
     public Action OnWrite;
 
-    /// <summary>The data layer bumps a folder's version on every store or delete of its contents (S0a V6).</summary>
+    /// <summary>The data layer bumps a folder's version on every store or delete of its contents.</summary>
     private void Bump(UUID folderId)
     {
         if (Folders.TryGetValue(folderId, out var folder)) folder.Version = (ushort)(folder.Version + 1);
@@ -255,7 +262,7 @@ public sealed class FakeAisBackend : IAisInventoryBackend
         return AisAssetTransaction.Applied;
     }
 
-    /// <summary>S9: every (item, newAsset) the handler reported as an asset change, in order.</summary>
+    /// <summary>Every (item, newAsset) the handler reported as an asset change, in order.</summary>
     public readonly List<(UUID Item, UUID Asset)> AssetChanges = new();
 
     public void OnItemAssetChanged(UUID agentId, UUID itemId, UUID newAssetId)

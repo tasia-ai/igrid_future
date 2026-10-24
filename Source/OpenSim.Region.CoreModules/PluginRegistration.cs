@@ -141,6 +141,7 @@ public class PluginRegistration : IPluginRegistryProvider
         RegisterByName(registry, "/OpenSim/RegionModules", "MoapModule", "OpenSim.Region.CoreModules.World.Media.Moap.MoapModule", "MoapModule");
         RegisterByName(registry, "/OpenSim/RegionModules", "BuySellModule", "OpenSim.Region.CoreModules.World.Objects.BuySell.BuySellModule", "BuySellModule");
         RegisterByName(registry, "/OpenSim/RegionModules", "ObjectCommandsModule", "OpenSim.Region.CoreModules.World.Objects.Commands.ObjectCommandsModule", "ObjectCommandsModule");
+        RegisterByName(registry, "/OpenSim/RegionModules", "BlockedOwnerModule", "OpenSim.Region.CoreModules.World.Objects.BlockedOwners.BlockedOwnerModule", "BlockedOwnerModule");
         RegisterByName(registry, "/OpenSim/RegionModules", "DefaultPermissionsModule", "OpenSim.Region.CoreModules.World.Permissions.DefaultPermissionsModule", "DefaultPermissionsModule");
         RegisterByName(registry, "/OpenSim/RegionModules", "RegionCommandsModule", "OpenSim.Region.CoreModules.World.Objects.Commands.RegionCommandsModule", "RegionCommandsModule");
         RegisterByName(registry, "/OpenSim/RegionModules", "RestartModule", "OpenSim.Region.CoreModules.World.Region.RestartModule", "RestartModule");
@@ -157,6 +158,7 @@ public class PluginRegistration : IPluginRegistryProvider
         RegisterByName(registry, "/OpenSim/RegionModules", "WorldMapModule", "OpenSim.Region.CoreModules.World.WorldMap.WorldMapModule", "WorldMapModule");
         RegisterByName(registry, "/OpenSim/WindModule", "ConfigurableWind", "OpenSim.Region.CoreModules.World.Wind.Plugins.ConfigurableWind", "ConfigurableWind");
         RegisterByName(registry, "/OpenSim/WindModule", "SimpleRandomWind", "OpenSim.Region.CoreModules.World.Wind.Plugins.SimpleRandomWind", "SimpleRandomWind");
+        RegisterByName(registry, "/OpenSim/WindModule", "ZephyrWind", "OpenSim.Region.CoreModules.World.Wind.Plugins.ZephyrWind", "ZephyrWind");
     }
 
     private static void RegisterByName(PluginRegistry registry, string extensionPath, string id, string typeName, string displayName)

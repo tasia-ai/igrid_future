@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System.Text;
 using OpenMetaverse;
 using OpenSim.Framework;
@@ -10,9 +17,9 @@ using Xunit.Abstractions;
 namespace OpenSim.Region.OptionalModules.ServerSideBaking.Tests;
 
 /// <summary>
-/// S5 Part 2 — the five Bakes-on-Mesh aux channels (leftarm, leftleg, aux1, aux2, aux3). The library has produced
-/// them since S0b and nothing has ever exercised them, because no test avatar wears a Universal wearable and
-/// neither reference set has one (Ledger Q-11). This drives them with a synthetic Universal instead.
+/// The five Bakes-on-Mesh aux channels (leftarm, leftleg, aux1, aux2, aux3). The library has always produced
+/// them and nothing had exercised them, because no test avatar wears a Universal wearable and
+/// neither reference set has one. This drives them with a synthetic Universal instead.
 ///
 /// <para>
 /// A synthetic fixture is the honest limit of what can be tested without content. See
@@ -37,7 +44,7 @@ public class BomAuxChannelTests
     };
 
     /// <summary>A small solid-colour JPEG 2000, so the compositor has something real to draw.</summary>
-    private static byte[] Texture(byte r, byte g, byte b)
+    internal static byte[] Texture(byte r, byte g, byte b)
     {
         var img = new RgbaPlanes(32, 32, hasAlpha: true);
         for (var i = 0; i < img.R.Length; i++) { img.R[i] = r; img.G[i] = g; img.B[i] = b; img.A[i] = 255; }
@@ -45,7 +52,7 @@ public class BomAuxChannelTests
     }
 
     /// <summary>An LLWearable body of the given type carrying the given texture slots.</summary>
-    private static string WearableText(WearableKind kind, string name, IReadOnlyDictionary<TextureSlot, UUID> textures)
+    internal static string WearableText(WearableKind kind, string name, IReadOnlyDictionary<TextureSlot, UUID> textures)
     {
         var sb = new StringBuilder();
         sb.Append("LLWearable version 22\n").Append(name).Append("\n\n");
@@ -109,7 +116,7 @@ public class BomAuxChannelTests
     [Fact]
     public void TheLibraryProducesAnAuxChannelOnlyForASlotThatIsPainted()
     {
-        var compositor = new TexLayerCompositor();
+        var compositor = new AvatarBakeCompositor();
 
         foreach (var (channel, slot, _) in Aux)
         {
@@ -127,7 +134,7 @@ public class BomAuxChannelTests
     [Fact]
     public void AllFiveAuxChannelsCompositeAndEncodeTogether()
     {
-        var compositor = new TexLayerCompositor();
+        var compositor = new AvatarBakeCompositor();
         var (assets, wearables, painted) = Outfit(Aux.Select(a => a.Slot).ToArray());
         Assert.Equal(5, painted.Count);
 
@@ -160,7 +167,7 @@ public class BomAuxChannelTests
     [Fact]
     public void TheOrchestratorStoresEachAuxChannelAndWritesFaces40To44()
     {
-        var compositor = new TexLayerCompositor();
+        var compositor = new AvatarBakeCompositor();
         var (assets, wearables, _) = Outfit(Aux.Select(a => a.Slot).ToArray());
         var avatars = new FakeAvatarService();
         var appearance = new AvatarAppearance();
@@ -197,7 +204,7 @@ public class BomAuxChannelTests
     [Fact]
     public void TheRobustRouteServesEveryAuxChannel()
     {
-        var compositor = new TexLayerCompositor();
+        var compositor = new AvatarBakeCompositor();
         var (assets, wearables, _) = Outfit(Aux.Select(a => a.Slot).ToArray());
         var avatars = new FakeAvatarService();
         var appearance = new AvatarAppearance();
@@ -212,7 +219,7 @@ public class BomAuxChannelTests
             var c = outcome.Channels.Single(x => x.Channel == channel);
             var token = channel.ToString().ToLowerInvariant();
 
-            // the token the viewer sends resolves to this channel (S4's map)
+            // the token the viewer sends resolves to this channel (the appearance service's map)
             Assert.Equal(BakeIndex.BakeKey(channel), AppearanceChannels.BakeKeyFor(token));
 
             var got = svc.GetBake(Agent, token, c.AssetId);

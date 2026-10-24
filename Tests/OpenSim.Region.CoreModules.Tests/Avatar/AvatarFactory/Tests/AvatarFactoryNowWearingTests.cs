@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2026 Legion Builds
  * Copyright (c) Contributors, http://opensimulator.org/
  * See CONTRIBUTORS.TXT for a full list of copyright holders.
  *
@@ -35,7 +36,7 @@ using Xunit;
 namespace OpenSim.Region.CoreModules.Avatar.AvatarFactory;
 
 /// <summary>
-/// S0c (SSB Ledger R-4 / Q-3): AgentIsNowWearing must merge into the agent's existing wearables,
+/// AgentIsNowWearing must merge into the agent's existing wearables,
 /// not rebuild them from an empty set. These tests drive the real event path through
 /// <see cref="TestClient.TriggerAvatarNowWearing"/>.
 /// </summary>

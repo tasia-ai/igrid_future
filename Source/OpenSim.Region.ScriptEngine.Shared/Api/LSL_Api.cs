@@ -1548,8 +1548,11 @@ public class LSL_Api : ILSL_Api, IScriptApi
             Vector3 pos = m_host.GetWorldPosition();
             int x = (int)(pos.X + offset.x);
             int y = (int)(pos.Y + offset.y);
+            int z = (int)(pos.Z + offset.z);
 
-            Vector3 windSpeed = module.WindSpeed(x, y, 0);
+            // The height matters to a wind model that has layers (a current under the water, the wind aloft), and to a
+            // weather volume's reach. The volumes' horizontal wind is in this sample; llWind never returns a vertical part.
+            Vector3 windSpeed = module.WindSpeed(x, y, z);
 
             wind.x = windSpeed.X;
             wind.y = windSpeed.Y;
@@ -2761,7 +2764,7 @@ public class LSL_Api : ILSL_Api, IScriptApi
             if (local != 0)
                 force *= llGetRot();
 
-            m_host.ParentGroup.RootPart.SetForce(force);
+            m_host.ParentGroup.RootPart.SetForce(force, local != 0);
         }
     }
 
@@ -8298,23 +8301,11 @@ public void llDetachFromAvatar()
     {
         if (m_host.PhysActor != null)
         {
-            float ground = (float)llGround(new LSL_Types.Vector3(0, 0, 0));
-            float waterLevel = (float)llWater(new LSL_Types.Vector3(0, 0, 0));
-            PIDHoverType hoverType = PIDHoverType.Ground;
-            if (water != 0)
-            {
-                hoverType = PIDHoverType.GroundAndWater;
-                if (ground < waterLevel)
-                    height += waterLevel;
-                else
-                    height += ground;
-            }
-            else
-            {
-                height += ground;
-            }
+            // The height is above the ground, or above the higher of the ground and the water when water is TRUE
+            // (SL wiki llGroundRepel). The physics engine adds the ground or water itself, as it does for llSetHoverHeight.
+            PIDHoverType hoverType = water != 0 ? PIDHoverType.GroundAndWater : PIDHoverType.Ground;
 
-            m_host.SetHoverHeight((float)height, hoverType, (float)tau);
+            m_host.SetHoverHeight((float)height, hoverType, (float)tau, repel: true);
         }
     }
 
@@ -12334,14 +12325,14 @@ public void llDetachFromAvatar()
                         res.Add(new LSL_Integer(0));
                         res.Add(new LSL_Float(0f)); // ambiance
                         res.Add(new LSL_Float(0f)); // clip
-                        res.Add(new LSL_Float(0f)); // flags
+                        res.Add(new LSL_Integer(0)); // flags
                     }
                     else
                     {
                         res.Add(new LSL_Integer(1));
                         res.Add(new LSL_Float(shape.ReflectionProbe.Ambiance)); // ambiance
                         res.Add(new LSL_Float(shape.ReflectionProbe.ClipDistance)); // clip
-                        res.Add(new LSL_Float(shape.ReflectionProbe.Flags)); // flags
+                        res.Add(new LSL_Integer(shape.ReflectionProbe.Flags)); // flags
                     }
                     break;
 
@@ -16558,6 +16549,8 @@ public void llDetachFromAvatar()
     }
 */
 
+    private const int CastRayMaxHits = 256;
+
     public LSL_List llCastRay(LSL_Vector start, LSL_Vector end, LSL_List options)
     {
         LSL_List list = new();
@@ -16583,15 +16576,16 @@ public void llDetachFromAvatar()
             if (options.GetIntegerItem(i) == ScriptBaseClass.RC_MAX_HITS)
                 count = options.GetIntegerItem(i + 1);
             else if (options.GetIntegerItem(i) == ScriptBaseClass.RC_DETECT_PHANTOM)
-                detectPhantom = (options.GetIntegerItem(i + 1) > 0);
+                detectPhantom = (options.GetIntegerItem(i + 1) != 0);
             else if (options.GetIntegerItem(i) == ScriptBaseClass.RC_DATA_FLAGS)
                 dataFlags = options.GetIntegerItem(i + 1);
             else if (options.GetIntegerItem(i) == ScriptBaseClass.RC_REJECT_TYPES)
                 rejectTypes = options.GetIntegerItem(i + 1);
         }
 
-        if (count > 16)
-            count = 16;
+        // The SL wiki gives RC_MAX_HITS a maximum of 256 (https://wiki.secondlife.com/wiki/LlCastRay).
+        if (count > CastRayMaxHits)
+            count = CastRayMaxHits;
 
         List<ContactResult> results = new();
 
@@ -16627,8 +16621,11 @@ public void llDetachFromAvatar()
             dist = (float)Math.Sqrt(dist);
             Vector3 direction = dir * (1.0f / dist);
 
-            // get some more contacts to sort ???
-            object physresults = World.RayCastFiltered(rayStart, direction, dist, 2 * count, rayfilter);
+            // Get some more contacts to sort, and one more for each prim of the host that is left out of the answer
+            // below, so that a hit the script does not get is not a place lost from the hits it asked for.
+            int hostHits = rejectHostGroup ? m_host.ParentGroup.PrimCount : (rejectHost ? 1 : 0);
+            object physresults = World.RayCastFiltered(rayStart, direction, dist,
+                Math.Min(CastRayMaxHits, 2 * count + hostHits), rayfilter);
 
             if (physresults != null)
             {
@@ -18306,7 +18303,7 @@ public void llDetachFromAvatar()
                     res.Add(new LSL_Integer(0));
                     res.Add(new LSL_Float(0f)); // ambiance
                     res.Add(new LSL_Float(0f)); // clip
-                    res.Add(new LSL_Float(0f)); // flags
+                    res.Add(new LSL_Integer(0)); // flags
                     break;
 
                 case ScriptBaseClass.PRIM_GLOW:

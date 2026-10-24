@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2026 Legion Builds
  * Copyright (c) Contributors, http://opensimulator.org/
  * See CONTRIBUTORS.TXT for a full list of copyright holders.
  *
@@ -61,7 +62,11 @@ public sealed class RecordingHttpServer : IDisposable
         public string Reason = "OK";
         public string ContentType = "text/plain";
         public byte[] Body = Array.Empty<byte>();
-        public string Location;
+        public string? Location;
+        public int BodyDelayMilliseconds;
+        public int? ContentLength;
+        public bool OmitContentLength;
+        public Dictionary<string, string> Headers = new();
 
         public static Reply Text(string body) => new() { Body = Encoding.UTF8.GetBytes(body) };
 
@@ -127,7 +132,7 @@ public sealed class RecordingHttpServer : IDisposable
             {
                 client.ReceiveTimeout = 10000;
                 NetworkStream stream = client.GetStream();
-                byte[] head = ReadHead(stream);
+                byte[]? head = ReadHead(stream);
                 if (head is null)
                     return;
 
@@ -169,10 +174,15 @@ public sealed class RecordingHttpServer : IDisposable
                 if (reply.Location is not null)
                     sb.Append($"Location: {reply.Location}\r\n");
                 sb.Append($"Content-Type: {reply.ContentType}\r\n");
-                sb.Append($"Content-Length: {reply.Body.Length}\r\n");
+                if (!reply.OmitContentLength)
+                    sb.Append($"Content-Length: {reply.ContentLength ?? reply.Body.Length}\r\n");
+                foreach (var header in reply.Headers)
+                    sb.Append($"{header.Key}: {header.Value}\r\n");
                 sb.Append("Connection: close\r\n\r\n");
                 byte[] headBytes = Encoding.ASCII.GetBytes(sb.ToString());
                 stream.Write(headBytes, 0, headBytes.Length);
+                if (reply.BodyDelayMilliseconds > 0)
+                    Thread.Sleep(reply.BodyDelayMilliseconds);
                 stream.Write(reply.Body, 0, reply.Body.Length);
                 stream.Flush();
             }
@@ -183,7 +193,7 @@ public sealed class RecordingHttpServer : IDisposable
         }
     }
 
-    private static byte[] ReadHead(NetworkStream stream)
+    private static byte[]? ReadHead(NetworkStream stream)
     {
         List<byte> buf = new();
         int b;

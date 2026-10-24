@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Region.OptionalModules.Avatar.ServerSideBaking;
@@ -6,7 +13,7 @@ using Xunit;
 namespace OpenSim.Region.OptionalModules.ServerSideBaking.Tests;
 
 /// <summary>
-/// S8. A bake made from a wearable set that has lost a body part is not a bake of a different outfit - it is a
+/// A bake made from a wearable set that has lost a body part is not a bake of a different outfit - it is a
 /// bake of nothing, and storing it is destructive, because a new bake supersedes (deletes) the asset it replaces
 /// (ADR-004). Baking again cannot undo it.
 ///

@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System.Collections;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenMetaverse.StructuredData;
@@ -8,17 +15,17 @@ using Xunit;
 namespace OpenSim.Region.OptionalModules.ServerSideBaking.Tests;
 
 /// <summary>
-/// S4 Part 2 — viewer contract V6. The login response advertises <c>agent_appearance_service</c> when the grid
+/// The login response advertises <c>agent_appearance_service</c> when the grid
 /// has one and <b>omits the key entirely</b> when it does not.
 ///
 /// <para>
 /// The distinction matters because of what the viewer does with it: <c>llstartup.cpp:4047-4051</c> adopts the
-/// value only when non-empty, and <c>LLVOAvatar::getImageURL</c> warns
-/// "AgentAppearanceServiceURL not set - Baked texture requests will fail" and returns "" when it is unset
-/// (<c>llvoavatar.cpp:5901-5906</c>). On a bit-0 region that means the avatar never textures — which is exactly
-/// what Ebony produced when S3's flag was flipped before this service existed.
+/// value only when non-empty, and the viewer's baked-texture URL builder warns that baked texture requests will
+/// fail and returns an empty URL when it is unset (<c>llvoavatar.cpp:5901-5906</c>). On a bit-0 region that means the avatar never textures — which is exactly
+/// what a region produced when its flag was turned on before this service existed.
 /// </para>
 /// </summary>
+[Collection("ssb-log-capture")]
 public class LoginResponseAdvertisementTests
 {
     private const string Key = "agent_appearance_service";
@@ -45,7 +52,7 @@ public class LoginResponseAdvertisementTests
     /// not), and <c>ToOSDMap</c> passes it straight to <c>ArrayListToOSDArray</c> (:664), so the LLSD form of a
     /// default-constructed response always throws and silently degrades to the failure map. Production never hits
     /// it because the real constructor fills it in. Setting it here is the fixture, not a workaround for anything
-    /// S4 introduced.
+    /// this service introduced.
     /// </summary>
     private static LLLoginResponse Fresh(string url)
     {
@@ -123,8 +130,8 @@ public class LoginResponseAdvertisementTests
     }
 
     /// <summary>
-    /// The trailing slash is not cosmetic. The viewer builds the URL as
-    /// <c>appearance_service_url + "texture/" + ...</c> with no separator (<c>llvoavatar.cpp:5912</c>), so a
+    /// The trailing slash is not cosmetic. The viewer builds the URL by appending the texture path directly to the
+    /// service URL, with no separator in between (<c>llvoavatar.cpp:5912</c>), so a
     /// configured value without one yields <c>...:8002texture/&lt;agent&gt;/...</c> and every fetch fails. The
     /// login service normalises it exactly as it does <c>MapTileURL</c>; this pins the arithmetic the
     /// normalisation exists to protect.

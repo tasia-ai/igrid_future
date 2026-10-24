@@ -60,7 +60,7 @@ namespace OpenSim.Region.ClientStack.Linden.Tests
 
             // This is an unfortunate bit of clean up we have to do because MainServer manages things through static
             // variables and the VM is not restarted between tests.
-            // T1: MainServer is instance-based now; OpenSimTestCase removed the previous default server, so this one becomes DefaultServer.
+            // MainServer is instance-based now; OpenSimTestCase removed the previous default server, so this one becomes DefaultServer.
             MainServer.Instance.RemoveHttpServer(port);
 
             m_server = new BaseHttpServer(port, false, "","","");
@@ -90,7 +90,7 @@ namespace OpenSim.Region.ClientStack.Linden.Tests
             SceneHelpers.AddScenePresence(m_scene, TestHelpers.ParseTail(0x1));
 
             // TODO: Add more assertions for the other aspects of event queues
-            Assert.Equal(1, m_server.GetPollServiceHandlerKeys().Count);
+            Assert.Single(m_server.GetPollServiceHandlerKeys());
         }
 
         [Fact]
@@ -105,7 +105,7 @@ namespace OpenSim.Region.ClientStack.Linden.Tests
             m_scene.CloseAgent(spId, false);
 
             // TODO: Add more assertions for the other aspects of event queues
-            Assert.Equal(0, m_server.GetPollServiceHandlerKeys().Count);
+            Assert.Empty(m_server.GetPollServiceHandlerKeys());
         }
 
         [Fact]
@@ -151,6 +151,45 @@ namespace OpenSim.Region.ClientStack.Linden.Tests
             }
 
             Assert.True(foundUpdate, string.Format("Did not find {0} in response", messageName));
+        }
+
+        /// <summary>
+        /// A moderated-mode change reaches the agent as ChatterBoxSessionUpdate, with the mode under
+        /// info.moderated_mode.voice and the session id beside it, which is where the viewer reads them.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void TestChatterBoxSessionUpdateCarriesTheModeratedMode(bool moderated)
+        {
+            TestHelpers.InMethod();
+
+            ScenePresence sp = SceneHelpers.AddScenePresence(m_scene, TestHelpers.ParseTail(0x1));
+            UUID sessionId = TestHelpers.ParseTail(0x77);
+
+            m_eqgMod.ChatterBoxSessionUpdate(sessionId, sp.UUID, moderated);
+
+            OSDMap update = null;
+            for (int attempt = 0; attempt < 3 && update is null; attempt++)
+            {
+                Hashtable eventsResponse = m_eqgMod.GetEvents(UUID.Zero, sp.UUID);
+                if ((int)eventsResponse["int_response_code"] != (int)HttpStatusCode.OK
+                    || eventsResponse["bin_response_data"] is null)
+                    continue;
+
+                string data = Encoding.UTF8.GetString((byte[])eventsResponse["bin_response_data"]);
+                OSDArray eventsOsd = (OSDArray)((OSDMap)OSDParser.DeserializeLLSDXml(data))["events"];
+                foreach (OSD osd in eventsOsd)
+                {
+                    OSDMap eventOsd = (OSDMap)osd;
+                    if (eventOsd["message"] == "ChatterBoxSessionUpdate")
+                        update = (OSDMap)eventOsd["body"];
+                }
+            }
+
+            Assert.NotNull(update);
+            Assert.Equal(sessionId, update["session_id"].AsUUID());
+            Assert.Equal(moderated, ((OSDMap)((OSDMap)update["info"])["moderated_mode"])["voice"].AsBoolean());
         }
 
         /// <summary>

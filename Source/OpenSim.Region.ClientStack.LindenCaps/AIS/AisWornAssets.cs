@@ -1,10 +1,17 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using OpenMetaverse;
 using OpenSim.Framework;
 
 namespace OpenSim.Region.ClientStack.LindenCaps.AIS;
 
 /// <summary>
-/// S9. Editing a worn wearable changes the item's asset and nothing else the region watches: the worn SET is
+/// Editing a worn wearable changes the item's asset and nothing else the region watches: the worn SET is
 /// unchanged (the viewer keeps the item id - <c>llagentwearables.cpp:319</c> <c>setItemID(old_item_id)</c>), so no
 /// <c>AgentIsNowWearing</c> follows, and while the viewer does schedule an <c>UpdateAvatarAppearance</c> POST it is
 /// deferred behind pending uploads (<c>llappearancemgr.cpp:3849</c>) and can arrive minutes later carrying a

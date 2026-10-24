@@ -6,6 +6,8 @@
  * BSD licence in the project root are met.
  */
 
+using NUnit.Framework;
+
 using OpenMetaverse;
 
 using OpenSim.Services.HypergridService;

@@ -254,7 +254,7 @@ public class GridService : GridServiceBase, IGridService
         RegionData region = null;
         if(rdatas.Count > 1)
         {
-            m_log.LogWarning("{0} Register region overlaps with {1} regions", LogHeader, scopeID, rdatas.Count);
+            m_log.LogWarning("{0} Register region {1} overlaps with {2} regions", LogHeader, scopeID, rdatas.Count);
             return reason;
         }
         else if(rdatas.Count == 1)
@@ -350,6 +350,13 @@ public class GridService : GridServiceBase, IGridService
         // Everything is ok, let's register
         RegionData rdata = RegionInfo2RegionData(regionInfos);
         rdata.ScopeID = scopeID;
+
+        // A region that no longer registers a local address clears the one stored for it. The key is only
+        // written when the stored row has a value, so a database without the column is never asked for it.
+        if (region != null && !rdata.Data.ContainsKey("viewerLocalAddress")
+            && region.Data.TryGetValue("viewerLocalAddress", out object storedLocalAddress)
+            && !string.IsNullOrEmpty(storedLocalAddress?.ToString()))
+            rdata.Data["viewerLocalAddress"] = string.Empty;
 
         int regionFlags = 0;
         if (region != null)

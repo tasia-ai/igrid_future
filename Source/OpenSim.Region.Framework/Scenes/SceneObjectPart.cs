@@ -176,8 +176,10 @@ public class SceneObjectPart : EntityBase, IDisposable
     /// records the state explicitly, so a target at a zero offset can be active.
     /// </summary>
     /// <remarks>
-    /// The XML serializer keeps it (crossings, take and rez, archives). The region stores do not save it yet: an
-    /// object loaded from the region database has the state derived from its offset and rotation.
+    /// The XML serializer keeps it (crossings, take and rez, archives), and the region stores keep it in the prims
+    /// column SitTargetActive. Both save it only when SitTargetActiveIsExplicit; otherwise a loaded object has the
+    /// state derived from its offset and rotation.
+
     /// </remarks>
     [XmlIgnore]
     public bool SitTargetActive
@@ -188,10 +190,12 @@ public class SceneObjectPart : EntityBase, IDisposable
 
     /// <summary>
     /// True when SitTargetActive was set explicitly to a state the offset and rotation alone would not give
-    /// (an active target at a zero offset and identity rotation). Only then does the serializer write it.
+    /// (an active target at a zero offset and identity rotation). Only then do the serializer and the region stores
+    /// write it.
     /// </summary>
     [XmlIgnore]
-    internal bool SitTargetActiveIsExplicit
+    public bool SitTargetActiveIsExplicit
+
     {
         get
         {
@@ -331,6 +335,14 @@ public class SceneObjectPart : EntityBase, IDisposable
     protected Quaternion m_APIDTarget = Quaternion.Identity;
     protected float m_APIDDamp = 0;
     protected float m_APIDStrength = 0;
+
+    // When the physics scene has a rotation target (PhysicsScene.SupportsRotationTarget), the root actor that was last
+    // given one and what it was given. The target is the actor's; core's own look-at controller does not run for it.
+    private readonly object m_rotTargetLock = new();
+    private PhysicsActor m_rotTargetActor;
+    private Quaternion m_rotTargetGiven;
+    private float m_rotTargetStrength;
+    private float m_rotTargetDamping;
 
     /// <summary>
     /// This part's inventory
@@ -750,6 +762,21 @@ public class SceneObjectPart : EntityBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// The targets a crossing carried into this region in the saved object, until the new actor takes them up; null the rest
+    /// of the time. Only the root part holds it.
+    /// </summary>
+    public CrossingTargets CrossingTargets { get; set; }
+
+    /// <summary>The look-at a script has running on this root part (llRotLookAt), if any.</summary>
+    public bool TryGetLookAt(out Quaternion target, out float strength, out float damping)
+    {
+        target = m_APIDTarget;
+        strength = m_APIDStrength;
+        damping = m_APIDDamp;
+        return m_APIDActive;
+    }
+
     protected bool APIDActive
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1050,12 +1077,22 @@ public class SceneObjectPart : EntityBase, IDisposable
     /// <summary>Update angular velocity and schedule terse update.</summary>
     public void UpdateAngularVelocity(Vector3 avel)
     {
+        if (ParentGroup.RecordScriptOmega(this, avel))
+            return; // a rotate-drag owns the spin; it is applied again when the drag ends
+
         if(m_angularVelocity.NotEqual(avel))
-        {
-            AngularVelocity = avel;
-            ScheduleTerseUpdate();
-            ParentGroup.HasGroupChanged = true;
-        }
+            ApplyAngularVelocity(avel);
+    }
+
+    /// <summary>
+    /// Write the angular velocity to the actor whatever the part's own copy holds, and schedule a terse update.
+    /// The copy is refreshed from the actor only when it is read, so it can equal a value the actor no longer has.
+    /// </summary>
+    internal void ApplyAngularVelocity(Vector3 avel)
+    {
+        AngularVelocity = avel;
+        ScheduleTerseUpdate();
+        ParentGroup.HasGroupChanged = true;
     }
 
     /// <summary>Get or set angular velocity. Does not schedule update.</summary>
@@ -1410,7 +1447,7 @@ public class SceneObjectPart : EntityBase, IDisposable
     }
 
     /// <summary>
-    /// PHLOX-7b. The two SIT_FLAG_* bits the sit path cannot act on yet - SIT_FLAG_NO_COLLIDE (0x10) and
+    /// The two SIT_FLAG_* bits the sit path cannot act on yet - SIT_FLAG_NO_COLLIDE (0x10) and
     /// SIT_FLAG_NO_DAMAGE (0x20) - stored so llGetLinkSitFlags reads back what llSetLinkSitFlags set.
     /// ALLOW_UNSIT and SCRIPTED_ONLY live in AllowUnsit / ScriptedSitOnly, which ScenePresence honours;
     /// SIT_TARGET is read-only, derived from IsSitTargetSet. Not persisted, like its siblings.
@@ -1712,10 +1749,8 @@ public class SceneObjectPart : EntityBase, IDisposable
                 }
                 if (ParentGroup.IsAttachment)
                 {
-                    ScenePresence avatar = m_scene.GetScenePresence(ParentGroup.AttachedAvatar);
-                    PhysicsActor pa = avatar?.PhysicsActor;
-                    if (pa != null)
-                        pa.Buoyancy = value;
+                    // A part's own m_scene is never set; the group's is. The wearer's presence takes the value.
+                    ParentGroup.SetWearerBuoyancy(value);
                 }
                 else if (PhysActor != null)
                     PhysActor.Buoyancy = value;
@@ -1854,8 +1889,13 @@ public class SceneObjectPart : EntityBase, IDisposable
                 return 0;
 
             float cost;
-            if (PhysActor != null)
-                cost = PhysActor.PhysicsCost;
+            PhysicsActor pa = PhysActor;
+            if (pa != null)
+            {
+                cost = pa.PhysicsCost;
+                if (pa.PhysicsCostIsShapeCount)
+                    return cost;    // the engine's count of collision shapes, as it is
+            }
             else
                 cost = 0.1f;
 
@@ -2059,7 +2099,7 @@ public class SceneObjectPart : EntityBase, IDisposable
     }
 
     /// <summary>
-    /// PROPS-1. Push full ObjectProperties to everyone in the region.
+    /// Push full ObjectProperties to everyone in the region.
     ///
     /// <para>
     /// The touch and sit labels a viewer shows in its context menu come from the FULL
@@ -2284,7 +2324,7 @@ public class SceneObjectPart : EntityBase, IDisposable
         if (localGlobalTF)
             torque *= GetWorldRotation();
 
-        Torque = torque;
+        SetTorque(torque, localGlobalTF);
     }
 
     /// <summary>
@@ -2414,6 +2454,10 @@ public class SceneObjectPart : EntityBase, IDisposable
 
         dupe.m_sittingAvatars = new HashSet<ScenePresence>();
         dupe.SitTargetAvatar = UUID.Zero;
+
+        // MemberwiseClone shares the vehicle record; the copy gets its own (VehicleData holds only values)
+        if (m_vehicleParams != null)
+            dupe.m_vehicleParams = new SOPVehicle { vd = m_vehicleParams.vd };
         // safeguard  actual copy is done in sog.copy
         dupe.KeyframeMotion = null;
         dupe.PayPrice = (int[])PayPrice.Clone();
@@ -2483,8 +2527,16 @@ public class SceneObjectPart : EntityBase, IDisposable
                         pa.IsPhysical = UsePhysics;
                         pa.OnRequestTerseUpdate -= PhysicsRequestingTerseUpdate;
                         pa.OnOutOfBounds -= PhysicsOutOfBounds;
+                        pa.OnComplexityError -= PhysicsComplexityError;
                         pa.delink();
                     }
+                }
+
+                if (UsePhysics)
+                {
+                    // before the actor is made physical: an engine that limits complexity says so as it is
+                    pa.OnComplexityError -= PhysicsComplexityError;
+                    pa.OnComplexityError += PhysicsComplexityError;
                 }
 
                 if (pa.IsPhysical != UsePhysics)
@@ -2547,7 +2599,8 @@ public class SceneObjectPart : EntityBase, IDisposable
         if (ParentGroup.IsDeleted)
             return false;
 
-        return ParentGroup.RootPart.DIE_AT_EDGE;
+        // an object rezzed by a script reports TRUE while ScriptRezzedObjectsDieAtEdge has marked it (llSetStatus)
+        return ParentGroup.RootPart.DIE_AT_EDGE || ParentGroup.DieAtVoidEdge;
     }
 
     public bool GetReturnAtEdge()
@@ -2719,9 +2772,9 @@ public class SceneObjectPart : EntityBase, IDisposable
     /// <param name="height">Height to hover.  Height of zero disables hover.</param>
     /// <param name="hoverType">Determines what the height is relative to </param>
     /// <param name="tau">Number of seconds over which to reach target</param>
-    public void SetHoverHeight(float height, PIDHoverType hoverType, float tau)
+    public void SetHoverHeight(float height, PIDHoverType hoverType, float tau, bool repel = false)
     {
-        ParentGroup.SetHoverHeight(height, hoverType, tau);
+        ParentGroup.SetHoverHeight(height, hoverType, tau, repel);
     }
 
     public void StopHover()
@@ -3114,8 +3167,19 @@ public class SceneObjectPart : EntityBase, IDisposable
             "[SCENE OBJECT PART]: Physical object {0}, localID {1} went out of bounds at {2} in {3}.  Stopping at {4} and making non-physical.",
             Name, LocalId, pos, ParentGroup.Scene.Name, AbsolutePosition);
 
-        RemFlag(PrimFlags.Physics);
-        DoPhysicsPropertyUpdate(false, true);
+        // The whole object, as llSetStatus(STATUS_PHYSICS, FALSE) does: every part's flag, the region's
+        // physical-prim count, and the parts' actor events
+        ParentGroup.ScriptSetPhysicsStatus(false);
+    }
+
+    /// <summary>
+    /// The physics engine says the object is over its limit on how complex a physical object may be. The owner is told
+    /// and the object is made non-physical, as for <see cref="PhysicsOutOfBounds"/> (only the root part's actor is
+    /// listened to). <paramref name="detail"/> is what the engine counted, for example "(300 of 256 convex hulls)".
+    /// </summary>
+    public void PhysicsComplexityError(string detail)
+    {
+        ParentGroup?.PhysicsTooComplex(detail);
     }
 
     public void PhysicsRequestingTerseUpdate()
@@ -3320,8 +3384,12 @@ public class SceneObjectPart : EntityBase, IDisposable
         if (ParentGroup.RootPart != this && ParentGroup.UsesPhysics)
             ParentGroup.StopLookAt();
 
-        // just in case do this always
-        if (APIDActive)
+        // just in case do this always, but a rotate-drag owns the spin: the look-at is only switched off
+        bool spinning = ParentGroup.IsSpinning;
+
+        // a target the actor holds is switched off, which stops the turn; a rotate-drag's target stays
+        bool switchedOff = !spinning && ReleaseRotationTarget();
+        if (APIDActive && !spinning && !switchedOff)
             AngularVelocity = Vector3.Zero;
 
         APIDActive = false;
@@ -3718,6 +3786,8 @@ public class SceneObjectPart : EntityBase, IDisposable
             return;
 
         ParentGroup.RootPart.DIE_AT_EDGE = p;
+        if (!p)
+            ParentGroup.DieAtVoidEdge = false;
     }
 
     public void SetFloatOnWater(int floatYN)
@@ -3731,6 +3801,36 @@ public class SceneObjectPart : EntityBase, IDisposable
     public void SetForce(Vector3 force)
     {
         Force = force;
+    }
+
+    /// <summary>
+    /// llSetForce on the object: <paramref name="force"/> in region axes (a local force already turned by the caller), and
+    /// whether the script gave it as local. It is stored for llGetForce and handed to the physics actor, which may follow
+    /// the object's rotation with a local one (PhysicsActor.SetScriptForce).
+    /// </summary>
+    public void SetForce(Vector3 force, bool local)
+    {
+        if (ParentGroup != null && ParentGroup.RootPart != null && ParentGroup.RootPart != this)
+        {
+            ParentGroup.RootPart.SetForce(force, local);
+            return;
+        }
+        m_force = force;
+        PhysActor?.SetScriptForce(force, local);
+    }
+
+    /// <summary>
+    /// llSetTorque on the object, as <see cref="SetForce(Vector3, bool)"/> is for a force.
+    /// </summary>
+    public void SetTorque(Vector3 torque, bool local)
+    {
+        if (ParentGroup != null && ParentGroup.RootPart != null && ParentGroup.RootPart != this)
+        {
+            ParentGroup.RootPart.SetTorque(torque, local);
+            return;
+        }
+        m_torque = torque;
+        PhysActor?.SetScriptTorque(torque, local);
     }
 
     public PhysicsInertiaData PhysicsInertia
@@ -3780,15 +3880,34 @@ public class SceneObjectPart : EntityBase, IDisposable
         if (type == (int)Vehicle.TYPE_NONE)
         {
             if (_parentID == 0 && PhysActor != null)
+            {
                 PhysActor.VehicleType = (int)Vehicle.TYPE_NONE;
+                StopTargetsForVehicleType();
+            }
             return;
         }
         m_vehicleParams = new SOPVehicle();
         m_vehicleParams.ProcessTypeChange((Vehicle)type);
         {
             if (_parentID == 0 && PhysActor != null)
+            {
                 PhysActor.VehicleType = type;
+                StopTargetsForVehicleType();
+            }
             return;
+        }
+    }
+
+    /// <summary>
+    /// An engine that follows InWorldz (<see cref="PhysicsActor.VehicleTypeStopsTargets"/>) ends the object's llRotLookAt
+    /// and llMoveToTarget when a script sets its vehicle type, whatever the type.
+    /// </summary>
+    private void StopTargetsForVehicleType()
+    {
+        if (PhysActor is { VehicleTypeStopsTargets: true } && ParentGroup is not null)
+        {
+            ParentGroup.StopMoveToTarget();
+            ParentGroup.StopLookAt();
         }
     }
 
@@ -4984,6 +5103,14 @@ public class SceneObjectPart : EntityBase, IDisposable
             // we are going to tell rest of code about physics so better have this here
             PhysActor = pa;
 
+            // A motion that is already running has not told this new actor yet (the object's physics was rebuilt).
+            if (isroot)
+                KeyframeMotion?.UpdatePhysicsHint();
+
+            // A crossing may have brought the script's move-to, hover and look-at with the object: the new actor takes them up.
+            if (isroot && isPhysical)
+                ParentGroup.TakeUpCrossingTargets();
+
             //                DoPhysicsPropertyUpdate(isPhysical, true);
             // lets expand it here just with what it really needs to do
 
@@ -4995,6 +5122,7 @@ public class SceneObjectPart : EntityBase, IDisposable
 
                 pa.OnRequestTerseUpdate += PhysicsRequestingTerseUpdate;
                 pa.OnOutOfBounds += PhysicsOutOfBounds;
+                pa.OnComplexityError += PhysicsComplexityError;
 
                 if (_parentID != 0 && _parentID != LocalId)
                 {
@@ -5045,6 +5173,7 @@ public class SceneObjectPart : EntityBase, IDisposable
             pa.OnCollisionUpdate -= PhysicsCollision;
             pa.OnRequestTerseUpdate -= PhysicsRequestingTerseUpdate;
             pa.OnOutOfBounds -= PhysicsOutOfBounds;
+            pa.OnComplexityError -= PhysicsComplexityError;
 
             ParentGroup.Scene.PhysicsScene.RemovePrim(pa);
 
@@ -5530,6 +5659,38 @@ public class SceneObjectPart : EntityBase, IDisposable
     {
         try
         {
+            // Whether the physics engine turns the root toward a rotation target itself, asked at most once per frame
+            // and only when there is something to turn toward.
+            bool? engineHasTarget = null;
+            bool EngineHasTarget() => engineHasTarget ??= ParentGroup.Scene?.PhysicsScene?.SupportsRotationTarget() == true;
+
+            // A rotate-drag holds the root's angular target: the viewer's rotation, with the look-at a script
+            // set kept (APIDTarget, APIDStrength) and used again when the drag ends.
+            if (ParentGroup.TryGetSpinTarget(out Quaternion dragTarget))
+            {
+                PhysicsActor root = ParentGroup.RootPart.PhysActor;
+                if (root is not null && root.IsPhysical)
+                {
+                    Quaternion current = GetWorldRotation();
+
+                    // q and -q are one rotation: aim at the one that is the short way round
+                    if (Quaternion.Dot(current, dragTarget) < 0f)
+                        dragTarget = new Quaternion(-dragTarget.X, -dragTarget.Y, -dragTarget.Z, -dragTarget.W);
+
+                    if (EngineHasTarget())
+                    {
+                        GiveRotationTarget(root, dragTarget, SceneObjectGroup.SpinTargetSeconds, SceneObjectGroup.SpinTargetSeconds);
+                        ParentGroup.QueueForUpdateCheck(); // the next frame sees a replaced actor
+                    }
+                    else
+                        SteerToward(dragTarget, SceneObjectGroup.SpinStrength);
+
+                    return;
+                }
+
+                ParentGroup.EndSpin(); // no body to turn any more
+            }
+
             if (APIDActive)
             {
                 PhysicsActor pa = ParentGroup.RootPart.PhysActor;
@@ -5539,32 +5700,124 @@ public class SceneObjectPart : EntityBase, IDisposable
                     return;
                 }
 
-                Quaternion currRot = GetWorldRotation();
-                currRot.Normalize();
+                if (EngineHasTarget())
+                {
+                    // a request the engine cannot use is a look-at that ends, as one that is too weak does
+                    if (!IsFiniteRotationRequest(APIDTarget, APIDStrength, APIDDamp))
+                    {
+                        StopLookAt();
+                        return;
+                    }
 
-                // difference between current orientation and desired orientation
-                Quaternion dR = currRot / APIDTarget;
-
-                // find axis and angle of rotation to rotate to desired orientation
-                dR.GetAxisAngle(out Vector3 axis, out float angle);
-                axis *= currRot;
-
-                // clamp strength to avoid overshoot
-                float strength = 1.0f / APIDStrength;
-                if (strength > 1.0) strength = 1.0f;
-
-                // set angular velocity to rotate to desired orientation
-                // with velocity proportional to strength and angle
-                AngularVelocity = axis * angle * strength * (float)Math.PI;
-
-                // This ensures that we'll check this object on the next iteration
-                ParentGroup.QueueForUpdateCheck();
+                    GiveRotationTarget(pa, APIDTarget, APIDStrength, APIDDamp);
+                    ParentGroup.QueueForUpdateCheck();
+                }
+                else
+                    SteerToward(APIDTarget, APIDStrength);
             }
         }
         catch (Exception ex)
         {
             m_log.LogError("[Physics] " + ex);
         }
+    }
+
+    private static bool IsFiniteRotationRequest(Quaternion target, float strength, float damping)
+        => float.IsFinite(target.X) && float.IsFinite(target.Y) && float.IsFinite(target.Z) && float.IsFinite(target.W)
+            && float.IsFinite(strength) && float.IsFinite(damping);
+
+    /// <summary>
+    /// Whether the root's actor holds a rotation target that core gave it.
+    /// </summary>
+    internal bool HasGivenRotationTarget
+    {
+        get { lock (m_rotTargetLock) return m_rotTargetActor is not null; }
+    }
+
+    /// <summary>
+    /// Give the root actor a rotation target to turn toward: the target, strength and damping, then the switch. An actor
+    /// that has the target already is given only what changed, and one that replaced it is given the whole.
+    /// </summary>
+    private void GiveRotationTarget(PhysicsActor pa, Quaternion target, float strength, float damping)
+    {
+        lock (m_rotTargetLock)
+        {
+            if (!ReferenceEquals(m_rotTargetActor, pa))
+            {
+                pa.APIDTarget = target;
+                pa.APIDStrength = strength;
+                pa.APIDDamping = damping;
+                pa.APIDActive = true;
+                m_rotTargetActor = pa;
+                m_rotTargetGiven = target;
+                m_rotTargetStrength = strength;
+                m_rotTargetDamping = damping;
+                return;
+            }
+
+            if (m_rotTargetGiven.X != target.X || m_rotTargetGiven.Y != target.Y || m_rotTargetGiven.Z != target.Z || m_rotTargetGiven.W != target.W)
+            {
+                pa.APIDTarget = target;
+                m_rotTargetGiven = target;
+            }
+
+            if (m_rotTargetStrength != strength)
+            {
+                pa.APIDStrength = strength;
+                m_rotTargetStrength = strength;
+            }
+
+            if (m_rotTargetDamping != damping)
+            {
+                pa.APIDDamping = damping;
+                m_rotTargetDamping = damping;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Switch off the rotation target core gave the root actor, which stops the turn.
+    /// </summary>
+    /// <returns>true if there was one</returns>
+    internal bool ReleaseRotationTarget()
+    {
+        lock (m_rotTargetLock)
+        {
+            PhysicsActor pa = m_rotTargetActor;
+            if (pa is null)
+                return false;
+
+            m_rotTargetActor = null;
+            pa.APIDActive = false;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Set the root's angular velocity to turn it toward a rotation, in proportion to the angle left to turn.
+    /// </summary>
+    private void SteerToward(Quaternion target, float lookAtStrength)
+    {
+        Quaternion currRot = GetWorldRotation();
+        currRot.Normalize();
+
+        // difference between current orientation and desired orientation
+        Quaternion dR = currRot / target;
+
+        // find axis and angle of rotation to rotate to desired orientation
+        dR.GetAxisAngle(out Vector3 axis, out float angle);
+        axis *= currRot;
+
+        // clamp strength to avoid overshoot
+        float strength = 1.0f / lookAtStrength;
+        if (strength > 1.0) strength = 1.0f;
+
+        // set angular velocity to rotate to desired orientation
+        // with velocity proportional to strength and angle
+        AngularVelocity = axis * angle * strength * (float)Math.PI;
+
+        // This ensures that we'll check this object on the next iteration
+        ParentGroup.QueueForUpdateCheck();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

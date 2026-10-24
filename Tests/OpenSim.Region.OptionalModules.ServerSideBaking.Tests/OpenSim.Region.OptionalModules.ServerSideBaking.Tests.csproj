@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- S1: Tests/OpenSim.Region.OptionalModules.Tests has no project file and is not in the solution (T-1), so the
-       ServerSideBaking seam tests live in their own project. No SceneHelpers: the seams take fakes. -->
+  <!-- Tests/OpenSim.Region.OptionalModules.Tests has no project file and is not in the solution, so the
+       ServerSideBaking seam tests live in their own project. The seams take fakes; SceneHelpers is used only
+       where a test needs a real ScenePresence and its close path. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>disable</Nullable>
@@ -14,9 +15,9 @@
 
   <ItemGroup>
     <!-- Same xunit stack as Tests/OpenSim.Tests.Common. -->
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -25,16 +26,18 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Source\OpenSim.Framework\OpenSim.Framework.csproj" />
     <ProjectReference Include="..\..\Source\OpenSim.Services.Interfaces\OpenSim.Services.Interfaces.csproj" />
-    <!-- S3 Part 0: the Q-14 tests exercise the real AvatarService over an in-memory row table. -->
+    <!-- The bake-index tests exercise the real AvatarService over an in-memory row table. -->
     <ProjectReference Include="..\..\Source\OpenSim.Services.AvatarService\OpenSim.Services.AvatarService.csproj" />
-    <!-- S4: the appearance service and the login-response advertisement. -->
+    <!-- The appearance service and the login-response advertisement. -->
     <ProjectReference Include="..\..\Source\OpenSim.Services.LLLoginService\OpenSim.Services.LLLoginService.csproj" />
     <ProjectReference Include="..\..\Source\OpenSim.Server.Handlers\OpenSim.Server.Handlers.csproj" />
     <ProjectReference Include="..\..\Source\OpenSim.Data\OpenSim.Data.csproj" />
-    <!-- S3 Part 1: the cof_version identity proof compares the number AIS reports with the number the bake reads. -->
+    <!-- The cof_version identity proof compares the number AIS reports with the number the bake reads. -->
     <ProjectReference Include="..\..\Source\OpenSim.Region.ClientStack.LindenCaps\OpenSim.Region.ClientStack.LindenCaps.csproj" />
     <ProjectReference Include="..\..\Source\OpenSim.Region.OptionalModules\OpenSim.Region.OptionalModules.csproj" />
     <ProjectReference Include="..\..\Source\OpenSimNGC.Appearance.Baking\OpenSimNGC.Appearance.Baking.csproj" />
+    <!-- A real ScenePresence and Scene.RemoveClient, for the bake that outlives its presence. -->
+    <ProjectReference Include="..\OpenSim.Tests.Common\OpenSim.Tests.Common.csproj" />
   </ItemGroup>
 
 </Project>

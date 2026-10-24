@@ -129,6 +129,8 @@ public class OpenSimBase : RegionApplicationBase, IOpenSimBase
 
     private bool m_securePermissionsLoading = true;
 
+    private TimerResolution m_timerResolution;
+
     /// <value>
     /// The config information passed into the OpenSimulator region server.
     /// </value>
@@ -203,6 +205,21 @@ public class OpenSimBase : RegionApplicationBase, IOpenSimBase
     /// </summary>
     protected override void StartupSpecific()
     {
+        try
+        {
+            StartupSpecificCore();
+        }
+        catch
+        {
+            // A start that fails after [Startup] TimerResolutionMs was applied gives the timer back.
+            m_timerResolution?.Dispose();
+            m_timerResolution = null;
+            throw;
+        }
+    }
+
+    private void StartupSpecificCore()
+    {
         IConfig startupConfig = Config.Configs["Startup"];
         if (startupConfig != null)
         {
@@ -220,6 +237,9 @@ public class OpenSimBase : RegionApplicationBase, IOpenSimBase
             userStatsURI = startupConfig.GetString("Stats_URI", string.Empty);
 
             m_securePermissionsLoading = startupConfig.GetBoolean("SecurePermissionsLoading", true);
+
+            // Empty or 0 (the default) leaves the Windows timer alone; see TimerResolution.
+            m_timerResolution = TimerResolution.Apply(startupConfig.GetString("TimerResolutionMs", "0"));
 
             string permissionModules = Util.GetConfigVarFromSections<string>(Config, "permissionmodules",
                 new string[] { "Startup", "Permissions" }, "DefaultPermissionsModule");
@@ -478,6 +498,12 @@ public class OpenSimBase : RegionApplicationBase, IOpenSimBase
         {
             scene.SnmpService.BootInfo("Grid Registration in progress", scene);
         }
+
+        // The address viewers on a local network use to reach this region is registered with the grid, so
+        // that regions on other machines can hand it out. Nothing is registered unless LocalAddress is set.
+        IConfig viewerAddressSection = Config.Configs[ViewerAddressConfig.SectionName];
+        ViewerAddressConfig.ApplyRegionLocalAddress(viewerAddressSection, regionInfo, m_log);
+        ReportViewerAddressSection(viewerAddressSection, regionInfo);
 
         try
         {
@@ -752,6 +778,20 @@ public class OpenSimBase : RegionApplicationBase, IOpenSimBase
     }
 
     /// <summary>
+    /// Logs once per server start that [ViewerAddress] is in use, when any of its keys is set.
+    /// </summary>
+    private void ReportViewerAddressSection(IConfig section, RegionInfo regionInfo)
+    {
+        ViewerAddressConfig config = ViewerAddressConfig.FromConfig(section, null);
+        if (config.SetKeys.Count == 0)
+            return;
+
+        ViewerAddressSelector selector = ViewerAddressSelector.Create(config, m_log);
+        ViewerAddressStartupLog.Shared.ReportOnce(m_log, config, selector)
+            .ContinueWith(_ => selector.Dispose());
+    }
+
+    /// <summary>
     /// Create a scene and its initial base structures.
     /// </summary>
     /// <param name="regionInfo"></param>
@@ -971,6 +1011,9 @@ public class OpenSimBase : RegionApplicationBase, IOpenSimBase
         {
             m_log.LogError(e, "[SHUTDOWN]: Ignoring failure during shutdown - ");
         }
+
+        m_timerResolution?.Dispose();
+        m_timerResolution = null;
 
         base.ShutdownSpecific();
     }

@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Threading;
 using OpenMetaverse;
@@ -32,7 +39,7 @@ namespace OpenSim.Region.ClientStack.LindenCaps.AIS;
 ///
 /// <para><b>What this is not.</b> It is the single-process answer. It cannot order a mutation in this simulator
 /// against one in another simulator or in Robust, because there is no shared lock and
-/// <c>IInventoryService</c> offers no transaction and no batch write (tree state T5, Ledger A-R2/A-Q10). Phase 2,
+/// <c>IInventoryService</c> offers no transaction and no batch write. Phase 2,
 /// which hosts these routes on Robust, needs a real inventory transaction — a service-side operation that
 /// replaces a folder's links in one call — and until that exists the cross-process window stands. Saying so here
 /// because a lock is exactly the kind of thing that gets mistaken for a full fix.</para>

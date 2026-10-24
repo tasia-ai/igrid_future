@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +19,7 @@ using OpenSim.Tests.Common;
 namespace OpenSim.Region.ClientStack.LindenCaps.AIS.Tests;
 
 /// <summary>
-/// S9. Editing a worn wearable — open it, change a colour, Save — changed the asset and produced no rebake.
+/// Editing a worn wearable — open it, change a colour, Save — changed the asset and produced no rebake.
 ///
 /// <para><b>Why nothing fired.</b> Three signals could have told the region, and none did. The worn SET does not
 /// move, because the viewer keeps the item id when it saves (<c>llagentwearables.cpp:319</c>,

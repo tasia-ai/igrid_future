@@ -119,6 +119,7 @@
         <RegionModule id="MoapModule" class="OpenSim.Region.CoreModules.World.Media.Moap.MoapModule" />
         <RegionModule id="BuySellModule" class="OpenSim.Region.CoreModules.World.Objects.BuySell.BuySellModule" />
         <RegionModule id="ObjectCommandsModule" class="OpenSim.Region.CoreModules.World.Objects.Commands.ObjectCommandsModule" />
+        <RegionModule id="BlockedOwnerModule" class="OpenSim.Region.CoreModules.World.Objects.BlockedOwners.BlockedOwnerModule" />
 	    <RegionModule id="DefaultPermissionsModule" class="OpenSim.Region.CoreModules.World.Permissions.DefaultPermissionsModule" />  
         <RegionModule id="RegionCommandsModule" class="OpenSim.Region.CoreModules.World.Objects.Commands.RegionCommandsModule" />
         <RegionModule id="RestartModule" class="OpenSim.Region.CoreModules.World.Region.RestartModule" />
@@ -138,6 +139,7 @@
 	<Extension path = "/OpenSim/WindModule">    
         <WindModel id="ConfigurableWind" class="OpenSim.Region.CoreModules.World.Wind.Plugins.ConfigurableWind" />  
         <WindModel id="SimpleRandomWind" class="OpenSim.Region.CoreModules.World.Wind.Plugins.SimpleRandomWind" />
+        <WindModel id="ZephyrWind" class="OpenSim.Region.CoreModules.World.Wind.Plugins.ZephyrWind" />
     </Extension>
 
 </Addin>

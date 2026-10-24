@@ -458,21 +458,28 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
 
         Scene scene = m_part.ParentGroup.Scene;
 
+        // Offer carried state before choosing the parcel policy, but keep the object's copy if starting is denied.
+        UUID restoredStateID = item.OldItemID;
+        if (m_part.ParentGroup.m_savedScriptState != null)
+            restoredStateID = RestoreSavedScriptState(item.LoadedItemID, item.OldItemID, item.ItemID);
+
         // Only when a loaded engine enforces the parcel script rules itself do we need to know which engine will
         // run this script, and for that the script's first line. Otherwise this is the same check as before.
         bool engineEnforcesParcelRules = false;
+        IScriptModule selectedEngine = null;
         AssetBase asset = null;
         string script = null;
         if (scene.AnyScriptEngineEnforcesParcelRules())
         {
-            // a trusted-binaries crossing hands the engines no source, so they use the default engine
+            // A trusted-binaries crossing has no header to inspect, but saved state still selects the engine.
             if (!(stateSource == 2 && scene.m_trustBinaries))
             {
                 asset = scene.AssetService.Get(item.AssetID.ToString());
                 if (asset is not null)
                     script = Utils.BytesToString(asset.Data);
             }
-            engineEnforcesParcelRules = scene.ResolveScriptEngine(engine, script) is IParcelScriptPolicyEngine policy
+            selectedEngine = scene.ResolveScriptEngine(engine, script, item);
+            engineEnforcesParcelRules = selectedEngine is IParcelScriptPolicyEngine policy
                     && policy.EnforcesParcelScriptRules;
         }
 
@@ -506,11 +513,15 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
         if (stateSource == 2 && m_part.ParentGroup.Scene.m_trustBinaries)
         {
             // Prim crossing
+            m_part.ParentGroup.m_savedScriptState?.Remove(restoredStateID);
             m_items.LockItemsForWrite(true);
+            it.OldItemID = restoredStateID;
             it.PermsMask = 0;
             it.PermsGranter = UUID.Zero;
             m_items.LockItemsForWrite(false);
 
+            selectedEngine ??= scene.ResolveScriptEngine(engine, String.Empty, item);
+            engine = selectedEngine?.ScriptEngineName ?? engine;
             m_part.ParentGroup.Scene.EventManager.TriggerRezScript(
                 m_part.LocalId, itemID, String.Empty, startParam, postOnRez, engine, stateSource);
             StoreScriptErrors(itemID, null);
@@ -531,9 +542,8 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
             return false;
         }
 
-        if (m_part.ParentGroup.m_savedScriptState != null)
-            item.OldItemID = RestoreSavedScriptState(item.LoadedItemID, item.OldItemID, itemID);
-
+        m_part.ParentGroup.m_savedScriptState?.Remove(restoredStateID);
+        item.OldItemID = restoredStateID;
         m_items.LockItemsForWrite(true);
         it.OldItemID = item.OldItemID;
         it.PermsMask = 0;
@@ -541,6 +551,9 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
         m_items.LockItemsForWrite(false);
 
         script ??= Utils.BytesToString(asset.Data);
+        // Resolve once: an engine may consume carried state as soon as its rez callback runs.
+        selectedEngine ??= scene.ResolveScriptEngine(engine, script, item);
+        engine = selectedEngine?.ScriptEngineName ?? engine;
         m_part.ParentGroup.Scene.EventManager.TriggerRezScript(
             m_part.LocalId, itemID, script, startParam, postOnRez, engine, stateSource);
         StoreScriptErrors(itemID, null);
@@ -576,6 +589,7 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
                     "[PRIM INVENTORY]: Ignoring unreadable saved script state for item {0} in part {1} of {2}: {3}",
                     newID, m_part.Name, m_part.ParentGroup.Name, e.Message);
                 m_part.ParentGroup.m_savedScriptState.Remove(stateID);
+
                 return stateID;
             }
 
@@ -622,7 +636,6 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
                 }
             }
 
-            m_part.ParentGroup.m_savedScriptState.Remove(stateID);
         }
 
         return stateID;
@@ -877,6 +890,7 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
         bool removeControl = ((permissions & 4) != 0); //takecontrol
         List<UUID> grants = new List<UUID>();
         List<UUID> items = new List<UUID>();
+        List<(UUID item, UUID granter, int removed)> removedGrants = new();
 
         permissions = ~permissions;
         foreach (TaskInventoryItem item in m_scripts.Values)
@@ -888,10 +902,13 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
                 grants.Add(curGrant);
                 items.Add(item.ItemID);
             }
+            int oldmask = curmask;
             curmask &= permissions;
             item.PermsMask = curmask;
             if(curmask == 0)
                 item.PermsGranter = UUID.Zero;
+            if (curmask != oldmask)
+                removedGrants.Add((item.ItemID, curGrant, oldmask & ~curmask));
         }
         m_items.LockItemsForWrite(false);
 
@@ -904,6 +921,8 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
                     presence.UnRegisterControlEventsToScript(m_part.LocalId, items[i]);
             }
         }
+
+        TriggerScriptPermissionsRemoved(removedGrants);
     }
 
     public void RemoveScriptsPermissions(ScenePresence sp, int permissions)
@@ -920,6 +939,7 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
         List<UUID> items = new List<UUID>();
 
         permissions = ~permissions;
+        List<(UUID item, UUID granter, int removed)> removedGrants = new();
         foreach (TaskInventoryItem item in m_scripts.Values)
         {
                 if(grant != item.PermsGranter)
@@ -927,10 +947,13 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
                 int curmask = item.PermsMask;
                 if (removeControl && ((curmask & 4) != 0))
                     items.Add(item.ItemID);
+                int oldmask = curmask;
                 curmask &= permissions;
                 item.PermsMask = curmask;
                 if(curmask == 0)
                     item.PermsGranter = UUID.Zero;
+                if (curmask != oldmask)
+                    removedGrants.Add((item.ItemID, grant, oldmask & ~curmask));
         }
         m_items.LockItemsForWrite(false);
 
@@ -942,6 +965,23 @@ public class SceneObjectPartInventory : IEntityInventory , IDisposable
                     sp.UnRegisterControlEventsToScript(m_part.LocalId, items[i]);
             }
         }
+
+        TriggerScriptPermissionsRemoved(removedGrants);
+    }
+
+    /// <summary>
+    /// Tell script engines which items lost which permissions (EventManager.OnScriptPermissionsRemoved). Called with
+    /// the inventory lock released.
+    /// </summary>
+    private void TriggerScriptPermissionsRemoved(List<(UUID item, UUID granter, int removed)> removedGrants)
+    {
+        if (removedGrants.Count == 0)
+            return;
+        EventManager events = m_part.ParentGroup?.Scene?.EventManager;
+        if (events is null)
+            return;
+        foreach ((UUID item, UUID granter, int removed) in removedGrants)
+            events.TriggerScriptPermissionsRemoved(m_part.UUID, item, granter, removed);
     }
 
     /// <summary>

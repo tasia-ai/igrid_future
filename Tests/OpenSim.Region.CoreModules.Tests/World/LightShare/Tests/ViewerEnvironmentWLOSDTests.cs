@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System.Text;
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
@@ -29,7 +36,7 @@ namespace OpenSim.Region.CoreModules.World.LightShare.Tests;
 /// removes the accidental protection the setter was relying on. That is why ENV-1 changes <b>two</b> sites: the
 /// guard here, and a type check at the setter boundary. These tests cover the first; the second is a handler
 /// reachable only through a cap dispatch with a Scene, estate permissions and a ScenePresence, and there is no
-/// harness for it in this project — see the session report.</para>
+/// harness for it in this project.</para>
 ///
 /// <para>The degenerate value used below is the real one: <c>OSDParser.DeserializeLLSDXml</c> returns a bare
 /// <c>OSD</c> with <c>OSDType.Unknown</c> for a truncated body rather than throwing or returning null

@@ -121,6 +121,26 @@ public class JanusMessage
     {
         return m_message.ToString();
     }
+    /// <summary>Top-level request fields that authenticate the sender and so must never reach a log.</summary>
+    private static readonly string[] LogRedactedFields = { "apisecret", "admin_secret" };
+
+    /// <summary>How a request is serialized for a LOG line, as opposed to for the wire. It is the wire
+    /// form with the API secret and the admin secret replaced; PluginMsgReq also hides a join capability.
+    /// Every other field (the transaction and session ids included) is left as it is: those are not
+    /// secrets and are what an operator correlates on.</summary>
+    public virtual string ToJsonForLog()
+    {
+        ToJson();   // a subclass may assemble m_message here (PluginMsgReq adds its body)
+        OSDMap copy = new OSDMap();
+        foreach (KeyValuePair<string, OSD> field in m_message)
+            copy[field.Key] = field.Value;
+        foreach (string secret in LogRedactedFields)
+        {
+            if (copy.TryGetValue(secret, out OSD value) && !string.IsNullOrEmpty(value.AsString()))
+                copy[secret] = "<redacted " + secret + ">";
+        }
+        return copy.ToString();
+    }
     public override string ToString()
     {
         return m_message.ToString();
@@ -141,6 +161,11 @@ public class JanusMessage
         {
             case OSDType.Integer:
                 ret = (long)(pIn as OSDInteger).AsInteger();
+                break;
+            case OSDType.Long:
+                // The JSON parser returns OSDType.Long for any number that does not fit in
+                // an int32, which includes every Janus session and handle id.
+                ret = pIn.AsLong();
                 break;
             case OSDType.Binary:
                 byte[] value = (pIn as OSDBinary).value;
@@ -325,9 +350,10 @@ public class TrickleReq : JanusMessageReq
         };
 
     }
+    // The viewer's candidates, per the Janus trickle API: an array goes as "candidates", a single
+    // candidate object as "candidate". No other members (the old "viewer_session" is not part of the API).
     public TrickleReq(JanusViewerSession pVSession, OSD pCandidates) : base("trickle")
     {
-        m_message["viewer_session"] = pVSession.ViewerSessionID;
         if (pCandidates is OSDArray)
             m_message["candidates"] = pCandidates;
         else
@@ -410,6 +436,18 @@ public class PluginMsgReq : JanusMessageReq
         m_message["body"] = m_body;
         return base.ToJson();
     }
+
+    /// <summary>The log form of the base request (secrets hidden) with the join capability replaced as well, for
+    /// the [JanusWebRtcVoice] MessageDetails debug line, the one place a request body is logged. It replaces the
+    /// exact minted string, so no part of a capability can survive into a log.</summary>
+    public override string ToJsonForLog()
+    {
+        string json = base.ToJsonForLog();
+        if (!m_body.ContainsKey("join_cap"))
+            return json;
+        string capability = m_body["join_cap"].AsString();
+        return string.IsNullOrEmpty(capability) ? json : json.Replace(capability, "<redacted join_cap>");
+    }
 }
 // A plugin response is formatted like:
 //    {
@@ -451,6 +489,13 @@ public class PluginMsgResp : JanusMessageResp
         if (m_data is null)
             return 0;
         return m_data.ContainsKey(pKey) ? (int)OSDToLong(m_data[pKey]) : 0;
+    }
+    // Get a 64-bit value for a key in the response data or zero if not there
+    public long PluginRespDataLong(string pKey)
+    {
+        if (m_data is null)
+            return 0;
+        return m_data.ContainsKey(pKey) ? OSDToLong(m_data[pKey]) : 0;
     }
     // Get a string value for a key in the response data or empty string if not there
     public string PluginRespDataString(string pKey)
@@ -495,7 +540,12 @@ public class AudioBridgeCreateRoomReq : PluginMsgReq
     public AudioBridgeCreateRoomReq(int pRoomId) : this(pRoomId, false, null)
     {
     }
-    public AudioBridgeCreateRoomReq(int pRoomId, bool pSpatial, string pDesc) : base(new OSDMap() {
+    public AudioBridgeCreateRoomReq(int pRoomId, bool pSpatial, string pDesc) : this(pRoomId, pSpatial, pDesc, false)
+    {
+    }
+    /// <param name="pVisAuthority">Declare that a sim authority arms
+    /// this room's listeners, adding "vis_authority": true after every other key. False omits the field.</param>
+    public AudioBridgeCreateRoomReq(int pRoomId, bool pSpatial, string pDesc, bool pVisAuthority) : base(new OSDMap() {
                                             { "room", pRoomId },
                                             { "request", "create" },
                                             { "is_private", false },
@@ -508,16 +558,27 @@ public class AudioBridgeCreateRoomReq : PluginMsgReq
     {
         if (!String.IsNullOrEmpty(pDesc))
             AddStringToBody("description", pDesc);
+        if (pVisAuthority)
+            AddBoolToBody("vis_authority", true);
     }
+
+    /// <summary>Say that the region created this room, spatial or not, so a mixer that requires join capabilities
+    /// also gates the rooms that carry no visibility authority (a call or a conference). Added after every other
+    /// key, and only when the join capability is on, so a create without it is unchanged.</summary>
+    public void SetSimCreated() => AddBoolToBody("sim_created", true);
 }
 // ==============================================================
 public class AudioBridgeDestroyRoomReq : PluginMsgReq
 {
-    public AudioBridgeDestroyRoomReq(int pRoomId) : base(new OSDMap() {
+    public AudioBridgeDestroyRoomReq(int pRoomId) : this(pRoomId, true)
+    {
+    }
+    /// <param name="pPermanent">Also remove the room from the plugin's config file. False for a room made at run time.</param>
+    public AudioBridgeDestroyRoomReq(int pRoomId, bool pPermanent) : base(new OSDMap() {
                                             { "request", "destroy" },
                                             { "room", pRoomId },
-                                            { "permanent", true }
-                                        })  
+                                            { "permanent", pPermanent }
+                                        })
     {
     }
 }
@@ -531,6 +592,17 @@ public class AudioBridgeJoinRoomReq : PluginMsgReq
                                         })
     {
     }
+
+    /// <summary>Carry the region-issued join capability and the viewer session it is bound to. Added after every
+    /// other key, so a join body without a capability is unchanged and an older mixer ignores both keys. Never
+    /// logged.</summary>
+    public void SetJoinCapability(string pCapability, string pViewerSessionId)
+    {
+        if (string.IsNullOrEmpty(pCapability) || string.IsNullOrEmpty(pViewerSessionId))
+            return;
+        AddStringToBody("join_cap", pCapability);
+        AddStringToBody("session_id", pViewerSessionId);
+    }
 }
 // A successful response contains the participant ID and the SDP
 public class AudioBridgeJoinRoomResp : AudioBridgeResp
@@ -538,7 +610,8 @@ public class AudioBridgeJoinRoomResp : AudioBridgeResp
     public AudioBridgeJoinRoomResp(JanusMessageResp pResp) : base(pResp)
     {
     }
-    public int ParticipantId { get { return PluginRespDataInt("id"); } }
+    // Janus assigns a participant a random 64-bit id, so this must not be narrowed to an int.
+    public long ParticipantId { get { return PluginRespDataLong("id"); } }
 }
 // ==============================================================
 public class AudioBridgeConfigRoomReq : PluginMsgReq
@@ -560,7 +633,7 @@ public class AudioBridgeConfigRoomResp : AudioBridgeResp
 // ==============================================================
 public class AudioBridgeLeaveRoomReq : PluginMsgReq
 {
-    public AudioBridgeLeaveRoomReq(int pRoomId, int pAttendeeId) : base(new OSDMap() {
+    public AudioBridgeLeaveRoomReq(int pRoomId, long pAttendeeId) : base(new OSDMap() {
                                             { "request", "leave" },
                                             { "room", pRoomId },
                                             { "id", pAttendeeId }

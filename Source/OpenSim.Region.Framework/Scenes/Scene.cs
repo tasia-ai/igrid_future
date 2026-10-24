@@ -222,6 +222,15 @@ public partial class Scene : SceneBase
     /// </summary>
     public bool AllowAvatarCrossing { get; set; }
 
+    /// <summary>
+    /// [EntityTransfer] EnableStandingRiderCrossing, default false: the whole of the rider crossing feature. On, avatars
+    /// standing on an object are tracked and carried across a border with it, the object and its riders are frozen until
+    /// the crossing is complete, the receiving region holds the object until they have arrived, the sending region hides
+    /// its old copy meanwhile, and the riders' attachment scripts wait with it; the region answers yes to the
+    /// carried-rider and held-crossing questions of its neighbours. Off, an object crosses as it did before.
+    /// </summary>
+    public bool EnableStandingRiderCrossing { get; set; }
+
     /// Max prims an Physical object will hold
     /// </summary>
     ///
@@ -232,6 +241,14 @@ public partial class Scene : SceneBase
     /// do we keep simulating them here?
     /// </summary>
     public bool DisableObjectTransfer { get; set; }
+
+    /// <summary>
+    /// When true, an object rezzed by a script (llRezObject, llRezAtRoot) is deleted, not returned, when it reaches a
+    /// region edge with no neighbouring region (SceneObjectGroup.DieAtVoidEdge), as the llSetStatus documentation
+    /// describes for STATUS_DIE_AT_EDGE. It crosses into a neighbouring region as usual. The script can clear it with
+    /// llSetStatus. Off by default.
+    /// </summary>
+    public bool ScriptRezzedObjectsDieAtEdge { get; set; }
 
     public bool m_useFlySlow;
     public bool m_useTrashOnDelete = true;
@@ -932,6 +949,8 @@ public partial class Scene : SceneBase
 
             StartDisabled = startupConfig.GetBoolean("StartDisabled", false);
 
+            ChildPresenceWait = TimeSpan.FromSeconds(Math.Max(0, startupConfig.GetInt("ChildPresenceWaitSeconds", 30)));
+
             m_defaultDrawDistance = startupConfig.GetFloat("DefaultDrawDistance", m_defaultDrawDistance);
             m_maxDrawDistance = startupConfig.GetFloat("MaxDrawDistance", m_maxDrawDistance);
             m_maxRegionViewDistance = startupConfig.GetFloat("MaxRegionsViewDistance", m_maxRegionViewDistance);
@@ -1120,7 +1139,11 @@ public partial class Scene : SceneBase
         {
             AllowAvatarCrossing = entityTransferConfig.GetBoolean("AllowAvatarCrossing", AllowAvatarCrossing);
             DisableObjectTransfer = entityTransferConfig.GetBoolean("DisableObjectTransfer", false);
+            EnableStandingRiderCrossing = entityTransferConfig.GetBoolean("EnableStandingRiderCrossing", false);
+            ScriptRezzedObjectsDieAtEdge = entityTransferConfig.GetBoolean("ScriptRezzedObjectsDieAtEdge", false);
         }
+
+        m_log.LogInformation($"[SCENE]: {Name}: [EntityTransfer] EnableStandingRiderCrossing is {(EnableStandingRiderCrossing ? "on" : "off")}");
 
         #region Interest Management
 
@@ -1532,12 +1555,18 @@ public partial class Scene : SceneBase
         // Kick all ROOT agents with the message, 'The simulator is going down'
         ForEachScenePresence(delegate(ScenePresence avatar)
         {
+            // Kick waits for the message to go out. The viewer can log out meanwhile, and removing the
+            // presence clears its ControllingClient, so read it once and skip a presence that is gone.
+            IClientAPI client = avatar.ControllingClient;
+            if (client is null)
+                return;
+
             avatar.RemoveNeighbourRegion(RegionInfo.RegionHandle);
 
             if (!avatar.IsChildAgent)
-                avatar.ControllingClient.Kick("The simulator is going down.");
+                client.Kick("The simulator is going down.");
 
-            avatar.ControllingClient.SendShutdownConnectionNotice();
+            client.SendShutdownConnectionNotice();
         });
 
         // Stop updating the scene objects and agents.
@@ -1711,6 +1740,7 @@ public partial class Scene : SceneBase
                 if (Frame % 4 == 0)
                 {
                     CheckTerrainUpdates();
+                    ReleaseExpiredCrossingHolds();
                 }
 
                 if (Frame % m_update_terrain == 0)
@@ -1773,7 +1803,7 @@ public partial class Scene : SceneBase
                 CheckAtTargets();
 
                 // Phlox: fire moving_start/moving_end on general physical movement
-                // (mirrors Legion Grid heartbeat ordering — right after CheckAtTargets).
+                // (right after CheckAtTargets in the heartbeat).
                 CheckMovingTransitions();
 
                 // Update SceneObjectGroups that have scheduled themselves for updates
@@ -2019,12 +2049,11 @@ public partial class Scene : SceneBase
     }
 
     // Phlox: minimum squared velocity (linear or angular) for a physical group to
-    // be considered "moving". Ported from Legion Grid Scene.cs.
+    // be considered "moving".
     private const float MOVING_VELOCITY_THRESHOLD_SQ = 0.01f;
 
     // Phlox: fire moving_start / moving_end on GENERAL (physical) movement, not just
-    // keyframed motion. Legion-exclusive heartbeat trigger ported from Legion Grid
-    // Scene.cs; invoked from Heartbeat() immediately after CheckAtTargets().
+    // keyframed motion. Invoked from Heartbeat() immediately after CheckAtTargets().
     private void CheckMovingTransitions()
     {
         ForEachSOG(sog =>
@@ -3035,7 +3064,25 @@ public partial class Scene : SceneBase
             return false;
         }
 
-        if (!EntityTransferModule.HandleIncomingSceneObject(newObject, newPosition))
+        // an object that came with no riders to wait for is not kept from crossing out again; the arrival with riders
+        // (IncomingCreateObject with a hold) sets the stamp after this
+        newObject.ArrivedWithRidersAtMs = double.NaN;
+
+        bool taken;
+        try
+        {
+            taken = EntityTransferModule.HandleIncomingSceneObject(newObject, newPosition);
+        }
+        catch (Exception e)
+        {
+            // The object may be in the region already, half taken in. The sending region keeps its original when this
+            // answers false, so the copy here goes: two copies of one object must not be left.
+            m_log.LogError(e, $"[INTERREGION]: Taking in {newObject.Name} {newObject.UUID} failed with {e.GetType().Name}: {e.Message}");
+            DiscardIncomingObject(newObject);
+            return false;
+        }
+
+        if (!taken)
             return false;
 
         // Do this as late as possible so that listeners have full access to the incoming object
@@ -3043,6 +3090,7 @@ public partial class Scene : SceneBase
 
         return true;
     }
+
 
     /// <summary>
     /// Called when an NPC arrives from another region, for SmartNPC transfer.
@@ -3224,6 +3272,22 @@ public partial class Scene : SceneBase
         return true;
     }
 
+    /// <summary>Removes an incoming object whose arrival failed half way, if this region holds that very object.</summary>
+    private void DiscardIncomingObject(SceneObjectGroup newObject)
+    {
+        try
+        {
+            newObject.HeldForRiders = false;
+            if (ReferenceEquals(GetSceneObjectGroup(newObject.UUID), newObject))
+                DeleteSceneObject(newObject, false, true);
+        }
+        catch (Exception e)
+        {
+            m_log.LogError(e, $"[INTERREGION]: Removing the half-taken {newObject.Name} {newObject.UUID} failed with {e.GetType().Name}: {e.Message}");
+        }
+
+    }
+
     public bool IncomingAttechments(ScenePresence sp, List<SceneObjectGroup> attachments)
     {
         //m_log.LogDebug(" >>> IncomingCreateObject(sog) <<< {0} deleted? {1} isAttach? {2}", ((SceneObjectGroup)sog).AbsolutePosition,
@@ -3325,7 +3389,8 @@ public partial class Scene : SceneBase
                 m_log.LogError("[SCENE]: Owner ID for non-attachment {0} was zero", sceneObject.UUID);
                 return false;
             }
-            AddRestoredSceneObject(sceneObject, true, false);
+            // false when an object with this id is already here: the caller must not go on as if this one had been added
+            return AddRestoredSceneObject(sceneObject, true, false);
         }
 
         return true;
@@ -4897,6 +4962,10 @@ Label_GroupsDone:
             return true;
         }
 
+        string neverConnected = ChildNeverConnectedWarning(cAgentData.AgentID);
+        if (neverConnected is not null)
+            m_log.LogWarning(neverConnected);
+
         return false;
     }
 
@@ -4937,13 +5006,36 @@ Label_GroupsDone:
     }
 
     /// <summary>
+    /// How long an incoming agent update waits for the viewer to connect to this region (the presence to appear).
+    /// Set from [Startup] ChildPresenceWaitSeconds; the default is 30 seconds.
+    /// </summary>
+    public TimeSpan ChildPresenceWait { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The warning for an agent that was authorised in this region but whose viewer never connected, or null
+    /// when no circuit was authorised for the agent.
+    /// </summary>
+    public string ChildNeverConnectedWarning(UUID agentID)
+    {
+        AgentCircuitData circuit = m_authenticateHandler.GetAgentCircuitData(agentID);
+        if (circuit is null)
+            return null;
+
+        return string.Format(
+            "[SCENE]: The viewer of agent {0} was authorised in {1} but never connected to {2}:{3}, the address this region " +
+            "gives out for itself (the address recorded for the viewer is {4}). Viewers outside this region's network " +
+            "cannot reach that address: list the address they should use for their network in [ViewerAddress] Addresses.",
+            agentID, RegionInfo.RegionName, RegionInfo.ExternalHostName, RegionInfo.InternalEndPoint.Port, circuit.IPAddress);
+    }
+
+    /// <summary>
     /// Poll until the requested ScenePresence appears or we timeout.
     /// </summary>
     /// <returns>The scene presence is found, else null.</returns>
     /// <param name='agentID'></param>
     protected virtual ScenePresence WaitGetScenePresence(UUID agentID)
     {
-        int ntimes = 120; // 30s
+        int ntimes = (int)Math.Ceiling(ChildPresenceWait.TotalMilliseconds / 250.0);
         ScenePresence sp;
         while ((sp = GetScenePresence(agentID)) is null && (ntimes-- > 0))
             Thread.Sleep(250);
@@ -4986,8 +5078,8 @@ Label_GroupsDone:
         else
         {
             m_log.LogWarning(
-                "[SCENE]: Request to close agent {0} with invalid authorization token {1} in {2}",
-                agentID, auth_token, Name);
+                "[SCENE]: Request to close agent {0} with invalid authorization token in {1}",
+                agentID, Name);
         }
 
         return false;
@@ -5151,8 +5243,15 @@ Label_GroupsDone:
         }
 
         ScenePresence sp = GetScenePresence(remoteClient.AgentId);
-        if (sp is null || sp.IsDeleted || sp.IsInTransit)
+        if (sp is null || sp.IsDeleted)
             return;
+
+        // a border crossing is waiting for the neighbour: answer, or the viewer's teleport never ends
+        if (sp.IsInTransit)
+        {
+            remoteClient.SendTeleportFailed("Previous teleport process incomplete.  Please retry shortly.");
+            return;
+        }
 
         ulong regionHandle = 0;
         if(regionName == RegionInfo.RegionName)
@@ -5192,8 +5291,15 @@ Label_GroupsDone:
         }
 
         ScenePresence sp = GetScenePresence(remoteClient.AgentId);
-        if (sp is null || sp.IsDeleted || sp.IsInTransit)
+        if (sp is null || sp.IsDeleted)
             return;
+
+        // a border crossing is waiting for the neighbour: answer, or the viewer's teleport never ends
+        if (sp.IsInTransit)
+        {
+            remoteClient.SendTeleportFailed("Previous teleport process incomplete.  Please retry shortly.");
+            return;
+        }
 
         EntityTransferModule.Teleport(sp, regionHandle, position, lookAt, teleportFlags);
     }
@@ -5207,8 +5313,16 @@ Label_GroupsDone:
         }
 
         ScenePresence sp = GetScenePresence(remoteClient.AgentId);
-        if (sp is null || sp.IsDeleted || sp.IsInTransit)
+        if (sp is null || sp.IsDeleted)
             return;
+
+        // a border crossing is waiting for the neighbour: answer, or the viewer's teleport never ends
+        if (sp.IsInTransit)
+        {
+            remoteClient.SendTeleportFailed("Previous teleport process incomplete.  Please retry shortly.");
+            return;
+        }
+
         EntityTransferModule.RequestTeleportLandmark(remoteClient, lm, lookAt);
     }
 

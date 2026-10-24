@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using Xunit;
 
 namespace InWorldz.Phlox.Tests;
@@ -17,5 +24,35 @@ public class CompilerHarnessTests
     {
         var c = PhloxCompiler.CompileInDefault("        llOwnerSay((string)nosuchvariable);");
         Assert.True(c.HasErrors());
+    }
+
+    [Fact]
+    public void DuplicateDefinitionsKeepTheIdentifierLineAndColumn()
+    {
+        var c = PhloxCompiler.Compile(
+            "integer first;\n  integer first;\ndefault { state_entry() {} }");
+
+        Assert.True(c.HasErrors());
+        Assert.Contains(c.Errors, error => error.StartsWith("line 2:10 ") && error.Contains("first"));
+    }
+
+    [Fact]
+    public void MissingReturnsKeepTheFunctionNameLineAndColumn()
+    {
+        var c = PhloxCompiler.Compile(
+            "\n  integer missing(integer x) { if (x) return 1; }\ndefault { state_entry() {} }");
+
+        Assert.True(c.HasErrors());
+        Assert.Contains("line: 2:10 missing(): Not all control paths return a value", c.Errors);
+    }
+
+    [Fact]
+    public void CompleteReturnBranchesStillCompile()
+    {
+        var c = PhloxCompiler.Compile(
+            "integer complete(integer x) { if (x) return 1; else return 2; }\n" +
+            "default { state_entry() { llOwnerSay((string)complete(1)); } }");
+
+        Assert.False(c.HasErrors(), c.Report);
     }
 }

@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2026 Legion Builds
  * Copyright (c) Contributors, http://opensimulator.org/
  * See CONTRIBUTORS.TXT for a full list of copyright holders.
  *
@@ -31,7 +32,7 @@ namespace OpenSim.Framework.TrustedHypergrid;
 
 /// <summary>
 /// The operational holder for the local grid's Trusted Hypergrid identity (ADR-010 config surface;
-/// Design Brief §8, D3). Built once from <c>[TrustedHypergrid]</c> in <c>Robust.HG.ini</c>.
+/// Design Brief §8). Built once from <c>[TrustedHypergrid]</c> in <c>Robust.HG.ini</c>.
 ///
 /// When <see cref="Enabled"/> is false NOTHING is loaded — no key file is read or written, no
 /// signer, no verifier — so behaviour is byte-identical to stock. When true, the keypair is loaded

@@ -39,8 +39,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
-using log4net;
-using log4net.Appender;
 using Nini.Config;
 using Nwc.XmlRpc;
 using OpenMetaverse;
@@ -677,7 +675,7 @@ public static class Util
         if (float.IsNaN(v.X) || float.IsNaN(v.Y) || float.IsNaN(v.Z))
             return true;
 
-        if (float.IsInfinity(v.X) || float.IsInfinity(v.Y) || float.IsNaN(v.Z))
+        if (float.IsInfinity(v.X) || float.IsInfinity(v.Y) || float.IsInfinity(v.Z))
             return true;
 
         return false;
@@ -2039,28 +2037,12 @@ public static class Util
 
     public static string logFile()
     {
-        foreach (IAppender appender in LogManager.GetRepository().GetAppenders())
-        {
-            if (appender is FileAppender appender1 && appender1.Name == "LogFileAppender")
-            {
-                return appender1.File;
-            }
-        }
-
-        return "./OpenSim.log";
+        return LoggingFilePaths.CurrentLogFilePath;
     }
 
     public static string StatsLogFile()
     {
-        foreach (IAppender appender in LogManager.GetRepository().GetAppenders())
-        {
-            if (appender is FileAppender appender1 && appender1.Name == "StatsLogFileAppender")
-            {
-                return appender1.File;
-            }
-        }
-
-        return "./OpenSimStats.log";
+        return LoggingFilePaths.CurrentStatsLogFilePath;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2598,9 +2580,14 @@ public static class Util
         if (passPosition == -1)
             return connectionString;
         passPosition = connectionString.IndexOf('=', passPosition);
-        if (passPosition < connectionString.Length)
-            passPosition += 1;
+        if (passPosition < 0)
+            return connectionString;
+        passPosition += 1;
         passEndPosition = connectionString.IndexOf(';', passPosition);
+
+        // A password written last has no terminating ';'.
+        if (passEndPosition < 0)
+            return $"{connectionString[..passPosition]}***";
 
         return $"{connectionString[..passPosition]}***{connectionString[passEndPosition..]}";
     }

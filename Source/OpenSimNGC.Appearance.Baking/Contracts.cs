@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using OpenMetaverse;
 
 namespace OpenSimNGC.Appearance.Baking;
@@ -123,7 +130,7 @@ public sealed record BakeResult(
     /// It matters because such a bake is not blank: the layer set's alpha starts opaque
     /// (LLTexLayerSet::render clears to opaque black) and only a mask layer would have carved it, so an undrawn
     /// channel encodes as a solid near-black image. A caller that stored it would paint that over the avatar —
-    /// the defect S1d found on an assetless skirt slot. Callers should not store or apply such a bake.
+    /// a defect seen on an assetless skirt slot. Callers should not store or apply such a bake.
     /// </para>
     /// </summary>
     public bool NothingDrawn { get; init; }

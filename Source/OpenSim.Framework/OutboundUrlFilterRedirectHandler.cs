@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2026 Legion Builds
  * Copyright (c) Contributors, http://opensimulator.org/
  * See CONTRIBUTORS.TXT for a full list of copyright holders.
  *
@@ -59,7 +60,15 @@ public sealed class OutboundUrlFilterRedirectHandler : DelegatingHandler
         CheckFirstUrl(request);
         for (int redirects = 0; ; redirects++)
         {
-            HttpResponseMessage response = base.Send(request, cancellationToken);
+            HttpResponseMessage response;
+            try
+            {
+                response = base.Send(request, cancellationToken);
+            }
+            catch (HttpRequestException e) when (e.InnerException is OutboundUrlFilterRefusedException refused)
+            {
+                throw refused;
+            }
             if (!PrepareRedirect(request, response, redirects))
                 return response;
             response.Dispose();
@@ -71,7 +80,15 @@ public sealed class OutboundUrlFilterRedirectHandler : DelegatingHandler
         CheckFirstUrl(request);
         for (int redirects = 0; ; redirects++)
         {
-            HttpResponseMessage response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            HttpResponseMessage response;
+            try
+            {
+                response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+            catch (HttpRequestException e) when (e.InnerException is OutboundUrlFilterRefusedException refused)
+            {
+                throw refused;
+            }
             if (!PrepareRedirect(request, response, redirects))
                 return response;
             response.Dispose();

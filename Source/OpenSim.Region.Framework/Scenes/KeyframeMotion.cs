@@ -28,6 +28,7 @@
 using System.Timers;
 using OpenMetaverse;
 using OpenSim.Framework;
+using OpenSim.Region.PhysicsModules.SharedBase;
 using Microsoft.Extensions.Logging;
 using Timer = System.Timers.Timer;
 
@@ -230,6 +231,10 @@ public class KeyframeMotion
 
     private bool m_running = false;
 
+    // set while the object waits for the avatars that crossed with it: the motion is set up but not started
+    [NonSerialized()]
+    private bool m_holdStart;
+
     [NonSerialized()]
     private bool m_selected = false;
 
@@ -275,6 +280,7 @@ public class KeyframeMotion
             m_isCrossing = false;
             m_waitingCrossing = false;
             m_selected = value;
+            UpdatePhysicsHint();
         }
     }
 
@@ -504,6 +510,18 @@ public class KeyframeMotion
         m_waitingCrossing = false;
         m_frames.Clear();
         m_keyframes = null;
+        UpdatePhysicsHint();
+    }
+
+    /// <summary>
+    /// Tells the root prim's physics actor whether this motion is moving it now (PhysicsActor.MovedByKeyframedMotion):
+    /// running, and not held still by a selection. Also called when the actor is made, which can be after the start.
+    /// </summary>
+    public void UpdatePhysicsHint()
+    {
+        PhysicsActor pa = m_group?.RootPart?.PhysActor;
+        if (pa is not null)
+            pa.MovedByKeyframedMotion = m_running && !m_selected;
     }
 
     public void Start()
@@ -512,15 +530,43 @@ public class KeyframeMotion
         m_waitingCrossing = false;
         if (m_keyframes != null && m_group != null && m_keyframes.Length > 0)
         {
+            if (m_holdStart)
+            {
+                StopTimer();
+                m_running = true;
+                return;
+            }
+
             StartTimer();
             m_running = true;
+            UpdatePhysicsHint();
             m_group.Scene.EventManager.TriggerMovingStartEvent(m_group.RootPart.LocalId);
         }
         else
         {
             StopTimer();
             m_running = false;
+            UpdatePhysicsHint();
         }
+    }
+
+    /// <summary>
+    /// Until <see cref="ReleaseHold"/>, <see cref="Start"/> sets the motion up without running it: used for an object
+    /// that arrived with avatars, which must be on it before it moves.
+    /// </summary>
+    public void HoldStart()
+    {
+        m_holdStart = true;
+    }
+
+    public void ReleaseHold()
+    {
+        if (!m_holdStart)
+            return;
+
+        m_holdStart = false;
+        if (m_running)
+            Start();
     }
 
     public void Stop()
@@ -534,6 +580,7 @@ public class KeyframeMotion
         m_basePosition = m_group.AbsolutePosition;
         m_baseRotation = m_group.GroupRotation;
 
+        UpdatePhysicsHint();
         m_group.RootPart.Velocity = Vector3.Zero;
         m_group.RootPart.AngularVelocity = Vector3.Zero;
 //            m_group.SendGroupRootTerseUpdate();
@@ -549,6 +596,7 @@ public class KeyframeMotion
         bool running = m_running;
         m_running = false;
 
+        UpdatePhysicsHint();
         m_group.RootPart.Velocity = Vector3.Zero;
         m_group.RootPart.AngularVelocity = Vector3.Zero;
 //            m_skippedUpdates = 1000;
@@ -621,8 +669,9 @@ public class KeyframeMotion
                 k.StartRotation = rot;
                 if (k.Rotation.HasValue)
                 {
+                    Quaternion rotation = k.Rotation.Value;
                     if (direction == -1)
-                        k.Rotation = Quaternion.Conjugate((Quaternion)k.Rotation);
+                        k.Rotation = Quaternion.Conjugate(in rotation);
                     k.Rotation = rot * k.Rotation;
                 }
                 else
@@ -700,6 +749,7 @@ public class KeyframeMotion
         m_basePosition = m_group.AbsolutePosition;
         m_baseRotation = m_group.GroupRotation;
 
+        UpdatePhysicsHint();
         m_group.RootPart.Velocity = Vector3.Zero;
         m_group.RootPart.AngularVelocity = Vector3.Zero;
 //            m_group.SendGroupRootTerseUpdate();

@@ -671,8 +671,27 @@ public class GroupsMessagingModule : ISharedRegionModule, IGroupsMessagingModule
             UUID GroupID = new UUID(im.imSessionID);
             UUID AgentID = new UUID(im.fromAgentID);
 
+            // A module that moderates group chat may refuse this line. Without one, nothing changes.
+            IGroupChatGate chatGate = remoteClient.Scene.RequestModuleInterface<IGroupChatGate>();
+            if (chatGate is not null && !chatGate.MaySend(GroupID, AgentID))
+            {
+                if (m_debugEnabled)
+                    m_log.LogDebug("[Groups.Messaging]: {0} may not send to group chat {1}; dropped", AgentID, GroupID);
+                return;
+            }
+
             if (m_debugEnabled)
                 m_log.LogDebug("[Groups.Messaging]: Send message to session for group {0} with session ID {1}", GroupID, im.imSessionID.ToString());
+
+            // Only a group's session is handled here, as with SessionGroupStart above. Any other session
+            // id (an ad-hoc conference's, for one) is no group: sending to it would echo the message back
+            // to the sender and register a chat session for an id that is not a group.
+            if (m_groupData.GetGroupRecord(UUID.Zero.ToString(), GroupID, null) == null)
+            {
+                if (m_debugEnabled)
+                    m_log.LogDebug("[Groups.Messaging]: Session {0} is not a group session, ignoring the message", GroupID);
+                return;
+            }
 
             //If this agent is sending a message, then they want to be in the session
             AgentInvitedToGroupChatSession(AgentID.ToString(), GroupID);

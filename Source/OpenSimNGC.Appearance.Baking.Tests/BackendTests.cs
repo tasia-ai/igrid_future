@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using OpenMetaverse;
@@ -253,7 +260,7 @@ public class BackendTests
         _ = assets;
     }
 
-    // ---------------- a worn wearable with no texture asset (S1c, Docs/MORPH-MASK-PASS.md 2.4) ----------------
+    // ---------------- a worn wearable with no texture asset (Docs/MORPH-MASK-PASS.md 2.4) ----------------
 
     /// <summary>
     /// The rule: a morph-mask layer with a local_texture contributes the mask of the top worn wearable of its
@@ -303,10 +310,9 @@ public class BackendTests
     }
 
     /// <summary>
-    /// The other half of the same rule: LLTexLayerTemplate::gatherAlphaMasks uses getLayer(num_wearables - 1)
-    /// only — "For rendering morph masks, we only want to use the top wearable" (lltexlayer.cpp:1710-1719) —
-    /// unlike render(), which loops over every instance. Two shirts must give the second one's mask, not the
-    /// product of both.
+    /// The other half of the same rule: the viewer's morph-mask gather for a per-wearable layer takes only the
+    /// last worn wearable of the type (lltexlayer.cpp:1710-1719), whereas its colour render loops over every
+    /// instance. Two shirts must give the second one's mask, not the product of both.
     /// </summary>
     [Fact]
     public void the_morph_mask_of_a_template_layer_comes_from_the_top_wearable_only()
@@ -331,7 +337,7 @@ public class BackendTests
         Assert.True(Diff(shortThenLong, shortOnly) > 4, "two shirts must not give the first shirt's mask");
     }
 
-    // ---------------- a channel where nothing was drawn (S1e) ----------------
+    // ---------------- a channel where nothing was drawn ----------------
 
     private static string TrulyFixtures([CallerFilePath] string here = "")
         => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(here)!, "Golden", "truly-stock", "fixtures"));
@@ -340,7 +346,7 @@ public class BackendTests
     /// BakeResult.NothingDrawn is set only when every colour layer of the channel was skipped. An assetless
     /// Skirt slot is exactly that case: skirt_fabric has no texture, skirt_fabric_alpha is a mask layer and
     /// skirt_tattoo needs a Universal, so nothing reaches the canvas — and because the set's alpha starts
-    /// opaque, what encodes is a solid image, not a blank one. S1d found this painting a dark skirt onto face 19.
+    /// opaque, what encodes is a solid image, not a blank one. This once painted a dark skirt onto face 19.
     /// </summary>
     [Fact]
     public void a_channel_whose_every_layer_was_skipped_reports_nothing_drawn()
@@ -353,7 +359,7 @@ public class BackendTests
         Assert.True(s.NothingDrawn, "an all-skipped skirt channel must report NothingDrawn: " + string.Join(" | ", s.Fidelity.Notes));
         Assert.All(s.Fidelity.Notes, n => Assert.Contains("skipped", n));
         // it still encodes a full image - that is the hazard: an undrawn channel is not an empty bake, and how
-        // opaque it comes out depends on which mask layers the outfit skipped (on a real outfit S1d measured 96.5%
+        // opaque it comes out depends on which mask layers the outfit skipped (on a real outfit it measured 96.5%
         // opaque near-black). The orchestrator must decide on this flag, never on the pixels.
         Assert.NotEmpty(s.J2kBytes);
         Assert.Equal(64, J2kCodec.Decode(s.J2kBytes).W);

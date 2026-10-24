@@ -1,7 +1,17 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Text.RegularExpressions;
 using Nini.Config;
 using OpenMetaverse;
 using OpenSim.Data.SQLite;
@@ -93,6 +103,17 @@ public class ScriptExperiencePersistenceTests : OpenSimTestCase
         return item;
     }
 
+    // The newest step in the SQLite RegionStore.migrations resource: the version a migrated database ends at.
+    private static long NewestRegionStoreStep()
+    {
+        Assembly assembly = typeof(SQLiteSimulationData).Assembly;
+        string name = assembly.GetManifestResourceNames().Single(n => n.EndsWith(".RegionStore.migrations"));
+        using Stream stream = assembly.GetManifestResourceStream(name);
+        using StreamReader reader = new StreamReader(stream);
+        return Regex.Matches(reader.ReadToEnd(), @"^:VERSION\s+(\d+)", RegexOptions.Multiline)
+            .Max(m => long.Parse(m.Groups[1].Value));
+    }
+
     // ---- region store (SQLite) ---------------------------------------------------------------------------------
 
     [Fact]
@@ -129,14 +150,16 @@ public class ScriptExperiencePersistenceTests : OpenSimTestCase
         first.StoreObject(sog, regionID);
         first.Dispose();
 
-        // Put the database back to the schema before this change (RegionStore 43, no experienceID column)
-        // and write a task item row the way the older code did.
+        // Put the database back to the schema before this change (RegionStore 43, no experienceID column, and
+        // no prims SitTargetActive column, which step 45 adds) and write a task item row the way the older code did.
         UUID itemID = UUID.Random();
         using (SQLiteConnection c = new SQLiteConnection(conn))
         {
             c.Open();
             using SQLiteCommand cmd = c.CreateCommand();
             cmd.CommandText = "ALTER TABLE primitems DROP COLUMN experienceID";
+            cmd.ExecuteNonQuery();
+            cmd.CommandText = "ALTER TABLE prims DROP COLUMN SitTargetActive";
             cmd.ExecuteNonQuery();
             cmd.CommandText = "UPDATE migrations SET version = 43 WHERE name = 'RegionStore'";
             Assert.Equal(1, cmd.ExecuteNonQuery());
@@ -165,7 +188,7 @@ public class ScriptExperiencePersistenceTests : OpenSimTestCase
             c.Open();
             using SQLiteCommand cmd = c.CreateCommand();
             cmd.CommandText = "SELECT version FROM migrations WHERE name = 'RegionStore'";
-            Assert.Equal(44L, Convert.ToInt64(cmd.ExecuteScalar()));
+            Assert.Equal(NewestRegionStoreStep(), Convert.ToInt64(cmd.ExecuteScalar()));
             cmd.CommandText = "SELECT experienceID FROM primitems WHERE itemID = :itemID";
             cmd.Parameters.AddWithValue(":itemID", itemID.ToString());
             Assert.Equal(UUID.Zero.ToString(), (string)cmd.ExecuteScalar());

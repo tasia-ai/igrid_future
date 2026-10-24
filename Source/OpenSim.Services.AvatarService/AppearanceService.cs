@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Reflection;
 using Nini.Config;
@@ -11,11 +18,11 @@ using Microsoft.Extensions.Logging;
 namespace OpenSim.Services.AvatarService;
 
 /// <summary>
-/// The <c>agent_appearance_service</c> read path (Design Brief C4, ADR-002): resolve a bake channel to the asset
+/// The <c>agent_appearance_service</c> read path (ADR-002): resolve a bake channel to the asset
 /// the sim stored for it and hand that asset back.
 ///
 /// <para>
-/// It owns no storage. The channel → asset mapping is S2's ADR-004 index in the avatar service's key/value table
+/// It owns no storage. The channel → asset mapping is the ADR-004 index in the avatar service's key/value table
 /// (<c>Bake:&lt;channel&gt;</c>), and the bytes are an ordinary texture asset. Both are read through the service
 /// interfaces, so this works identically whether Robust holds them locally or the deployment is a standalone.
 /// </para>

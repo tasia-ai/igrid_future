@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using OpenMetaverse;
 using OpenMetaverse.StructuredData;
 using OpenSim.Framework;
@@ -10,7 +17,7 @@ using Xunit.Abstractions;
 namespace OpenSim.Region.OptionalModules.ServerSideBaking.Tests;
 
 /// <summary>
-/// S3 Part 1 — the question AIS going live forced: is the <c>cof_version</c> the viewer sends to
+/// The question AIS forced: is the <c>cof_version</c> the viewer sends to
 /// <c>UpdateAvatarAppearance</c> the same number AIS reports as the Current Outfit folder's version?
 ///
 /// <para>
@@ -122,7 +129,7 @@ public class CofVersionIdentityTests
     /// <summary>
     /// The one place the identity can break, recorded rather than hidden: <see cref="InventoryFolderBase.Version"/>
     /// is a <c>ushort</c> (InventoryFolderBase.cs:67) while the cap's <c>cof_version</c> is an S32 and the
-    /// database column is wider. That is AIS ledger A-Q13. Both sides read the same truncated field, so they stay
+    /// database column is wider. Both sides read the same truncated field, so they stay
     /// equal to each other — but past 65535 both disagree with the database, and the wrap makes an older outfit
     /// compare equal to a newer one.
     /// </summary>
@@ -138,7 +145,7 @@ public class CofVersionIdentityTests
         int aisSideValue = ((OSDMap)envelope[AisMutation.UpdatedCategoryVersions])[CofId.ToString()].AsInteger();
 
         Assert.Equal(bakeSideValue, aisSideValue);      // still one number
-        Assert.Equal(7, bakeSideValue);                 // but not the database's, which is A-Q13
+        Assert.Equal(7, bakeSideValue);                 // but not the database's
         Assert.NotEqual(past, bakeSideValue);
     }
 }

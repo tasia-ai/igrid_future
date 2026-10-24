@@ -76,7 +76,7 @@ public class VectorRenderModule : ISharedRegionModule, IDynamicTextureRender
     /// discard the viewer may ask for available in the codestream. It costs nothing --
     /// at 1024x1024 the output is smaller at 5 levels than at 4.
     ///
-    /// DRAW-1: the output must be the RAW CODESTREAM, not a JP2 file. CoreJ2K's default wraps the
+    /// The output must be the RAW CODESTREAM, not a JP2 file. CoreJ2K's default wraps the
     /// codestream in JP2 boxes (jP, ftyp, jp2h, jp2c - the codestream itself started at byte 77 of every
     /// dynamic texture this shipped), and the viewer's decoder is created for bare codestreams only
     /// (opj_create_decompress(OPJ_CODEC_J2K), indra/llimagej2coj/llimagej2coj.cpp:311 and :385), so
@@ -587,7 +587,7 @@ public class VectorRenderModule : ISharedRegionModule, IDynamicTextureRender
                             Color = drawColor,
                             IsAntialias = true
                         };
-                        // DRAW-1: the pen position is the TOP-LEFT of the text, as System.Drawing's DrawString took it
+                        // The pen position is the TOP-LEFT of the text, as System.Drawing's DrawString took it
                         // and as every script written against upstream expects; SkiaSharp's DrawText takes the
                         // BASELINE, which put "MoveTo 20,20; Text Hello" with its glyphs ABOVE y=20. Ascent is negative.
                         canvas.DrawText(nextLine, startPoint.X, startPoint.Y - myFont.Metrics.Ascent, SKTextAlign.Left, myFont, textPaint);
@@ -654,7 +654,7 @@ public class VectorRenderModule : ISharedRegionModule, IDynamicTextureRender
                     {
                         var srcRect = SKRect.Create(0, 0, image.Width, image.Height);
                         var dstRect = SKRect.Create(startPoint.X, startPoint.Y, x, y);
-                        canvas.DrawImage(image, srcRect, dstRect);
+                        canvas.DrawImage(image, srcRect, dstRect, SKSamplingOptions.Default);
                         image.Dispose();
                     }
                     else
@@ -712,14 +712,15 @@ public class VectorRenderModule : ISharedRegionModule, IDynamicTextureRender
                     SKPoint[] points = null;
                     GetParams(partsDelimiter, ref nextLine, 11, ref points);
                     var fillPaint = new SKPaint { Color = drawColor, Style = SKPaintStyle.Fill };
-                    using (var path = new SKPath())
+                    using (var builder = new SKPathBuilder())
                     {
                         if (points != null && points.Length > 0)
                         {
-                            path.MoveTo(points[0]);
+                            builder.MoveTo(points[0]);
                             for (int i = 1; i < points.Length; i++)
-                                path.LineTo(points[i]);
-                            path.Close();
+                                builder.LineTo(points[i]);
+                            builder.Close();
+                            using var path = builder.Detach();
                             canvas.DrawPath(path, fillPaint);
                         }
                     }
@@ -729,14 +730,15 @@ public class VectorRenderModule : ISharedRegionModule, IDynamicTextureRender
                 {
                     SKPoint[] points = null;
                     GetParams(partsDelimiter, ref nextLine, 7, ref points);
-                    using (var path = new SKPath())
+                    using (var builder = new SKPathBuilder())
                     {
                         if (points != null && points.Length > 0)
                         {
-                            path.MoveTo(points[0]);
+                            builder.MoveTo(points[0]);
                             for (int i = 1; i < points.Length; i++)
-                                path.LineTo(points[i]);
-                            path.Close();
+                                builder.LineTo(points[i]);
+                            builder.Close();
+                            using var path = builder.Detach();
                             canvas.DrawPath(path, drawPaint);
                         }
                     }
@@ -979,21 +981,21 @@ public class VectorRenderModule : ISharedRegionModule, IDynamicTextureRender
             }
 
             // Redirects are followed by the filtering handler (the default handler's 50 hops, each one checked)
-            // instead of by HttpClientHandler, which would follow them unchecked.
+            // instead of by the handler itself, which would follow them unchecked. A connection straight to the
+            // target goes only to an address the filter allows; one to the default proxy is left alone.
+            if (uri is null)
+                return null;
+
             var handler = new OutboundUrlFilterRedirectHandler(
-                m_outboundUrlFilter, new HttpClientHandler { AllowAutoRedirect = false }, 50);
+                m_outboundUrlFilter, m_outboundUrlFilter.CreateHandler(System.Net.Http.HttpClient.DefaultProxy), 50);
             using (var client = new System.Net.Http.HttpClient(handler))
             {
                 using (var response = client.GetAsync(url).Result)
                 {
                     if (response.IsSuccessStatusCode)
                     {
-                        using (var s = response.Content.ReadAsStreamAsync().Result)
-                        {
-                            var data = new byte[s.Length];
-                            s.Read(data, 0, (int)s.Length);
-                            return SKImage.FromEncodedData(data);
-                        }
+                        var data = response.Content.ReadAsByteArrayAsync().Result;
+                        return SKImage.FromEncodedData(data);
                     }
                 }
             }

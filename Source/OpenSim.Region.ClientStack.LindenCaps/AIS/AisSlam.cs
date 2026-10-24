@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System;
 using System.Collections.Generic;
 using OpenMetaverse;
@@ -41,7 +48,7 @@ public sealed record SlamOutcome(
 /// a map carrying the array under <c>links</c> or <c>contents</c>.</para>
 ///
 /// <para><b>Atomicity.</b> There is none available: <c>IInventoryService</c> has no transaction and no batch write
-/// (tree state T5), so a slam is several independent calls. What this implements instead is an ordering chosen so
+/// so a slam is several independent calls. What this implements instead is an ordering chosen so
 /// that the dangerous failure cannot happen — see <see cref="Run"/>.</para>
 /// </summary>
 public static class AisSlam
@@ -57,7 +64,7 @@ public static class AisSlam
     /// reachable: <c>AisHandler</c> produced an empty <c>OSDMap</c> both for a body it could not parse and for no
     /// body at all, so a truncated <c>PUT</c> — a dropped connection is enough — was read as "replace every link
     /// with none" and emptied the wearer's Current Outfit. The viewer sends a bare LLSD <b>array</b> and never
-    /// <c>{}</c> (spec A-Q3, <c>llappearancemgr.cpp:2209-2245</c>, <c>:1795-1833</c>), so <c>{}</c> can only be a
+    /// <c>{}</c> (<c>llappearancemgr.cpp:2209-2245</c>, <c>:1795-1833</c>), so <c>{}</c> can only be a
     /// client we do not know or a body that arrived damaged, and under replacement semantics the safe reading of
     /// both is "refuse". An empty <b>array</b> stays an intentional empty slam: that is how the viewer takes off
     /// the last garment.</para>

@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Region.OptionalModules.Avatar.ServerSideBaking;
@@ -8,14 +15,14 @@ using Xunit;
 namespace OpenSim.Region.OptionalModules.ServerSideBaking.Tests;
 
 /// <summary>
-/// S10. Firestorm's "Add" puts a second wearable of one type in the COF. The LL viewer orders same-type wearables
+/// Firestorm's "Add" puts a second wearable of one type in the COF. The LL viewer orders same-type wearables
 /// by the COF link item's description — <c>"@" + (type * 100 + index)</c>, written by
 /// <c>LLAppearanceMgr::getWearableOrderingDescUpdates</c> (llappearancemgr.cpp:3676-3702) from
 /// <c>build_order_string</c> (:3637-3642) — and layers them in that index order, later index on top
 /// (<c>LLTexLayerTemplate::render</c>, lltexlayer.cpp:1659-1689, over the cache built 0..n-1 at :1615-1638).
 ///
 /// <para>
-/// Observed on Ebony (1.1.246, 2026-09-06 10:09:52 UTC): both "Shirt" and "Shirt2" were linked in the COF, a
+/// Observed on a running region (2026-09-06 10:09:52 UTC): both "Shirt" and "Shirt2" were linked in the COF, a
 /// <c>CofChanged</c> bake fired and reused 6/6, and the Avatars record for the agent held only
 /// <c>Wearable 4:0</c>. The second shirt never reached <see cref="AvatarAppearance.Wearables"/>, so the
 /// composite had nothing to layer.
@@ -100,12 +107,12 @@ public class CofWearableOrderTests
         Assert.Equal(unordered, derived[Shirt][1].ItemID);
     }
 
-    // ------------------------------------------------------------------ 2. the S8 rule must survive
+    // ------------------------------------------------------------------ 2. the unresolvable-link rule must survive
 
     [Fact]
     public void ATypeNoLinkResolvesForKeepsWhatTheAgentAlreadyWears()
     {
-        // S8: an item this region cannot resolve is a statement about the inventory lookup, not about what the
+        // An item this region cannot resolve is a statement about the inventory lookup, not about what the
         // avatar is wearing (AvatarFactoryModule.cs:975-989). An unresolvable link cannot be attributed to a
         // wearable type at all, so its type must look untouched and keep its contents rather than go empty.
         var shirt = UUID.Random(); var shirtAsset = UUID.Random();
@@ -221,7 +228,7 @@ public class CofWearableOrderTests
         const int size = 256;
         var red = UUID.Random(); var blue = UUID.Random();
         var textures = new Dictionary<UUID, RgbaPlanes> { [red] = Flat(255, 0, 0), [blue] = Flat(0, 0, 255) };
-        var compositor = new TexLayerCompositor();
+        var compositor = new AvatarBakeCompositor();
 
         // "@400" red, "@401" blue: blue is on top, and nothing red survives it.
         var blueOnTop = CofWearables.Derive(Empty(), new[]

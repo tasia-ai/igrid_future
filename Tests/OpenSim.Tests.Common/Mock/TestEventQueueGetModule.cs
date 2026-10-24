@@ -112,7 +112,8 @@ public class TestEventQueueGetModule : IEventQueue, INonSharedRegionModule
     {
         return true;
     }
-    public void EnableSimulator (ulong handle, IPEndPoint endPoint, UUID avatarID, int regionSizeX, int regionSizeY)
+    public void EnableSimulator (ulong handle, IPEndPoint endPoint, UUID avatarID, int regionSizeX, int regionSizeY,
+                string quicHost = null, uint quicPort = 0)
     {
         AddEvent(avatarID, "EnableSimulator", handle);
     }
@@ -124,13 +125,15 @@ public class TestEventQueueGetModule : IEventQueue, INonSharedRegionModule
     }
 
     public void TeleportFinishEvent (ulong regionHandle, byte simAccess, IPEndPoint regionExternalEndPoint,
-                uint locationID, uint flags, string capsURL, UUID agentID, int regionSizeX, int regionSizeY)
+                uint locationID, uint flags, string capsURL, UUID agentID, int regionSizeX, int regionSizeY,
+                string quicHost = null, uint quicPort = 0)
     {
         AddEvent(agentID, "TeleportFinishEvent", regionHandle, simAccess, regionExternalEndPoint, locationID, flags, capsURL);
     }
 
     public void CrossRegion (ulong handle, Vector3 pos, Vector3 lookAt, IPEndPoint newRegionExternalEndPoint,
-                                string capsURL, UUID avatarID, UUID sessionID, int regionSizeX, int regionSizeY)
+                                string capsURL, UUID avatarID, UUID sessionID, int regionSizeX, int regionSizeY,
+                                string quicHost = null, uint quicPort = 0)
     {
         AddEvent(avatarID, "CrossRegion", handle, pos, lookAt, newRegionExternalEndPoint, capsURL, sessionID);
     }
@@ -158,6 +161,11 @@ public class TestEventQueueGetModule : IEventQueue, INonSharedRegionModule
     public void ChatterBoxSessionAgentListUpdates (UUID sessionID, UUID toAgent, List<GroupChatListAgentUpdateData> updates)
     {
         AddEvent(toAgent, "ChatterBoxSessionAgentListUpdates", sessionID, toAgent, updates);
+    }
+
+    public void ChatterBoxSessionUpdate(UUID sessionID, UUID toAgent, bool voiceModerated)
+    {
+        AddEvent(toAgent, "ChatterBoxSessionUpdate", sessionID, voiceModerated);
     }
 
     public void ChatterBoxForceClose (UUID toAgent, UUID sessionID, string reason)

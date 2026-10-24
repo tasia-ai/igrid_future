@@ -561,6 +561,13 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     /// </summary>
     
     PhysicsActor m_physActor;
+
+    /// <summary>
+    /// The mass the physics actor had when it was last read or taken away, returned by GetMass()
+    /// while the avatar has no actor (a teleport inside the region, standing up from a seat).
+    /// </summary>
+    private volatile float m_lastKnownMass;
+
     public PhysicsActor PhysicsActor
     {
         get
@@ -570,6 +577,11 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         private set
         {
             m_physActor = value;
+            if (value != null)
+            {
+                HandConstantForceTo(value);
+                HandAttachmentPhysicsTo(value);
+            }
         }
     }
 
@@ -650,6 +662,44 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     public bool m_haveGroupInformation;
     public bool m_gotCrossUpdate;
     public byte m_crossingFlags;
+
+    /// <summary>
+    /// While this avatar is being carried across a region border by the object it stands on: that object and the
+    /// avatar's position relative to the object's root. Set on both sides of the crossing.
+    /// </summary>
+    public UUID CarriedByGroup;
+    public Vector3 CarriedOffset;
+
+    // the attachment scripts a crossing suspended, resumed if the crossing does not take the avatar away
+    private List<UUID> m_crossingSuspendedScripts;
+
+    /// <summary>
+    /// Freezes the avatar for a crossing it takes part in, seated or standing, before anything about it is read for
+    /// the other region: it is in transit (its input, border check and collision reports are ignored), its movement
+    /// controls are cleared and the scripts of its attachments are suspended. <see cref="ThawAfterCrossing"/> gives
+    /// the scripts back when the crossing does not take the avatar away.
+    /// </summary>
+    public void FreezeForCrossing()
+    {
+        IsInTransit = true;
+
+        MovementFlags &= ~CONTROL_FLAG_NORM_MASK;
+        m_AgentControlFlags &= unchecked((ACFlags)(~CONTROL_FLAG_NORM_MASK));
+
+        IScriptModule[] engines = m_scene.RequestModuleInterfaces<IScriptModule>();
+        List<UUID> suspended = new();
+        foreach (SceneObjectGroup attachment in GetAttachments())
+            suspended.AddRange(attachment.SuspendScripts(engines));
+        m_crossingSuspendedScripts = suspended;
+    }
+
+    /// <summary>Resumes the attachment scripts <see cref="FreezeForCrossing"/> suspended. IsInTransit is the caller's.</summary>
+    public void ThawAfterCrossing()
+    {
+        List<UUID> suspended = m_crossingSuspendedScripts;
+        m_crossingSuspendedScripts = null;
+        SceneObjectGroup.ResumeScripts(m_scene.RequestModuleInterfaces<IScriptModule>(), suspended);
+    }
 
     public string Grouptitle
     {
@@ -907,6 +957,14 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
 
         set
         {
+            // The value comes from the viewer's agent update, from agent data sent by another
+            // simulator and from scripts. One that is not finite or too short to be a rotation is
+            // ignored and the previous rotation kept, because the stored value is sent to other
+            // viewers, to neighbouring regions and to the physics engine. Not logged: a client
+            // could send one in every agent update.
+            if (!IsUsableRotation(value))
+                return;
+
             m_bodyRot = value;
 
             if (PhysicsActor != null)
@@ -922,6 +980,14 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
             }
 //                m_log.LogDebug("[SCENE PRESENCE]: Body rot for {0} set to {1}", Name, m_bodyRot);
         }
+    }
+
+    // 1e-6 is the squared-length bound LLClientView's avatar update serialiser already uses
+    // for a rotation too short to normalise.
+    private static bool IsUsableRotation(Quaternion q)
+    {
+        return float.IsFinite(q.X) && float.IsFinite(q.Y) && float.IsFinite(q.Z) && float.IsFinite(q.W)
+            && q.X * q.X + q.Y * q.Y + q.Z * q.Z + q.W * q.W >= 1e-6f;
     }
 
     // Used for limited viewer 'fake' user rotations.
@@ -1424,17 +1490,24 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         {
             bool positionChanged = false;
             bool success = true;
-            if (m_LandingPointBehavior == LandingPointBehavior.OS)
-                success = CheckAndAdjustLandingPoint_OS(ref pos, ref lookat, ref positionChanged);
-            else
-                success = CheckAndAdjustLandingPoint_SL(ref pos, ref lookat, ref positionChanged);
+
+            // An avatar that an object carried in stands where the object puts it, which may be outside the region
+            // (behind the object's centre): no landing point, no clamp, no lift to the ground.
+            bool carried = IsCarriedHere();
+            if (!carried)
+            {
+                if (m_LandingPointBehavior == LandingPointBehavior.OS)
+                    success = CheckAndAdjustLandingPoint_OS(ref pos, ref lookat, ref positionChanged);
+                else
+                    success = CheckAndAdjustLandingPoint_SL(ref pos, ref lookat, ref positionChanged);
+            }
 
             if (!success)
                 m_log.LogDebug("[SCENE PRESENCE MakeRootAgent]: houston we have a problem.. {0} ({1} got banned)", Name, UUID);
 
-            if (pos.X < 0f || pos.Y < 0f
+            if (!carried && (pos.X < 0f || pos.Y < 0f
                       || pos.X >= m_scene.RegionInfo.RegionSizeX
-                      || pos.Y >= m_scene.RegionInfo.RegionSizeY)
+                      || pos.Y >= m_scene.RegionInfo.RegionSizeY))
             {
                 m_log.LogWarning(
                     "[SCENE PRESENCE]: MakeRootAgent() was given an illegal position of {0} for avatar {1}, {2}. Clamping",
@@ -1463,10 +1536,10 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
                 localAVHalfHeight = 0.5f * Appearance.AvatarHeight;
 
             groundHeight += localAVHalfHeight;
-            if (groundHeight > pos.Z)
+            if (!carried && groundHeight > pos.Z)
                 pos.Z = groundHeight;
 
-            bool checkPhysics = !positionChanged &&
+            bool checkPhysics = !carried && !positionChanged &&
                     m_scene.SupportsRayCastFiltered() &&
                     pos.Z < physTestHeight &&
                     ((m_teleportFlags & (TeleportFlags.ViaLogin | TeleportFlags.ViaRegionID)) ==
@@ -1537,7 +1610,11 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
 //
             if (m_teleportFlags == TeleportFlags.Default)
             {
-                Vector3 vel = Velocity;
+                // The velocity an avatar crossed with is its velocity in the world, which for one that stood on the
+                // object that carried it already holds the object's own. The object is held still while its riders
+                // arrive and the engine carries a standing avatar with it afterwards, so a carried avatar starts at
+                // rest relative to it; handing over the old velocity would count the object's motion twice.
+                Vector3 vel = carried ? Vector3.Zero : Velocity;
                 AddToPhysicalScene(isFlying);
                 PhysicsActor?.SetMomentum(vel);
             }
@@ -1702,6 +1779,8 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         IsChildAgent = true;
         m_scene.SwapRootAgentCount(true, IsNPC);
         RemoveFromPhysicalScene();
+        ClearConstantForce();
+        EndAttachmentPhysics(UUID.Zero, true);
         ParentID = 0; // Child agents can't be sitting
 
 // we dont have land information for child
@@ -1734,6 +1813,10 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         PhysicsActor pa = Interlocked.Exchange(ref m_physActor, null);
         if (pa != null)
         {
+            float mass = pa.Mass;
+            if (mass > 0)
+                m_lastKnownMass = mass;
+
             //PhysicsActor.OnRequestTerseUpdate -= SendTerseUpdateToAllClients;
             pa.OnOutOfBounds -= OutOfBoundsCall;
             pa.OnCollisionUpdate -= PhysicsCollisionUpdate;
@@ -1755,6 +1838,9 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         if (IsSitting)
             StandUp(false);
 
+        // the avatar leaves the object that carried it
+        EndCarry();
+
         bool isFlying = Flying;
         Vector3 vel = Velocity;
         RemoveFromPhysicalScene();
@@ -1770,6 +1856,8 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         if (IsSitting )
             StandUp(false);
 
+        EndCarry();
+
         bool isFlying = Flying;
         RemoveFromPhysicalScene();
 
@@ -1781,6 +1869,9 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
 
     public void LocalTeleport(Vector3 newpos, Vector3 newvel, Vector3 newlookat, int flags)
     {
+        // the avatar leaves the object that carried it
+        EndCarry();
+
         if (newpos.X <= 0)
         {
             newpos.X = 0.1f;
@@ -2145,6 +2236,26 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         return false;
     }
 
+    // set after a carried arrival at Debug level: the next agent update's facing is logged once
+    private bool m_logFacingReply;
+
+    // when the agent data of the crossing arrived
+    private long m_agentDataTicks;
+
+    private static Vector3 HeadingOf(Quaternion rot)
+    {
+        Vector3 h = Vector3.Transform(Vector3.UnitX, rot);
+        h.Z = 0f;
+        if (h.LengthSquared() < 0.0001f)
+            return Vector3.Zero;
+        return Vector3.Normalize(in h);
+    }
+
+    /// <summary>The horizontal direction the body faces, or zero when it faces straight up or down.</summary>
+    private Vector3 BodyHeading() => HeadingOf(Rotation);
+
+    private static float HeadingDegrees(Vector3 h) => MathF.Atan2(h.Y, h.X) * (180f / MathF.PI);
+
     public void RotateToLookAt(Vector3 lookAt)
     {
         if(ParentID == 0)
@@ -2197,7 +2308,14 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
 
             bool flying = ((m_AgentControlFlags & ACFlags.AGENT_CONTROL_FLY) != 0);
 
-            Vector3 look = Lookat;
+            // an avatar an object carried in is told which way its body faces, not where its camera points: the
+            // viewer turns the avatar to the look-at it is sent, and the camera can be looking any way
+            bool carriedArrival = (m_crossingFlags & AgentData.CrossingCarried) != 0 && !CarriedByGroup.IsZero()
+                && m_scene.EnableStandingRiderCrossing;
+            Vector3 cameraLook = Lookat;
+            Vector3 bodyLook = BodyHeading();
+
+            Vector3 look = cameraLook;
             look.Z = 0f;
             look.Normalize();
             if ((Math.Abs(look.X) < 0.01) && (Math.Abs(look.Y) < 0.01))
@@ -2208,6 +2326,8 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
                 if ((Math.Abs(look.X) < 0.01) && (Math.Abs(look.Y) < 0.01) )
                     look = new Vector3(0.99f, 0.042f, 0);
             }
+            if (carriedArrival && bodyLook != Vector3.Zero)
+                look = bodyLook;
 
             // Check Default Location (Also See EntityTransferModule.TeleportAgentWithinRegion)
             if (AbsolutePosition.X == 128f && AbsolutePosition.Y == 128f && AbsolutePosition.Z == 22.5f)
@@ -2278,6 +2398,15 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
             {
                 m_gotRegionHandShake = false; // allow it if not a crossing
                 ControllingClient.SendRegionHandshake();
+            }
+
+            if (carriedArrival && m_log.IsEnabled(LogLevel.Debug))
+            {
+                m_log.LogDebug($"[SCENE PRESENCE]: Carried arrival of {Name} in {Scene.Name} at {AbsolutePosition}: " +
+                    $"body heading {HeadingDegrees(bodyLook):F1}, camera heading {HeadingDegrees(cameraLook):F1}, " +
+                    $"look-at sent {HeadingDegrees(look):F1} degrees; {System.Environment.TickCount64 - m_agentDataTicks} ms " +
+                    $"after the agent data, {Util.EnvironmentTickCountSubtract(ts)} ms into CompleteMovement");
+                m_logFacingReply = true;
             }
 
             ControllingClient.MoveAgentIntoRegion(m_scene.RegionInfo, AbsolutePosition, look);
@@ -2381,9 +2510,13 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
                 if (m_attachments.Count > 0)
                 {
                     foreach (SceneObjectGroup sog in m_attachments)
-                    {
                         sog.RootPart.ParentGroup.CreateScriptInstances(0, false, m_scene.DefaultScriptEngine, GetStateSource());
-                        sog.ResumeScripts();
+
+                    // When an object that crossed with this avatar is held for it, the scripts start with that object
+                    if (!m_scene.DeferAttachmentScripts(UUID, m_attachments))
+                    {
+                        foreach (SceneObjectGroup sog in m_attachments)
+                            sog.ResumeScripts();
                     }
 
                     foreach (ScenePresence p in allpresences)
@@ -2459,6 +2592,9 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         }
 
         m_scene.EventManager.OnRegionHeartbeatEnd += RegionHeartbeatEnd;
+
+        // an object that crossed with this avatar is held until it has arrived
+        m_scene.NoteArrival(UUID);
 
         m_log.LogDebug("[CompleteMovement] end: {0}ms", Util.EnvironmentTickCountSubtract(ts));
     }
@@ -2687,6 +2823,12 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
 
         if (AllowMovement)
         {
+            if (m_logFacingReply)
+            {
+                m_logFacingReply = false;
+                m_log.LogDebug($"[SCENE PRESENCE]: First reply of {Name} in {Scene.Name} after a carried arrival: " +
+                    $"facing {HeadingDegrees(HeadingOf(agentData.BodyRotation)):F1} degrees, was {HeadingDegrees(BodyHeading()):F1}");
+            }
             Rotation = agentData.BodyRotation;
 
             //m_log.LogDebug("[SCENE PRESENCE]: Initial body rotation {0} for {1}", agentData.BodyRotation, Name);
@@ -4404,7 +4546,7 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         if (cofVersion >= 0)
             visualParams = AvatarAppearance.WithAppearanceVersion(Appearance.VisualParams, 1);
         else if (IsNPC)
-            // SSB-NPC-1: an NPC's appearance is a clone of its owner's, parameter 11000 included, and an owner on a
+            // An NPC's appearance is a clone of its owner's, parameter 11000 included, and an owner on a
             // server-bake region sends that parameter as 1. Nothing ever bakes an NPC, so its message has no
             // AppearanceData block - and a parameter of 1 beside no block puts the viewer on the server-bake path
             // for this avatar (resolve_appearance_version prefers the parameter), which fetches every baked face
@@ -4651,6 +4793,39 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     #region Border Crossing Methods
 
     /// <summary>
+    /// The object this avatar stands on, when it is moving: such an object crosses
+    /// with its riders when its origin reaches the border (<see cref="SceneObjectGroup.FreezeStandingRiders"/>), so a rider
+    /// that is ahead of the origin, in the direction it travels, reaches the border first and has to wait for it. Null for an
+    /// avatar that stands on nothing, on an object that stands still, or on one that is already crossing.
+    /// </summary>
+    private SceneObjectGroup MovingObjectRiddenHere()
+    {
+        if (!m_scene.EnableStandingRiderCrossing || !RideOn.IsLinked)
+            return null;
+
+        SceneObjectGroup group = m_scene.GetSceneObjectGroup(RideOn.GroupID);
+        if (group is null || group.IsDeleted || group.inTransit || group.IsAttachment)
+            return null;
+
+        float speed = RideOnLimits.MovingObjectSpeed;
+        if (group.RootPart.Velocity.LengthSquared() < speed * speed)
+            return null;
+
+        return group;
+    }
+
+    /// <summary>
+    /// Lets the engine keep the avatar standing where it stands on a moving object, even if that is outside the region (it
+    /// would pull it back inside, off the part of the object that reaches over the border), or takes that back.
+    /// </summary>
+    private void SetStandingOutsideAllowed(bool allowed)
+    {
+        PhysicsActor pa = PhysicsActor;
+        if (pa is not null && pa.AllowOutsideRegion != allowed)
+            pa.AllowOutsideRegion = allowed;
+    }
+
+    /// <summary>
     /// Starts the process of moving an avatar into another region if they are crossing the border.
     /// </summary>
     /// <remarks>
@@ -4660,6 +4835,11 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     {
         // Check that we we are not a child
         if (IsChildAgent || IsInTransit)
+            return;
+
+        // An avatar carried in by an object crosses with it: until the carry ends it may stand outside the region
+        // without being sent back
+        if (IsCarriedHere())
             return;
 
         // If we don't have a PhysActor, we can't cross anyway
@@ -4674,6 +4854,12 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
 
         RegionInfo rinfo = m_scene.RegionInfo;
 
+        // An avatar standing on an object that is moving crosses with it, when the object does: until then the engine may
+        // let it stand outside the region (the part of the object it stands on can reach past the border before the
+        // object's origin does), and the border check leaves it alone.
+        SceneObjectGroup ridden = MovingObjectRiddenHere();
+        SetStandingOutsideAllowed(ridden is not null);
+
         float timeStep = m_scene.FrameTime;
         float t = pos2.X + vel.X * timeStep;
         if (t >= 0 && t < rinfo.RegionSizeX)
@@ -4682,6 +4868,9 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
             if (t >= 0 && t < rinfo.RegionSizeY)
                 return;
         }
+
+        if (ridden is not null)
+            return;
 
         //m_log.LogDebug(
         //    "[SCENE PRESENCE]: Testing border check for projected position {0} of {1} in {2}",
@@ -5017,12 +5206,23 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
 
         cAgent.MotionState = (byte)Animator.currentControlState;
 
+        lock (m_constantForceLock)
+        {
+            cAgent.ConstantForce = ConstantForce;
+            cAgent.ConstantForceIsLocal = ConstantForceIsLocal;
+        }
+
         Scene.AttachmentsModule?.CopyAttachments(this, cAgent);
 
         if(isCrossUpdate)
         {
             cAgent.CrossingFlags = m_crossingFlags;
             cAgent.CrossingFlags |= 1;
+            if ((m_crossingFlags & AgentData.CrossingCarried) != 0)
+            {
+                cAgent.CarriedByGroup = CarriedByGroup;
+                cAgent.CarriedOffset = CarriedOffset;
+            }
             cAgent.CrossExtraFlags = 0;
             if((LastCommands & ScriptControlled.CONTROL_LBUTTON) != 0)
                 cAgent.CrossExtraFlags |= 1;
@@ -5176,8 +5376,23 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         if (cAgent.MotionState != 0)
             Animator.currentControlState = (ScenePresenceAnimator.motionControlStates) cAgent.MotionState;
 
+        // The force came with the avatar; agent data without it means none. The actor made when the avatar
+        // becomes a root agent here is handed it.
+        SetConstantForce(cAgent.ConstantForce, cAgent.ConstantForceIsLocal);
+
         m_crossingFlags = cAgent.CrossingFlags;
         m_gotCrossUpdate = (m_crossingFlags != 0);
+        m_agentDataTicks = System.Environment.TickCount64;
+        // a region with the rider crossing feature off takes an avatar sent as carried for an ordinary one
+        if ((m_crossingFlags & AgentData.CrossingCarried) != 0 && m_scene.EnableStandingRiderCrossing)
+        {
+            CarriedByGroup = cAgent.CarriedByGroup;
+            CarriedOffset = cAgent.CarriedOffset;
+            m_carriedLinked = false;
+            m_carriedSince = double.NaN;
+        }
+        else
+            CarriedByGroup = UUID.Zero;
         if(m_gotCrossUpdate)
         {
             LastCommands &= ~(ScriptControlled.CONTROL_LBUTTON | ScriptControlled.CONTROL_ML_LBUTTON);
@@ -5280,7 +5495,7 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
 
         PhysicsActor pa = scene.AddAvatar(
             LocalId, Firstname + "." + Lastname, pVec,
-            Appearance.AvatarBoxSize,Appearance.AvatarFeetOffset, isFlying);
+            Appearance.AvatarBoxSize,Appearance.AvatarFeetOffset, isFlying, IsCarriedHere());
         pa.Orientation = m_bodyRot;
         //PhysicsActor.OnRequestTerseUpdate += SendTerseUpdateToAllClients;
         pa.OnCollisionUpdate += PhysicsCollisionUpdate;
@@ -5297,6 +5512,132 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     }
 
     /// <summary>
+    /// The object this avatar stands on, as far as the engine's feet contacts show: see <see cref="SoftLink"/>.
+    /// </summary>
+    public SoftLink RideOn { get; } = new();
+
+    /// <summary>Time source of <see cref="RideOn"/> for <see cref="PhysicsCollisionUpdate"/>, in milliseconds.</summary>
+    public Func<double> RideOnClock { get; set; } = Util.GetTimeStampMS;
+
+    /// <summary>
+    /// Feeds <see cref="RideOn"/> from one frame of the engine's contact reports. Every engine names the touched object
+    /// by its root part's local id and flags the feet contacts, so this reads the same under all of them. The lowest
+    /// feet contact decides, as for the collision plane: ground below the object means the avatar is not on it.
+    /// </summary>
+    public void UpdateSoftLink(Dictionary<uint, ContactPoint> contacts, double nowMs)
+    {
+        // nothing is tracked unless the region has the rider crossing feature on
+        if (!m_scene.EnableStandingRiderCrossing)
+            return;
+
+        bool canStand = !IsChildAgent && !IsInTransit && !IsNPC && !Flying && ParentID == 0 && ParentUUID.IsZero();
+
+        UUID group = UUID.Zero;
+        if (canStand && contacts is not null)
+        {
+            uint lowestId = 0;
+            float lowestZ = float.MaxValue;
+            foreach (KeyValuePair<uint, ContactPoint> c in contacts)
+            {
+                if (c.Value.CharacterFeet && c.Value.Position.Z < lowestZ)
+                {
+                    lowestZ = c.Value.Position.Z;
+                    lowestId = c.Key;
+                }
+            }
+
+            if (lowestId != 0)
+            {
+                SceneObjectGroup sog = m_scene.GetSceneObjectPart(lowestId)?.ParentGroup;
+                if (sog is not null && !sog.IsDeleted && !sog.inTransit && !sog.IsAttachmentCheckFull()
+                        && !sog.IsVolumeDetect)
+                    group = sog.UUID;
+            }
+        }
+
+        RideOn.Update(nowMs, group, canStand);
+        UpdateCarried(nowMs, canStand);
+    }
+
+    // true from arrival until the first report that has the avatar standing on the object that carried it
+    private bool m_carriedLinked;
+
+    // time of the first report after the arrival, NaN before it
+    private double m_carriedSince = double.NaN;
+
+    /// <summary>
+    /// True while an object that crossed into this region with this avatar standing on it still carries it: the object
+    /// is here, and the avatar has not left it. Such an avatar stands where the object put it, which can be outside the
+    /// region's bounds, so neither the border check nor the physics engine's clamp applies to it.
+    /// </summary>
+    public bool IsCarriedHere()
+    {
+        if (CarriedByGroup.IsZero())
+            return false;
+        if (IsChildAgent)
+            return false;
+
+        if (ParentID != 0 || ParentUUID.IsNotZero())
+        {
+            EndCarry();
+            return false;
+        }
+
+        SceneObjectGroup group = m_scene.GetSceneObjectGroup(CarriedByGroup);
+        if (group is null || group.IsDeleted)
+        {
+            EndCarry();
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>The avatar is an ordinary avatar again: the engine may pull it inside the region and the border check applies.</summary>
+    public void EndCarry()
+    {
+        CarriedByGroup = UUID.Zero;
+        CarriedOffset = Vector3.Zero;
+        m_carriedLinked = false;
+        m_carriedSince = double.NaN;
+        PhysicsActor pa = PhysicsActor;
+        if (pa is not null)
+            pa.AllowOutsideRegion = false;
+    }
+
+    // The carry ends when the avatar's link to the carrying object, once formed, ends; when it stands on something
+    // else; or when reports go by for the grace time without the link forming. Time with no reports counts for
+    // nothing, as for the link itself.
+    private void UpdateCarried(double nowMs, bool canStand)
+    {
+        if (CarriedByGroup.IsZero())
+            return;
+
+        if (!canStand)
+        {
+            EndCarry();
+            return;
+        }
+
+        if (RideOn.GroupID.Equals(CarriedByGroup))
+        {
+            m_carriedLinked = true;
+            return;
+        }
+
+        if (m_carriedLinked || RideOn.IsLinked)
+        {
+            EndCarry();
+            return;
+        }
+
+        if (double.IsNaN(m_carriedSince))
+            m_carriedSince = nowMs;
+        else if (nowMs - m_carriedSince >= RideOnLimits.CarriedGraceMs)
+            EndCarry();
+    }
+
+    /// <summary>
     /// Event called by the physics plugin to tell the avatar about a collision.
     /// </summary>
     /// <remarks>
@@ -5309,14 +5650,16 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     /// <param name="e"></param>
     public void PhysicsCollisionUpdate(EventArgs e)
     {
-        if (IsChildAgent)
+        if (IsChildAgent || IsInTransit)
+        {
+            RideOn.Clear();
             return;
-
-        if(IsInTransit)
-            return;
+        }
 
         CollisionEventUpdate collisionData = (CollisionEventUpdate)e;
         Dictionary<uint, ContactPoint> coldata = collisionData.m_objCollisionList;
+
+        UpdateSoftLink(coldata, RideOnClock());
 
         if (coldata.Count == 0)
             CollisionPlane = Vector4.UnitW;
@@ -5351,7 +5694,7 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
         if (Invulnerable || IsViewerUIGod)
             return;
 
-        // PHLOX-10: the physics frame's collisions become ONE damage batch through the one door,
+        // The physics frame's collisions become ONE damage batch through the one door,
         // ApplyDamage. The amounts are the ones this block always computed; the Health arithmetic
         // and the kill live in ApplyDamage now. A Damage-bearing prim still dies on contact.
         if (coldata.Count > 0)
@@ -5406,10 +5749,10 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     }
 
     /// <summary>
-    /// PHLOX-10. The one door for damage to this avatar. Every door that used to do its own Health
+    /// The one door for damage to this avatar. Every door that used to do its own Health
     /// arithmetic - the physics frame's collisions, llAdjustDamage, llSetHealth, llDamage - builds a
     /// <see cref="DamageEntry"/> and comes through here, so the SL damage events have one place to
-    /// hang off. Gods and the invulnerable take nothing (as the collision path always ruled).
+    /// hang off. Gods and the invulnerable take nothing (as the collision path always had it).
     /// Health is clamped to 0..100; at 0 the client is told and <see cref="EventManager.TriggerAvatarKill"/>
     /// fires with the last entry's local id, exactly once.
     /// </summary>
@@ -5595,6 +5938,8 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     {
         lock (m_attachments)
             m_attachments.Remove(gobj);
+
+        EndAttachmentPhysics(gobj.UUID, false);
     }
 
     /// <summary>
@@ -5604,6 +5949,8 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     {
         lock (m_attachments)
             m_attachments.Clear();
+
+        EndAttachmentPhysics(UUID.Zero, true);
     }
 
     /// <summary>
@@ -5874,15 +6221,19 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     /// Gets the mass.
     /// </summary>
     /// <returns>
-    /// The mass.
+    /// The mass of the physics actor; while the avatar has no actor, the last mass it had
+    /// (0 if it never had one).
     /// </returns>
     public float GetMass()
     {
         PhysicsActor pa = PhysicsActor;
-        if (pa != null)
-            return pa.Mass;
-        else
-            return 0;
+        if (pa is null)
+            return m_lastKnownMass;
+
+        float mass = pa.Mass;
+        if (mass > 0)
+            m_lastKnownMass = mass;
+        return mass;
     }
 
     internal void Jump(float impulseZ)
@@ -5893,6 +6244,148 @@ public class ScenePresence : EntityBase, IScenePresence, IDisposable
     internal void PushForce(Vector3 impulse)
     {
         PhysicsActor?.AddForce(impulse, true);
+    }
+
+    /// <summary>
+    /// The constant force a script in one of this avatar's attachments set with llSetForce (see
+    /// PhysicsActor.SetConstantForce for what an engine does with it). Zero when none is set.
+    /// </summary>
+    public Vector3 ConstantForce { get; private set; }
+
+    /// <summary>True when <see cref="ConstantForce"/> is in the avatar's own axes, false for region axes.</summary>
+    public bool ConstantForceIsLocal { get; private set; }
+
+    /// <summary>
+    /// Set the avatar's constant force; a zero force ends it, and a force that is not finite is ignored. The
+    /// presence keeps it, so a new physics actor (after sitting and standing, for example) gets it too. When the
+    /// avatar leaves the region it ends here and goes with the avatar in its agent data (CopyTo, CopyFrom).
+    /// </summary>
+    public void SetConstantForce(Vector3 force, bool local)
+    {
+        if (!force.IsFinite())
+            return;
+
+        lock (m_constantForceLock)
+        {
+            ConstantForce = force;
+            ConstantForceIsLocal = local;
+            m_physActor?.SetConstantForce(force, local);
+        }
+    }
+
+    private readonly object m_constantForceLock = new();
+
+    /// <summary>Hand the held constant force to a new physics actor.</summary>
+    private void HandConstantForceTo(PhysicsActor pa)
+    {
+        lock (m_constantForceLock)
+        {
+            if (!ConstantForce.IsZero())
+                pa.SetConstantForce(ConstantForce, ConstantForceIsLocal);
+        }
+    }
+
+    // Buoyancy and hover that a script in a worn attachment set on the avatar (llSetBuoyancy, llSetHoverHeight).
+    // While worn the attachment has no physics actor, so the presence keeps the values and the id of the
+    // attachment that set each, hands them to every actor it gets, and ends them when that attachment is removed.
+    private readonly object m_attachmentPhysicsLock = new();
+    private float m_attachmentBuoyancy;
+    private UUID m_attachmentBuoyancySetter;
+    private bool m_attachmentHoverActive;
+    private float m_attachmentHoverHeight;
+    private PIDHoverType m_attachmentHoverType;
+    private float m_attachmentHoverTau;
+    private UUID m_attachmentHoverSetter;
+
+    /// <summary>Set the avatar's buoyancy on behalf of a worn attachment; zero ends it. A value that is not finite is ignored.</summary>
+    internal void SetAttachmentBuoyancy(SceneObjectGroup setter, float buoyancy)
+    {
+        if (!float.IsFinite(buoyancy))
+            return;
+
+        lock (m_attachmentPhysicsLock)
+        {
+            m_attachmentBuoyancy = buoyancy;
+            m_attachmentBuoyancySetter = buoyancy == 0f ? UUID.Zero : setter.UUID;
+            if (m_physActor is not null)
+                m_physActor.Buoyancy = buoyancy;
+        }
+    }
+
+    /// <summary>Set the avatar's hover on behalf of a worn attachment; a height of zero ends it (llStopHover).</summary>
+    internal void SetAttachmentHover(SceneObjectGroup setter, float height, PIDHoverType hoverType, float tau)
+    {
+        lock (m_attachmentPhysicsLock)
+        {
+            m_attachmentHoverActive = height != 0f;
+            m_attachmentHoverHeight = height;
+            m_attachmentHoverType = hoverType;
+            m_attachmentHoverTau = tau;
+            m_attachmentHoverSetter = m_attachmentHoverActive ? setter.UUID : UUID.Zero;
+            if (m_physActor is not null)
+                ApplyAttachmentHover(m_physActor);
+        }
+    }
+
+    private void ApplyAttachmentHover(PhysicsActor pa)
+    {
+        if (m_attachmentHoverActive)
+        {
+            pa.PIDHoverHeight = m_attachmentHoverHeight;
+            pa.PIDHoverType = m_attachmentHoverType;
+            pa.PIDHoverTau = m_attachmentHoverTau;
+            pa.PIDHoverActive = true;
+        }
+        else
+            pa.PIDHoverActive = false;
+    }
+
+    /// <summary>Hand the held buoyancy and hover to a new physics actor.</summary>
+    private void HandAttachmentPhysicsTo(PhysicsActor pa)
+    {
+        lock (m_attachmentPhysicsLock)
+        {
+            if (m_attachmentBuoyancy != 0f)
+                pa.Buoyancy = m_attachmentBuoyancy;
+            if (m_attachmentHoverActive)
+                ApplyAttachmentHover(pa);
+        }
+    }
+
+    /// <summary>
+    /// An attachment was removed from the avatar (detached, dropped or deleted): the buoyancy and hover it set end
+    /// and the avatar's go back to normal. Those set by another attachment stay.
+    /// </summary>
+    private void EndAttachmentPhysics(UUID setter, bool all)
+    {
+        lock (m_attachmentPhysicsLock)
+        {
+            if (m_attachmentBuoyancy != 0f && (all || m_attachmentBuoyancySetter.Equals(setter)))
+            {
+                m_attachmentBuoyancy = 0f;
+                m_attachmentBuoyancySetter = UUID.Zero;
+                if (m_physActor is not null)
+                    m_physActor.Buoyancy = 0f;
+            }
+
+            if (m_attachmentHoverActive && (all || m_attachmentHoverSetter.Equals(setter)))
+            {
+                m_attachmentHoverActive = false;
+                m_attachmentHoverSetter = UUID.Zero;
+                if (m_physActor is not null)
+                    m_physActor.PIDHoverActive = false;
+            }
+        }
+    }
+
+    /// <summary>The avatar left the region, so its constant force ends here.</summary>
+    private void ClearConstantForce()
+    {
+        lock (m_constantForceLock)
+        {
+            ConstantForce = Vector3.Zero;
+            ConstantForceIsLocal = false;
+        }
     }
 
     private CameraData CameraDataCache;

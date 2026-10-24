@@ -457,6 +457,7 @@ public class AgentSimpleHandler : SimpleStreamHandler
             featuresWanted.Add(OSD.FromString(feature.ToString()));
 
         resp["features"] = featuresWanted;
+        EntityTransferContext.WriteAnswer(resp, ctx.CarriedRiders);
 
         httpResponse.KeepAlive = result;
 

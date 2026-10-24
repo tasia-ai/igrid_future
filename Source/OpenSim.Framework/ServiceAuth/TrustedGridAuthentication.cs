@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2026 Legion Builds
  * Copyright (c) Contributors, http://opensimulator.org/
  * See CONTRIBUTORS.TXT for a full list of copyright holders.
  *
@@ -32,7 +33,7 @@ using OpenSim.Framework.TrustedHypergrid;
 namespace OpenSim.Framework.ServiceAuth;
 
 /// <summary>
-/// The Trusted Hypergrid <see cref="IServiceAuth"/> (Design Brief D5, §6; ADR-005). This is the
+/// The Trusted Hypergrid <see cref="IServiceAuth"/> (Design Brief §6; ADR-005). This is the
 /// ONLY component that may reject, and it rejects ONLY a Blocked-tier caller. Verification itself
 /// is done separately by <see cref="GridSignatureVerifier"/>, which never rejects; this reads the
 /// resulting <see cref="GridTrustContext"/> and applies the single hard-fail rule.

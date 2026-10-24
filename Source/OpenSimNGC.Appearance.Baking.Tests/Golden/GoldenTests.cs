@@ -1,3 +1,10 @@
+/* Copyright (c) 2026 Legion Builds
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -25,7 +32,7 @@ namespace OpenSimNGC.Appearance.Baking.Tests.Golden;
 /// RGB (mean |d| &lt;= 4, at most 5% of pixels with |d| &gt; 8 — both skipped when the reference alpha is entirely
 /// zero, as for a bald hair), alpha (mean |d| &lt;= 2) and the 5th component, the morph mask (mean |d| &lt;= 4 and,
 /// unless the reference's mask is uniform, at most 5% of pixels with |d| &gt; 8). It writes the table and the full
-/// per-layer decision log to <c>Golden/last-run-&lt;set&gt;.txt</c>. The numbers came first (S0b), the thresholds after.</para>
+/// per-layer decision log to <c>Golden/last-run-&lt;set&gt;.txt</c>. The numbers came first, the thresholds after.</para>
 ///
 /// <para>The size sweep repeats the comparison at 512, 1024 and 2048 and reports the
 /// encoded byte size per channel per size. It asserts only that every channel encodes and decodes at the size asked
@@ -139,7 +146,7 @@ public class GoldenTests
     {
         var overlay = new Dictionary<int, float>();
         if (bytes is null || bytes.Count == 0) return overlay;
-        var list = VisualParamEncoder.SendList(new TexLayerCompositor().Lad);
+        var list = VisualParamEncoder.SendList(new AvatarBakeCompositor().Lad);
         if (bytes.Count != list.Count) return overlay;
         for (var i = 0; i < list.Count; i++)
             overlay[list[i].Id] = list[i].Min + bytes[i] / 255f * (list[i].Max - list[i].Min);
@@ -252,7 +259,7 @@ public class GoldenTests
         Table(report, rows);
         report.AppendLine();
 
-        // the full per-layer decision log, every channel: this is the fidelity surface (S1b Part 3)
+        // the full per-layer decision log, every channel: this is the fidelity surface
         foreach (var r in results)
         {
             report.AppendLine($"[{r.Channel}] hash={r.InputHash[..16]} bytes={r.J2kBytes.Length} missingTextures=[{string.Join(", ", r.Fidelity.MissingTextures)}] unsupportedLayers=[{string.Join(" | ", r.Fidelity.UnsupportedLayers)}]");

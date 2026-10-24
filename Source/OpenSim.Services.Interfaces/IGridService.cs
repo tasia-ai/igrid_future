@@ -310,8 +310,12 @@ public class GridRegion
         Maturity = ConvertFrom.RegionSettings.Maturity;
         RegionSecret = ConvertFrom.regionSecret;
         EstateOwner = ConvertFrom.EstateSettings.EstateOwner;
+
         QuicHost = ConvertFrom.QuicHost ?? string.Empty;
         QuicPort = ConvertFrom.QuicPort;
+
+        ViewerLocalAddress = ConvertFrom.ViewerLocalAddress;
+
     }
 
     public GridRegion(GridRegion ConvertFrom)
@@ -333,8 +337,12 @@ public class GridRegion
         Maturity = ConvertFrom.Maturity;
         RegionSecret = ConvertFrom.RegionSecret;
         EstateOwner = ConvertFrom.EstateOwner;
+
         QuicHost = ConvertFrom.QuicHost ?? string.Empty;
         QuicPort = ConvertFrom.QuicPort;
+
+        ViewerLocalAddress = ConvertFrom.ViewerLocalAddress;
+
     }
 
     public GridRegion(Dictionary<string, object> kvp)
@@ -420,6 +428,11 @@ public class GridRegion
         if (kvp.ContainsKey("Token"))
             Token = kvp["Token"].ToString();
 
+        // Optional: a region of an older build does not send it, and a database row from before the column
+        // existed reads as null or empty.
+        if (kvp.TryGetValue("viewerLocalAddress", out object localAddress) && !string.IsNullOrEmpty(localAddress?.ToString()))
+            ViewerLocalAddress = localAddress.ToString();
+
         // m_log.LogDebug("{0} New GridRegion. id={1}, loc=<{2},{3}>, size=<{4},{5}>",
         //                         LogHeader, RegionID, RegionLocX, RegionLocY, RegionSizeX, RegionSizeY);
     }
@@ -447,6 +460,8 @@ public class GridRegion
         kvp["regionSecret"] = RegionSecret;
         kvp["owner_uuid"] = EstateOwner.ToString();
         kvp["Token"] = Token.ToString();
+        if (!string.IsNullOrEmpty(ViewerLocalAddress))
+            kvp["viewerLocalAddress"] = ViewerLocalAddress;
         // Maturity doesn't seem to exist in the DB
         if (!string.IsNullOrWhiteSpace(QuicHost))
             kvp["quicHost"] = QuicHost;
@@ -498,6 +513,12 @@ public class GridRegion
         get { return m_externalHostName; }
         set { m_externalHostName = value; }
     }
+
+    /// <summary>
+    /// The IPv4 address viewers on a local network use to reach this region, as the region registered it.
+    /// Null for a region that registered none (an older build, or nothing configured).
+    /// </summary>
+    public string ViewerLocalAddress { get; set; }
 
     public IPEndPoint InternalEndPoint
     {

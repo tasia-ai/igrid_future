@@ -70,7 +70,18 @@ public class UserAgentService : UserAgentServiceBase, IUserAgentService
     protected static FriendsSimConnector m_FriendsSimConnector; // grid
 
     protected static string m_GridName;
-    protected static string m_MyExternalIP = "";
+
+    /// <summary>
+    /// Resolves (and periodically re-resolves) the public address of the gatekeeper host.
+    /// See [UserAgentService] PublicAddress / ExternalIPRefreshMinutes.
+    /// </summary>
+    protected static ExternalIPResolver m_ExternalIPResolver;
+
+    /// <summary>
+    /// The public address of this grid as seen from outside, used by <see cref="VerifyClient"/> as
+    /// the NAT fallback. Empty until a lookup has succeeded.
+    /// </summary>
+    protected static string m_MyExternalIP => m_ExternalIPResolver?.CurrentIP ?? string.Empty;
 
     protected static int m_LevelOutsideContacts;
     protected static bool m_ShowDetails;
@@ -153,10 +164,17 @@ public class UserAgentService : UserAgentServiceBase, IUserAgentService
                 if (!Uri.TryCreate(m_GridName, UriKind.Absolute, out Uri gateURI))
                     throw new Exception(String.Format("[UserAgentService] could not parse gatekeeper uri"));
                 string host = gateURI.DnsSafeHost;
-                IPAddress ip = Util.GetHostFromDNS(host);
-                if(ip is null)
-                    throw new Exception(String.Format("[UserAgentService] failed to resolve gatekeeper host"));
-                m_MyExternalIP = ip.ToString();
+
+                // Resolve the gatekeeper's public address through the operating system resolver, as
+                // before. [UserAgentService] PublicAddress names the host (or IP address) to resolve
+                // instead of the gatekeeper host, so a grid whose own hosts file maps the gatekeeper
+                // name to a private address can name a public one. The lookup is repeated every
+                // ExternalIPRefreshMinutes so a dynamic-DNS change heals without a restart. A failed
+                // lookup logs a warning and never throws here.
+                m_ExternalIPResolver = ExternalIPResolver.FromConfig(config, host, m_log);
+                if (string.IsNullOrEmpty(m_ExternalIPResolver.CurrentIP))
+                    m_log.LogWarning("[USER AGENT SERVICE]: could not resolve {0}; the NAT fallback in client verification is unavailable until a refresh succeeds",
+                        m_ExternalIPResolver.Host);
             }
             // Finally some cleanup
             m_Database.DeleteOld();
@@ -582,8 +600,10 @@ public class UserAgentService : UserAgentServiceBase, IUserAgentService
         }
 
         TravelingAgentInfo travel = new TravelingAgentInfo(hgt);
-        m_log.LogDebug("[USER AGENT SERVICE]: Verifying agent token {0} against {1}", token, travel.ServiceToken);
-        return travel.ServiceToken == token;
+        bool matched = travel.ServiceToken == token;
+        m_log.LogDebug("[USER AGENT SERVICE]: Verifying agent token for session {0}: {1}",
+            sessionID, matched ? "token matched" : "token did not match");
+        return matched;
     }
 
     [Obsolete]

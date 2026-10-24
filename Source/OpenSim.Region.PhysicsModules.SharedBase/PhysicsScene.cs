@@ -180,6 +180,21 @@ public abstract class PhysicsScene
     }
 
     /// <summary>
+    /// Add an avatar that may stand outside the region (<see cref="PhysicsActor.AllowOutsideRegion"/>: one carried in by
+    /// an object that crossed the border). An engine whose actor can be stepped as soon as it is made, on another
+    /// thread, overrides this so the actor is made with the flag already set; this default makes the actor and then
+    /// sets it.
+    /// </summary>
+    public virtual PhysicsActor AddAvatar(
+        uint localID, string avName, Vector3 position, Vector3 size, float feetOffset, bool isFlying, bool allowOutsideRegion)
+    {
+        PhysicsActor ret = AddAvatar(localID, avName, position, size, feetOffset, isFlying);
+        if (ret is not null)
+            ret.AllowOutsideRegion = allowOutsideRegion;
+        return ret;
+    }
+
+    /// <summary>
     /// Remove an avatar.
     /// </summary>
     /// <param name="actor"></param>
@@ -218,6 +233,16 @@ public abstract class PhysicsScene
         get { return 1.0f; }
     }
 
+    /// <summary>
+    /// The largest linear speed, in metres per second, that this engine will give a body. Zero means
+    /// the engine declares no limit. Read by modules that need an upper bound on how far something
+    /// can move in a given time.
+    /// </summary>
+    public virtual float MaximumLinearVelocity
+    {
+        get { return 0f; }
+    }
+
     //legacy for any modules that may still call it
     public virtual void AddPhysicsActorTaint(PhysicsActor prim) { }
 
@@ -253,6 +278,29 @@ public abstract class PhysicsScene
     /// True if the physics plugin supports raycasting against the physics scene
     /// </summary>
     public virtual bool SupportsRayCast()
+    {
+        return false;
+    }
+
+    /// <summary>
+    /// True if the actors of this scene turn a physical root prim toward the rotation target they are given
+    /// (<see cref="PhysicsActor.APIDTarget"/>, <see cref="PhysicsActor.APIDStrength"/>,
+    /// <see cref="PhysicsActor.APIDDamping"/> and <see cref="PhysicsActor.APIDActive"/>), and so the scene asks core not
+    /// to run its own look-at controller.
+    /// </summary>
+    /// <remarks>
+    /// The four members are set-only, so core cannot read back whether an engine uses them; this is how an engine says so.
+    /// An engine that answers true must:
+    /// - take a target (a world rotation), a strength and a damping in seconds, as llRotLookAt gives them, and turn the
+    ///   root toward the target while <see cref="PhysicsActor.APIDActive"/> is true;
+    /// - accept a new target, strength or damping while the target is on, and use it from then on (a rotate-drag moves
+    ///   the target on every update of the mouse);
+    /// - stop turning the body when the target is switched off.
+    /// Core sets the target, strength and damping, then switches the target on. It never also sets the body's angular
+    /// velocity for an object it has handed a target to, and it hands the target again to an actor that replaces the root's.
+    /// The default is false: core steers the body itself, as it does for an engine that ignores the members.
+    /// </remarks>
+    public virtual bool SupportsRotationTarget()
     {
         return false;
     }

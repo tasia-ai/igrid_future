@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2026 Legion Builds
  * Copyright (c) Contributors, http://opensimulator.org/
  * See CONTRIBUTORS.TXT for a full list of copyright holders.
  *
@@ -45,13 +46,14 @@ namespace OpenSim.Region.CoreModules.Scripting.OutboundHardening.Tests;
 /// every fetch the module makes - to any address, by any version of the module - lands at that proxy and is
 /// answered there. Nothing leaves this machine.
 /// </remarks>
+[Collection("OutboundProcessWideState")]
 public class VectorRenderImageFilterTests : OpenSimTestCase
 {
     private const string PortToken = "PORT";
 
     private readonly RecordingHttpServer m_proxy = new();
     private readonly IWebProxy m_savedDefaultProxy;
-    private VectorRenderModule m_module;
+    private VectorRenderModule m_module = null!;
     private static readonly byte[] s_png = MakePng();
 
     public VectorRenderImageFilterTests()
@@ -86,7 +88,7 @@ public class VectorRenderImageFilterTests : OpenSimTestCase
         return data.ToArray();
     }
 
-    private void StartModule(string except = null)
+    private void StartModule(string? except = null)
     {
         IConfigSource config = new IniConfigSource();
         IConfig network = config.AddConfig("Network");
