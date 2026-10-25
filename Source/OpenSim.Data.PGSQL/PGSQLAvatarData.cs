@@ -46,9 +46,9 @@ public class PGSQLAvatarData : PGSQLGenericTableHandler<AvatarBaseData>,
     {
     }
 
-    public AvatarBaseData[] Get(string field, string value)
+    public override AvatarBaseData[] Get(string field, string value)
     {
-        return new AvatarBaseData[0];
+        return base.Get(field, value);
     }
 
     public bool Delete(UUID principalID, string name)

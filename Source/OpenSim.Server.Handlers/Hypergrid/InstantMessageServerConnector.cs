@@ -71,7 +71,7 @@ public class InstantMessageServerConnector : ServiceConnector
             string serviceDll = gridConfig.GetString("LocalServiceModule", string.Empty);
 
             Object[] args = new Object[] { config, simConnector };
-            m_IMService = ServerUtils.LoadPlugin<IInstantMessage>(serviceDll, args);
+            m_IMService = ServerUtils.LoadRequiredPlugin<IInstantMessage>(serviceDll, args);
         }
         if (m_IMService == null)
             throw new Exception("InstantMessage server connector cannot proceed because of missing service");

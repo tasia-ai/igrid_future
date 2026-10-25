@@ -52,7 +52,7 @@ public class MuteListServiceConnector : ServiceConnector
             throw new Exception("LocalServiceModule not present in MuteListService config file MuteListService section");
 
         Object[] args = new Object[] { config };
-        m_MuteListService = ServerUtils.LoadPlugin<IMuteListService>(service, args);
+        m_MuteListService = ServerUtils.LoadRequiredPlugin<IMuteListService>(service, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 

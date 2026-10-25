@@ -222,7 +222,12 @@ public class PGSQLManager
         }
         if (PGFieldType == "boolean" || PGFieldType == "bit")
         {
-            return (value.ToString() == "true");
+            if (value is bool boolean)
+                return boolean;
+            if (bool.TryParse(value.ToString(), out bool parsed))
+                return parsed;
+            // OpenSim represents some boolean columns (e.g. groupOwned) as 0/1 integers.
+            return Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture) != 0;
         }
         if (PGFieldType == "timestamp with time zone")
         {

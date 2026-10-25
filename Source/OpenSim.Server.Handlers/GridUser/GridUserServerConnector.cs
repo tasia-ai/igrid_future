@@ -53,7 +53,7 @@ public class GridUserServiceConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         Object[] args = new Object[] { config };
-        m_GridUserService = ServerUtils.LoadPlugin<IGridUserService>(service, args);
+        m_GridUserService = ServerUtils.LoadRequiredPlugin<IGridUserService>(service, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 

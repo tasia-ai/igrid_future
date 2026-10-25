@@ -1,0 +1,37 @@
+name: PostgreSQL provider discovery and login smoke
+on:
+  pull_request:
+  push:
+    branches: [upgrade/develop-20261022]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pgsql:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: igrid_provider_test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d igrid_provider_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      IGRID_PGSQL_TEST_CONNECTION: Host=127.0.0.1;Port=55432;Database=igrid_provider_test;Username=postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet test Tests/OpenSim.Data.PGSQL.Tests -c Release -m:4 --logger "trx;LogFileName=pgsql.trx" --results-directory TestResults
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pgsql-test-results
+          path: TestResults

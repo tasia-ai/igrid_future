@@ -238,24 +238,24 @@ public class LLLoginService : ILoginService
             throw new Exception("LoginService is missing service specifications");
 
         object[] args = [config];
-        m_UserAccountService = ServerUtils.LoadPlugin<IUserAccountService>(accountService, args);
-        m_GridUserService = ServerUtils.LoadPlugin<IGridUserService>(gridUserService, args);
+        m_UserAccountService = ServerUtils.LoadRequiredPlugin<IUserAccountService>(accountService, args);
+        m_GridUserService = ServerUtils.LoadRequiredPlugin<IGridUserService>(gridUserService, args);
         object[] authArgs = new object[] { config, m_UserAccountService };
-        m_AuthenticationService = ServerUtils.LoadPlugin<IAuthenticationService>(authService, authArgs);
-        m_InventoryService = ServerUtils.LoadPlugin<IInventoryService>(invService, args);
+        m_AuthenticationService = ServerUtils.LoadRequiredPlugin<IAuthenticationService>(authService, authArgs);
+        m_InventoryService = ServerUtils.LoadRequiredPlugin<IInventoryService>(invService, args);
 
         if (!string.IsNullOrWhiteSpace(gridService))
-            m_GridService = ServerUtils.LoadPlugin<IGridService>(gridService, args);
+            m_GridService = ServerUtils.LoadRequiredPlugin<IGridService>(gridService, args);
         if (!string.IsNullOrWhiteSpace(presenceService))
-            m_PresenceService = ServerUtils.LoadPlugin<IPresenceService>(presenceService, args);
+            m_PresenceService = ServerUtils.LoadRequiredPlugin<IPresenceService>(presenceService, args);
         if (!string.IsNullOrWhiteSpace(avatarService))
-            m_AvatarService = ServerUtils.LoadPlugin<IAvatarService>(avatarService, args);
+            m_AvatarService = ServerUtils.LoadRequiredPlugin<IAvatarService>(avatarService, args);
         if (!string.IsNullOrWhiteSpace(friendsService))
-            m_FriendsService = ServerUtils.LoadPlugin<IFriendsService>(friendsService, args);
+            m_FriendsService = ServerUtils.LoadRequiredPlugin<IFriendsService>(friendsService, args);
         if (!string.IsNullOrWhiteSpace(simulationService))
-            m_RemoteSimulationService = ServerUtils.LoadPlugin<ISimulationService>(simulationService, args);
+            m_RemoteSimulationService = ServerUtils.LoadRequiredPlugin<ISimulationService>(simulationService, args);
         if (!string.IsNullOrWhiteSpace(agentService))
-            m_UserAgentService = ServerUtils.LoadPlugin<IUserAgentService>(agentService, args);
+            m_UserAgentService = ServerUtils.LoadRequiredPlugin<IUserAgentService>(agentService, args);
 
         // Get the Hypergrid inventory service (exists only if Hypergrid is enabled)
         string hgInvServicePlugin = m_LoginServerConfig.GetString("HGInventoryServicePlugin", string.Empty);
@@ -266,7 +266,7 @@ public class LLLoginService : ILoginService
             {
                 hgInvServicePlugin = hgInvServiceArg + "@" + hgInvServicePlugin;
             }
-            m_HGInventoryService = ServerUtils.LoadPlugin<IInventoryService>(hgInvServicePlugin, args);
+            m_HGInventoryService = ServerUtils.LoadRequiredPlugin<IInventoryService>(hgInvServicePlugin, args);
         }
 
         //
@@ -281,7 +281,7 @@ public class LLLoginService : ILoginService
         else if (!string.IsNullOrWhiteSpace(libService))
         {
             m_log.LogDebug("[LLOGIN SERVICE]: Using instantiated LibraryService");
-            m_LibraryService = ServerUtils.LoadPlugin<ILibraryService>(libService, args);
+            m_LibraryService = ServerUtils.LoadRequiredPlugin<ILibraryService>(libService, args);
         }
 
         m_GatekeeperConnector = new GatekeeperServiceConnector();

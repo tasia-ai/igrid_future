@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS "public"."agentprefs" (
 	"PermGroup" int4 NOT NULL DEFAULT 0,
 	"PermNextOwner" int4 NOT NULL DEFAULT 532480
 )
-WITH (OIDS=FALSE);
+;
 
 ALTER TABLE "public"."agentprefs" ADD PRIMARY KEY ("PrincipalID") NOT DEFERRABLE INITIALLY IMMEDIATE;
 

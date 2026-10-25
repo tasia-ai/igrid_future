@@ -354,13 +354,15 @@ public class PGSQLRegionData : IRegionData
                     }
                     catch (Exception ex)
                     {
-                        m_log.LogWarning("[PGSQL Grid]: Error inserting into Regions table: " + ex.Message + ", INSERT sql: " + insert);
+                        m_log.LogError(ex, "[PGSQL Grid]: Region insert failed");
+                        throw;
                     }
                 }
             }
             catch (Exception ex)
             {
-                m_log.LogWarning("[PGSQL Grid]: Error updating Regions table: " + ex.Message + ", UPDATE sql: " + update);
+                m_log.LogError(ex, "[PGSQL Grid]: Region update failed");
+                throw;
             }
         }
 
@@ -375,7 +377,7 @@ public class PGSQLRegionData : IRegionData
         using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn))
         {
-            cmd.Parameters.Add(m_database.CreateParameter("\"" + item + "\"", value));
+            cmd.Parameters.Add(m_database.CreateParameter(item, value));
             cmd.Parameters.Add(m_database.CreateParameter("UUID", regionID));
             conn.Open();
             if (cmd.ExecuteNonQuery() > 0)

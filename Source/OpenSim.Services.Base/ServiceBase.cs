@@ -65,48 +65,7 @@ public class ServiceBase
 
     public T LoadPlugin<T>(string dllName, string className, Object[] args) where T:class
     {
-        string interfaceName = typeof(T).ToString();
-
-        try
-        {
-            Assembly pluginAssembly = Assembly.LoadFrom(dllName);
-
-            //m_log.LogDebug("[SERVICE BASE]: Found assembly {0}", dllName);
-
-            foreach (Type pluginType in pluginAssembly.GetTypes())
-            {
-                //m_log.LogDebug("[SERVICE BASE]: Found type {0}", pluginType);
-
-                if (pluginType.IsPublic)
-                {
-                    if (!string.IsNullOrEmpty(className) &&
-                            pluginType.ToString() != pluginType.Namespace + "." + className)
-                        continue;
-
-                    Type typeInterface = pluginType.GetInterface(interfaceName);
-                    if (typeInterface is not null)
-                    {
-                        return (T)Activator.CreateInstance(pluginType, args);
-                    }
-                }
-            }
-
-            return null;
-        }
-        catch (Exception e)
-        {
-            List<string> strArgs = new List<string>();
-            foreach (Object arg in args)
-                strArgs.Add(arg.ToString());
-
-            m_log.LogError(
-                    "[SERVICE BASE]: Failed to load plugin {0} from {1} with args {2}: {3}",
-                    interfaceName, dllName, string.Join(", ", strArgs.ToArray()), e);
-            if (e.InnerException != null)
-                m_log.LogError($"[SERVICE BASE]: inner exception {e.InnerException.Message}");
-
-            return null;
-        }
+        return StoragePluginLoader.Load<T>(dllName, className, args, m_log);
     }
 
     public ServiceBase(IConfigSource config)

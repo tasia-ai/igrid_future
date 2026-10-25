@@ -53,7 +53,7 @@ public class PresenceServiceConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         Object[] args = new Object[] { config };
-        m_PresenceService = ServerUtils.LoadPlugin<IPresenceService>(gridService, args);
+        m_PresenceService = ServerUtils.LoadRequiredPlugin<IPresenceService>(gridService, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 

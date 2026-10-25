@@ -53,7 +53,7 @@ public class FriendsServiceConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         Object[] args = new Object[] { config };
-        m_FriendsService = ServerUtils.LoadPlugin<IFriendsService>(theService, args);
+        m_FriendsService = ServerUtils.LoadRequiredPlugin<IFriendsService>(theService, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
         server.AddStreamHandler(new FriendsServerPostHandler(m_FriendsService, auth));

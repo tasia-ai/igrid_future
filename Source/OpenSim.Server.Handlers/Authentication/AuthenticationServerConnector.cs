@@ -56,7 +56,7 @@ public class AuthenticationServiceConnector : ServiceConnector
             throw new Exception("No AuthenticationService in config file");
 
         Object[] args = new Object[] { config };
-        m_AuthenticationService = ServerUtils.LoadPlugin<IAuthenticationService>(authenticationService, args);
+        m_AuthenticationService = ServerUtils.LoadRequiredPlugin<IAuthenticationService>(authenticationService, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 

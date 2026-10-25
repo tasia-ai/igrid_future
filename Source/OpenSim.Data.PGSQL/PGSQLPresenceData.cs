@@ -46,9 +46,9 @@ public class PGSQLPresenceData : PGSQLGenericTableHandler<PresenceData>,
     {
     }
 
-    public PresenceData[] Get(string field, string value)
+    public override PresenceData[] Get(string field, string value)
     {
-        return new PresenceData[0];
+        return base.Get(field, value);
     }
 
     public PresenceData Get(UUID sessionID)

@@ -60,7 +60,7 @@ public class MapGetServiceConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         object[] args = new object[] { config };
-        m_MapService = ServerUtils.LoadPlugin<IMapImageService>(gridService, args);
+        m_MapService = ServerUtils.LoadRequiredPlugin<IMapImageService>(gridService, args);
 
         server.AddStreamHandler(new MapServerGetHandler(m_MapService));
     }

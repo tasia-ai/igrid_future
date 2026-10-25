@@ -53,7 +53,7 @@ public class UserAliasServiceConnector : ServiceConnector
         }
 
         Object[] args = new Object[] { config };
-        m_UserAliasService = ServerUtils.LoadPlugin<IUserAliasService>(service, args);
+        m_UserAliasService = ServerUtils.LoadRequiredPlugin<IUserAliasService>(service, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
         server.AddStreamHandler(new UserAliasServerPostHandler(m_UserAliasService, serverConfig, auth));

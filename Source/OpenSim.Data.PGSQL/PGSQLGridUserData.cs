@@ -58,9 +58,9 @@ public class PGSQLGridUserData : PGSQLGenericTableHandler<GridUserData>,
         return base.Get(String.Format("\"UserID\" LIKE '{0}%'", userID));
     }
 
-    public bool Store(GridUserData data)
+    public override bool Store(GridUserData data)
     {
-        return false;
+        return base.Store(data);
     }
 
 }

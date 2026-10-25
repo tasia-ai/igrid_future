@@ -85,9 +85,8 @@ class Program
             );
         }
          
-        rootCommand.Parse(args).Invoke();
-
-        return 0;
+        // Preserve command/host startup failures for service managers and deployment checks.
+        return rootCommand.Parse(args).Invoke();
     }
 
     static void Configure(

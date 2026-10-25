@@ -62,8 +62,8 @@ public class OpenIdServerConnector : ServiceConnector
             throw new Exception("No AuthenticationServiceModule or no UserAccountServiceModule in config file for OpenId authentication");
 
         Object[] args = new Object[] { config };
-        m_AuthenticationService = ServerUtils.LoadPlugin<IAuthenticationService>(authService, args);
-        m_UserAccountService = ServerUtils.LoadPlugin<IUserAccountService>(userService, args);
+        m_AuthenticationService = ServerUtils.LoadRequiredPlugin<IAuthenticationService>(authService, args);
+        m_UserAccountService = ServerUtils.LoadRequiredPlugin<IUserAccountService>(userService, args);
 
         // Handler for OpenID user identity pages
         server.AddStreamHandler(new OpenIdStreamHandler("GET", "/users", m_UserAccountService, m_AuthenticationService));

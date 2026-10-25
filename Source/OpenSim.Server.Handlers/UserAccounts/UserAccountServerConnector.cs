@@ -53,7 +53,7 @@ public class UserAccountServiceConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         Object[] args = new Object[] { config };
-        m_UserAccountService = ServerUtils.LoadPlugin<IUserAccountService>(service, args);
+        m_UserAccountService = ServerUtils.LoadRequiredPlugin<IUserAccountService>(service, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 

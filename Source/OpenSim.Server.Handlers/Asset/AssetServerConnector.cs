@@ -58,7 +58,7 @@ public class AssetServiceConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         object[] args = new object[] { config, m_ConfigName };
-        m_AssetService = ServerUtils.LoadPlugin<IAssetService>(assetService, args);
+        m_AssetService = ServerUtils.LoadRequiredPlugin<IAssetService>(assetService, args);
 
         if (m_AssetService == null)
             throw new Exception(string.Format("Failed to load AssetService from {0}; config is {1}", assetService, m_ConfigName));

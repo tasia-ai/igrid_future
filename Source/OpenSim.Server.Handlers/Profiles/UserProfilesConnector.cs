@@ -81,7 +81,7 @@ public class UserProfilesConnector: ServiceConnector
         string service = serverConfig.GetString("LocalServiceModule", String.Empty);
 
         Object[] args = new Object[] { config, ConfigName };
-        ServiceModule = ServerUtils.LoadPlugin<IUserProfilesService>(service, args);
+        ServiceModule = ServerUtils.LoadRequiredPlugin<IUserProfilesService>(service, args);
 
         JsonRpcProfileHandlers handler = new JsonRpcProfileHandlers(ServiceModule, new ControlPlaneAccess(config));
 

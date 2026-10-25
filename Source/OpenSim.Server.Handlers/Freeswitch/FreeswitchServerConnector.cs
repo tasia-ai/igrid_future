@@ -64,7 +64,7 @@ public class FreeswitchServerConnector : ServiceConnector
 
         Object[] args = new Object[] { config };
         m_FreeswitchService =
-                ServerUtils.LoadPlugin<IFreeswitchService>(freeswitchService, args);
+                ServerUtils.LoadRequiredPlugin<IFreeswitchService>(freeswitchService, args);
 
         server.AddHTTPHandler(String.Format("{0}/freeswitch-config", m_freeSwitchAPIPrefix), FreeSwitchConfigHTTPHandler);
         server.AddHTTPHandler(String.Format("{0}/region-config", m_freeSwitchAPIPrefix), RegionConfigHTTPHandler);

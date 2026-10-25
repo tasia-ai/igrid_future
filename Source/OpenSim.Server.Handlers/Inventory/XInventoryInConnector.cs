@@ -67,7 +67,7 @@ public class XInventoryInConnector : ServiceConnector
 
         Object[] args = new Object[] { config, m_ConfigName };
         m_InventoryService =
-                ServerUtils.LoadPlugin<IInventoryService>(inventoryService, args);
+                ServerUtils.LoadRequiredPlugin<IInventoryService>(inventoryService, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
         ControlPlaneAccess controlPlaneAccess = new(config);

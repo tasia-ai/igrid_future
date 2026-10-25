@@ -64,11 +64,11 @@ public class MapRemoveServiceConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         object[] args = new object[] { config };
-        m_MapService = ServerUtils.LoadPlugin<IMapImageService>(mapService, args);
+        m_MapService = ServerUtils.LoadRequiredPlugin<IMapImageService>(mapService, args);
 
         string gridService = serverConfig.GetString("GridService", String.Empty);
         if (!string.IsNullOrWhiteSpace(gridService))
-            m_GridService = ServerUtils.LoadPlugin<IGridService>(gridService, args);
+            m_GridService = ServerUtils.LoadRequiredPlugin<IGridService>(gridService, args);
 
         if (m_GridService != null)
             m_log.LogInformation("[MAP IMAGE HANDLER]: GridService check is ON");

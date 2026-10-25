@@ -53,7 +53,7 @@ public class AvatarServiceConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         Object[] args = new Object[] { config };
-        m_AvatarService = ServerUtils.LoadPlugin<IAvatarService>(avatarService, args);
+        m_AvatarService = ServerUtils.LoadRequiredPlugin<IAvatarService>(avatarService, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 

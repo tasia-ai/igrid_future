@@ -55,7 +55,7 @@ public class AuthorizationServerConnector : ServiceConnector
 
         Object[] args = new Object[] { config };
         m_AuthorizationService =
-                ServerUtils.LoadPlugin<IAuthorizationService>(authorizationService, args);
+                ServerUtils.LoadRequiredPlugin<IAuthorizationService>(authorizationService, args);
 
         server.AddStreamHandler(new AuthorizationServerPostHandler(m_AuthorizationService));
     }

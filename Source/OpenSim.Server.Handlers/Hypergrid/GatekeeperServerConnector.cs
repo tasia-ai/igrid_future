@@ -58,7 +58,7 @@ public class GatekeeperServiceInConnector : ServiceConnector
         {
             string serviceDll = gridConfig.GetString("LocalServiceModule", string.Empty);
             Object[] args = new Object[] { config, simService };
-            m_GatekeeperService = ServerUtils.LoadPlugin<IGatekeeperService>(serviceDll, args);
+            m_GatekeeperService = ServerUtils.LoadRequiredPlugin<IGatekeeperService>(serviceDll, args);
 
         }
         if (m_GatekeeperService == null)
@@ -113,7 +113,7 @@ public class GatekeeperServiceInConnector : ServiceConnector
 
         try
         {
-            IGridTrustLookup registry = ServerUtils.LoadPlugin<IGridTrustLookup>(TrustRegistryModule, new Object[] { config });
+            IGridTrustLookup registry = ServerUtils.LoadRequiredPlugin<IGridTrustLookup>(TrustRegistryModule, new Object[] { config });
             if (registry == null)
                 m_log.LogWarning("[TRUSTED HG]: trust registry {0} could not be loaded; verified callers will classify Open until it is", TrustRegistryModule);
             return registry;

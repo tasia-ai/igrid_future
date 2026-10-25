@@ -130,85 +130,7 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
 
     public override bool Store(UserAccountData data)
     {
-        if (data.Data.ContainsKey("PrincipalID"))
-            data.Data.Remove("PrincipalID");
-        if (data.Data.ContainsKey("ScopeID"))
-            data.Data.Remove("ScopeID");
-
-        string[] fields = new List<string>(data.Data.Keys).ToArray();
-
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
-        using (NpgsqlCommand cmd = new NpgsqlCommand())
-        {
-            m_log.LogDebug("[USER]: Try to update user {0} {1}", data.FirstName, data.LastName);
-
-            StringBuilder updateBuilder = new StringBuilder();
-            updateBuilder.AppendFormat("update {0} set ", m_Realm);
-            bool first = true;
-            foreach (string field in fields)
-            {
-                if (!first)
-                    updateBuilder.Append(", ");
-                updateBuilder.AppendFormat("\"{0}\" = :{0}", field);
-
-                first = false;
-                if (m_FieldTypes.ContainsKey(field))
-                    cmd.Parameters.Add(m_database.CreateParameter("" + field, data.Data[field], m_FieldTypes[field]));
-                else
-                    cmd.Parameters.Add(m_database.CreateParameter("" + field, data.Data[field]));
-            }
-
-            updateBuilder.Append(" where \"PrincipalID\" = :principalID");
-
-            if (data.ScopeID != UUID.Zero)
-                updateBuilder.Append(" and \"ScopeID\" = :scopeID");
-
-            cmd.CommandText = updateBuilder.ToString();
-            cmd.Connection = conn;
-            cmd.Parameters.Add(m_database.CreateParameter("principalID", data.PrincipalID));
-            cmd.Parameters.Add(m_database.CreateParameter("scopeID", data.ScopeID));
-
-            m_log.LogDebug("[USER]: SQL update user {0} ", cmd.CommandText);
-
-            conn.Open();
-
-            m_log.LogDebug("[USER]: CON opened update user {0} ", cmd.CommandText);
-
-            int conta = 0;
-            try
-            {
-                conta = cmd.ExecuteNonQuery();
-            }
-            catch (Exception e){
-                m_log.LogError("[USER]: ERROR opened update user {0} ", e.Message);
-            }
-
-
-            if (conta < 1)
-            {
-                m_log.LogDebug("[USER]: Try to insert user {0} {1}", data.FirstName, data.LastName);
-
-                StringBuilder insertBuilder = new StringBuilder();
-                insertBuilder.AppendFormat(@"insert into {0} (""PrincipalID"", ""ScopeID"", ""FirstName"", ""LastName"", """, m_Realm);
-                insertBuilder.Append(String.Join(@""", """, fields));
-                insertBuilder.Append(@""") values (:principalID, :scopeID, :FirstName, :LastName, :");
-                insertBuilder.Append(String.Join(", :", fields));
-                insertBuilder.Append(");");
-
-                cmd.Parameters.Add(m_database.CreateParameter("FirstName", data.FirstName));
-                cmd.Parameters.Add(m_database.CreateParameter("LastName", data.LastName));
-
-                cmd.CommandText = insertBuilder.ToString();
-
-                if (cmd.ExecuteNonQuery() < 1)
-                {
-                    return false;
-                }
-            }
-            else
-                m_log.LogDebug("[USER]: User {0} {1} exists", data.FirstName, data.LastName);
-        }
-        return true;
+        return base.Store(data);
     }
 
 
@@ -317,13 +239,13 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
         }
     }
 
-    public UserAccountData[] Get(string[] fields, string[] values)
+    public override UserAccountData[] Get(string[] fields, string[] values)
     {
-        return new UserAccountData[0];
+        return base.Get(fields, values);
     }
 
-    public bool Delete(string field, string val)
+    public override bool Delete(string field, string val)
     {
-        return false;
+        return base.Delete(field, val);
     }
 }

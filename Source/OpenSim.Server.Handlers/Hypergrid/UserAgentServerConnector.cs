@@ -73,7 +73,7 @@ public class UserAgentServerConnector : ServiceConnector
             string serviceDll = gridConfig.GetString("LocalServiceModule", string.Empty);
 
             Object[] args = new Object[] { config, friendsConnector };
-            m_HomeUsersService = ServerUtils.LoadPlugin<IUserAgentService>(serviceDll, args);
+            m_HomeUsersService = ServerUtils.LoadRequiredPlugin<IUserAgentService>(serviceDll, args);
         }
         if (m_HomeUsersService == null)
             throw new Exception("UserAgent server connector cannot proceed because of missing service");

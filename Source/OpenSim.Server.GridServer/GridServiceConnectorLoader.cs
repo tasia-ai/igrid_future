@@ -124,9 +124,12 @@ public sealed class GridServiceConnectorLoader : IServiceConnectorLoader
             }
             else
             {
-                _logger.LogError("[SERVER]: Failed to load {Conn}", conn);
+                throw new InvalidOperationException($"Required configured service connector failed to load: {conn}. See preceding loader exceptions.");
             }
         }
+
+        if (connectors.Count == 0)
+            throw new InvalidOperationException("No service connectors configured; refusing successful grid initialization.");
 
         return connectors;
     }

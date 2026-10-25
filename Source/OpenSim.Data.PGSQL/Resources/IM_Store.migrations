@@ -39,7 +39,7 @@ CREATE TABLE "public"."im_offline" (
 	"TMStamp" timestamp(6) NOT NULL DEFAULT clock_timestamp(),
 	"FromID" uuid NOT NULL
 )
-WITH (OIDS=FALSE);
+;
 ALTER TABLE "public"."im_offline" ADD PRIMARY KEY ("ID","PrincipalID","FromID") NOT DEFERRABLE INITIALLY IMMEDIATE;
 
 COMMIT;

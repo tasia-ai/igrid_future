@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "public"."estate_groups" (
 	"EstateID" int4 NOT NULL,
 	"uuid" uuid NOT NULL
 )
-WITH (OIDS=FALSE);
+;
 
 --  Indexes structure for table estate_groups
 -- ----------------------------
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS "public"."estate_managers" (
 	"EstateID" int4 NOT NULL,
 	"uuid" uuid NOT NULL
 )
-WITH (OIDS=FALSE);
+;
 
 --  Indexes structure for table estate_managers
 -- ----------------------------
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS "public"."estate_map" (
 	"RegionID" uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::uuid,
 	"EstateID" int4 NOT NULL
 )
-WITH (OIDS=FALSE);
+;
 
 --  Primary key structure for table estate_map
 -- ----------------------------
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS "public"."estate_settings" (
 	"AllowParcelChanges" bool NOT NULL DEFAULT true,
 	"AllowSetHome" bool NOT NULL DEFAULT true
 )
-WITH (OIDS=FALSE);
+;
 
 --  Primary key structure for table estate_settings
 -- ----------------------------
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS "public"."estate_users" (
 	"EstateID" int4 NOT NULL,
 	"uuid" uuid NOT NULL
 )
-WITH (OIDS=FALSE);
+;
 
 --  Indexes structure for table estate_users
 -- ----------------------------
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS "public"."estateban" (
 	"bannedIpHostMask" varchar(16) COLLATE "default",
 	"bannedNameMask" varchar(64) COLLATE "default"
 )
-WITH (OIDS=FALSE);
+;
 
 --  Indexes structure for table estateban
 -- ----------------------------
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS "public"."estate_allowed_experiences" (
 	"EstateID" int4 NOT NULL,
 	"uuid" uuid NOT NULL
 )
-WITH (OIDS=FALSE);
+;
 
 CREATE INDEX IF NOT EXISTS "ix_estate_allowed_experiences" ON "public"."estate_allowed_experiences" USING btree("EstateID" "pg_catalog"."int4_ops" ASC NULLS LAST);
 
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS "public"."estate_key_experiences" (
 	"EstateID" int4 NOT NULL,
 	"uuid" uuid NOT NULL
 )
-WITH (OIDS=FALSE);
+;
 
 CREATE INDEX IF NOT EXISTS "ix_estate_key_experiences" ON "public"."estate_key_experiences" USING btree("EstateID" "pg_catalog"."int4_ops" ASC NULLS LAST);
 
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS "public"."estate_blocked_experiences" (
 	"EstateID" int4 NOT NULL,
 	"uuid" uuid NOT NULL
 )
-WITH (OIDS=FALSE);
+;
 
 CREATE INDEX IF NOT EXISTS "ix_estate_blocked_experiences" ON "public"."estate_blocked_experiences" USING btree("EstateID" "pg_catalog"."int4_ops" ASC NULLS LAST);
 COMMIT;

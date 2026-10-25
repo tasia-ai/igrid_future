@@ -35,14 +35,14 @@ public class PGSQLOfflineIMData : PGSQLGenericTableHandler<OfflineIMData>, IOffl
     {
     }
 
-    public OfflineIMData[] Get(string field, string value)
+    public override OfflineIMData[] Get(string field, string value)
     {
-        return new OfflineIMData[0];
+        return base.Get(field, value);
     }
 
-    public long GetCount(string field, string key)
+    public new long GetCount(string field, string key)
     {
-        return 0;
+        return base.GetCount(field, key);
     }
 
     public void DeleteOld()

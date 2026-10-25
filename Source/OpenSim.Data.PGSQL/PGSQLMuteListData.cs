@@ -47,7 +47,7 @@ public class PGSQLMuteListData: PGSQLGenericTableHandler<MuteData>, IMuteListDat
     public bool Delete(UUID agentID, UUID muteID, string muteName)
     {
         var query = $"DELETE FROM MuteList WHERE \"AgentID\" = :AgentID and " +
-                    $"\"MuteID\" = :MuteID and " +
+                    $"\"MuteId\" = :MuteID and " +
                     $"\"MuteName\" = :MuteName";
 
         using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))

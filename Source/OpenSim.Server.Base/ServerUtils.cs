@@ -177,6 +177,13 @@ public static class ServerUtils
         }
     }
 
+    /// <summary>A configured required service must exist before handlers are registered.</summary>
+    public static T LoadRequiredPlugin<T>(string dllName, object[] args) where T : class
+    {
+        return LoadPlugin<T>(dllName, args) ?? throw new InvalidOperationException(
+            $"Required service {typeof(T).FullName} could not be loaded from {dllName}; see loader diagnostics.");
+    }
+
     /// <summary>
     /// Load a plugin from a dll with the given class or interface
     /// </summary>
@@ -233,61 +240,7 @@ public static class ServerUtils
     /// <returns></returns>
     public static T LoadPlugin<T>(string dllName, string className, Object[] args) where T:class
     {
-        string interfaceName = typeof(T).ToString();
-
-        try
-        {
-            Assembly pluginAssembly = Assembly.LoadFrom(dllName);
-
-            foreach (Type pluginType in pluginAssembly.GetTypes())
-            {
-                if (pluginType.IsPublic)
-                {
-                    if (className != String.Empty
-                        && pluginType.ToString() != pluginType.Namespace + "." + className)
-                        continue;
-
-                    Type typeInterface = pluginType.GetInterface(interfaceName);
-
-                    if (typeInterface != null)
-                    {
-                        T plug = null;
-                        try
-                        {
-                            plug = (T)Activator.CreateInstance(pluginType,
-                                    args);
-                        }
-                        catch (Exception e)
-                        {
-                            if (!(e is System.MissingMethodException))
-                            {
-                                m_log.LogError(e, string.Format("[SERVER UTILS]: Error loading plugin {0} from {1}. Exception: {2}",
-                                    interfaceName,
-                                    dllName,
-                                    e.InnerException == null ? e.Message : e.InnerException.Message));
-                            }
-                            m_log.LogError("[SERVER UTILS]: Error loading plugin {0}: {1} args.Length {2}", dllName, e.Message, args.Length);
-                            return null;
-                        }
-
-                        return plug;
-                    }
-                }
-            }
-
-            return null;
-        }
-        catch (ReflectionTypeLoadException rtle)
-        {
-            m_log.LogError(rtle, string.Format("[SERVER UTILS]: Error loading plugin from {0}:\n{1}", dllName,
-                String.Join("\n", Array.ConvertAll(rtle.LoaderExceptions, e => e.ToString()))));
-            return null;
-        }
-        catch (Exception e)
-        {
-            m_log.LogError(e, string.Format("[SERVER UTILS]: Error loading plugin from {0}", dllName));
-            return null;
-        }
+        return StoragePluginLoader.Load<T>(dllName, className, args, m_log);
     }
 
     public static Dictionary<string, object> ParseQueryString(string query)

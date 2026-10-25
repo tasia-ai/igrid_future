@@ -64,10 +64,10 @@ public class GridService : IHostedService
 
     public Task StartAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("{Service} is running.", nameof(GridService));
-
         _runtime.Initialize();
         Startup();
+
+        _logger.LogInformation("{Service} is running.", nameof(GridService));
 
         return Task.CompletedTask;
     }

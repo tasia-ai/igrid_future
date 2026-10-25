@@ -63,12 +63,12 @@ public class HGFriendsServerConnector : ServiceConnector
                 String.Empty);
         if (theService.Length == 0)
             throw new Exception("No LocalServiceModule in config file");
-        m_TheService = ServerUtils.LoadPlugin<IHGFriendsService>(theService, args);
+        m_TheService = ServerUtils.LoadRequiredPlugin<IHGFriendsService>(theService, args);
 
         theService = serverConfig.GetString("UserAgentService", string.Empty);
         if (theService.Length == 0)
             throw new Exception("No UserAgentService in " + m_ConfigName);
-        m_UserAgentService = ServerUtils.LoadPlugin<IUserAgentService>(theService, new Object[] { config, localConn });
+        m_UserAgentService = ServerUtils.LoadRequiredPlugin<IUserAgentService>(theService, new Object[] { config, localConn });
 
         server.AddStreamHandler(new HGFriendsServerPostHandler(m_TheService, m_UserAgentService, localConn));
     }

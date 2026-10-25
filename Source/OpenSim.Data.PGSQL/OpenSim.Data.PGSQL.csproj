@@ -14,26 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources/AgentPrefs.migrations" />
-    <EmbeddedResource Include="Resources/AssetStore.migrations" />
-    <EmbeddedResource Include="Resources/AuthStore.migrations" />
-    <EmbeddedResource Include="Resources/Avatar.migrations" />
-    <EmbeddedResource Include="Resources/EstateStore.migrations" />
-    <EmbeddedResource Include="Resources/FriendsStore.migrations" />
-    <EmbeddedResource Include="Resources/FSAssetStore.migrations" />
-    <EmbeddedResource Include="Resources/GridStore.migrations" />
-    <EmbeddedResource Include="Resources/GridUserStore.migrations" />
-    <EmbeddedResource Include="Resources/HGTravelStore.migrations" />
-    <EmbeddedResource Include="Resources/IM_Store.migrations" />
-    <EmbeddedResource Include="Resources/InventoryStore.migrations" />
-    <EmbeddedResource Include="Resources/LogStore.migrations" />
-    <EmbeddedResource Include="Resources/os_groups_Store.migrations" />
-    <EmbeddedResource Include="Resources/Presence.migrations" />
-    <EmbeddedResource Include="Resources/RegionStore.migrations" />
-    <EmbeddedResource Include="Resources/UserAccount.migrations" />
-    <EmbeddedResource Include="Resources/UserProfiles.migrations" />
-    <EmbeddedResource Include="Resources/UserStore.migrations" />
-    <EmbeddedResource Include="Resources/XAssetStore.migrations" />
+    <EmbeddedResource Include="Resources/*.migrations" />
   </ItemGroup>
   
   <ItemGroup>

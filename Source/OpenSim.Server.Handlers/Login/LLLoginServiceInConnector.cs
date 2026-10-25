@@ -55,7 +55,7 @@ public class LLLoginServiceInConnector : ServiceConnector
         ILibraryService libService = scene.RequestModuleInterface<ILibraryService>();
 
         Object[] args = new Object[] { config, simService, libService };
-        m_LoginService = ServerUtils.LoadPlugin<ILoginService>(loginService, args);
+        m_LoginService = ServerUtils.LoadRequiredPlugin<ILoginService>(loginService, args);
 
         InitializeHandlers(server);
     }
@@ -67,7 +67,7 @@ public class LLLoginServiceInConnector : ServiceConnector
 
         Object[] args = new Object[] { config };
 
-        m_LoginService = ServerUtils.LoadPlugin<ILoginService>(loginService, args);
+        m_LoginService = ServerUtils.LoadRequiredPlugin<ILoginService>(loginService, args);
 
         InitializeHandlers(server);
     }

@@ -59,7 +59,7 @@ public class EstateDataRobustConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         Object[] args = new Object[] { config };
-        IEstateDataService e_service = ServerUtils.LoadPlugin<IEstateDataService>(service, args);
+        IEstateDataService e_service = ServerUtils.LoadRequiredPlugin<IEstateDataService>(service, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 

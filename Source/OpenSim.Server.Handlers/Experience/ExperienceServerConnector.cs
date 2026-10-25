@@ -25,7 +25,7 @@ public class ExperienceServiceConnector : ServiceConnector
             throw new Exception("LocalServiceModule not present in ExperienceService config file ExperienceService section");
 
         Object[] args = new Object[] { config };
-        m_ExperienceService = ServerUtils.LoadPlugin<IExperienceService>(service, args);
+        m_ExperienceService = ServerUtils.LoadRequiredPlugin<IExperienceService>(service, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 

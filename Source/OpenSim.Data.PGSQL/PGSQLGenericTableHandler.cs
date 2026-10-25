@@ -39,7 +39,6 @@ public class PGSQLGenericTableHandler<T> : PGSqlFramework where T : class, new()
 {
     private static readonly ILogger m_log = LoggerProvider.CreateLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
-    protected string m_connectionString;
     protected PGSQLManager m_database; //used for parameter type translation
     protected Dictionary<string, FieldInfo> m_Fields =
             new Dictionary<string, FieldInfo>(StringComparer.OrdinalIgnoreCase);
@@ -96,38 +95,73 @@ public class PGSQLGenericTableHandler<T> : PGSqlFramework where T : class, new()
 
     private void LoadFieldTypes()
     {
+        using var conn = new NpgsqlConnection(m_connectionString);
+        conn.Open();
+        using var cmd = new NpgsqlCommand("SELECT a.attname, format_type(a.atttypid, NULL) FROM pg_attribute a WHERE a.attrelid = to_regclass(@table) AND a.attnum > 0 AND NOT a.attisdropped", conn);
+        cmd.Parameters.AddWithValue("table", m_Realm);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            m_FieldTypes[reader.GetString(0)] = reader.GetString(1);
+        if (m_FieldTypes.Count == 0)
+            throw new InvalidOperationException($"Storage table {m_Realm} does not exist after migration");
     }
 
-    protected int ExecuteNonQuery(NpgsqlCommand cmd)
+    private NpgsqlParameter Parameter(string name, string column, object value)
     {
-        lock (m_dbLock)
-        {
-            using (NpgsqlConnection dbcon = new NpgsqlConnection(m_connectionString))
-            {
-                dbcon.Open();
-                cmd.Connection = dbcon;
+        if (!m_FieldTypes.TryGetValue(column, out string type))
+            throw new ArgumentException($"Unknown storage column {column}");
+        return m_database.CreateParameter(name, value, type);
+    }
 
-                try
-                {
-                    return cmd.ExecuteNonQuery();
-                }
-                catch (Exception e)
-                {
-                    m_log.LogError(e, e.Message);
-                    return 0;
-                }
-            }
+    private static string Quote(string name) => "\"" + name.Replace("\"", "\"\"") + "\"";
+
+    private string Conditions(NpgsqlCommand cmd, string[] fields, string[] values)
+    {
+        if (fields.Length != values.Length || fields.Length == 0)
+            throw new ArgumentException("Storage filters must contain matching fields and values");
+        var terms = new List<string>();
+        for (int i = 0; i < fields.Length; i++)
+        {
+            string name = "p" + i;
+            cmd.Parameters.Add(Parameter(name, fields[i], values[i]));
+            terms.Add(Quote(fields[i]) + " = @" + name);
         }
+        return string.Join(" AND ", terms);
     }
 
     public virtual bool Store(T data)
     {
-        return false;
+        var values = m_Fields.ToDictionary(pair => pair.Key, pair => pair.Value.GetValue(data));
+        if (m_DataField?.GetValue(data) is Dictionary<string, string> extra)
+            foreach (var pair in extra)
+                values[pair.Key] = pair.Value;
+        using var conn = new NpgsqlConnection(m_connectionString);
+        conn.Open();
+        // Use one unique index (prefer the primary key), never combine unrelated keys.
+        using var keyCmd = new NpgsqlCommand(@"SELECT array_agg(a.attname ORDER BY k.ordinality)
+            FROM pg_index i CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY k(attnum, ordinality)
+            JOIN pg_attribute a ON a.attrelid=i.indrelid AND a.attnum=k.attnum
+            WHERE i.indrelid=to_regclass(@table) AND i.indisunique AND i.indpred IS NULL
+              AND i.indexprs IS NULL AND k.ordinality <= i.indnkeyatts
+            GROUP BY i.indexrelid, i.indisprimary ORDER BY i.indisprimary DESC, i.indexrelid LIMIT 1", conn);
+        keyCmd.Parameters.AddWithValue("table", m_Realm);
+        string[] keys = keyCmd.ExecuteScalar() as string[];
+        using var cmd = new NpgsqlCommand { Connection = conn };
+        var names = values.Keys.ToArray();
+        for (int i = 0; i < names.Length; i++)
+            cmd.Parameters.Add(Parameter("p" + i, names[i], values[names[i]]));
+        string conflict = keys == null ? "" : " ON CONFLICT (" + string.Join(",", keys.Select(Quote)) + ") DO UPDATE SET " +
+            string.Join(",", names.Select(n => Quote(n) + " = EXCLUDED." + Quote(n)));
+        cmd.CommandText = "INSERT INTO " + m_Realm + " (" + string.Join(",", names.Select(Quote)) + ") VALUES (" +
+            string.Join(",", names.Select((_, i) => "@p" + i)) + ")" + conflict;
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public virtual T[] Get(string[] ids, string[] values)
     {
-        return new T[0];
+        using var cmd = new NpgsqlCommand();
+        cmd.CommandText = "SELECT * FROM " + m_Realm + " WHERE " + Conditions(cmd, ids, values);
+        return DoQuery(cmd);
     }
 
     public virtual T[] Get(string field, string value)
@@ -168,16 +202,9 @@ public class PGSQLGenericTableHandler<T> : PGSqlFramework where T : class, new()
 
     public virtual int GetCount(string[] fields, string[] values)
     {
-        List<string> conditions = new List<string>();
-        for (int i = 0; i < fields.Length && i < values.Length; i++)
-            conditions.Add(String.Format("\"{0}\" = :{1}", fields[i], "p" + i));
-        string where = String.Join(" AND ", conditions.ToArray());
-        if (where.Length == 0) where = "1";
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
-            cmd.CommandText = String.Format("select count(*) from {0} where {1}", m_Realm, where);
-            for (int i = 0; i < values.Length; i++)
-                cmd.Parameters.Add(new NpgsqlParameter("p" + i, values[i]));
+            cmd.CommandText = "SELECT count(*) FROM " + m_Realm + " WHERE " + Conditions(cmd, fields, values);
             using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
             {
                 cmd.Connection = conn;
@@ -192,12 +219,14 @@ public class PGSQLGenericTableHandler<T> : PGSqlFramework where T : class, new()
 
     public virtual bool Delete(string id1, string id2)
     {
-        return false;
+        return Delete(new[] { id1 }, new[] { id2 });
     }
 
     public virtual bool Delete(string[] ids, string[] values)
     {
-        return false;
+        using var cmd = new NpgsqlCommand();
+        cmd.CommandText = "DELETE FROM " + m_Realm + " WHERE " + Conditions(cmd, ids, values);
+        return ExecuteNonQuery(cmd) > 0;
     }
 
     protected T[] DoQuery(NpgsqlCommand cmd)
@@ -246,11 +275,13 @@ public class PGSQLGenericTableHandler<T> : PGSqlFramework where T : class, new()
                         {
                             try
                             {
-                                field.SetValue(item, Convert.ChangeType(value, field.FieldType));
+                                field.SetValue(item, field.FieldType == typeof(UUID)
+                                    ? UUID.Parse(value.ToString())
+                                    : Convert.ChangeType(value, field.FieldType, System.Globalization.CultureInfo.InvariantCulture));
                             }
-                            catch
+                            catch (Exception exception)
                             {
-                                // Skip fields that can't be converted
+                                throw new DataException($"Cannot map {m_Realm}.{colName} to {field.FieldType}", exception);
                             }
                         }
                     }

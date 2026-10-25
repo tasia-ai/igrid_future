@@ -33,7 +33,7 @@ namespace OpenSim.Data.PGSQL;
 /// <summary>
 /// A PGSQL Interface for Agent Preferences
 /// </summary>
-public class PGSQLAgentPreferencesData : PGSQLGenericTableHandler<AgentPreferencesData>, IAgentPreferencesData, IExperienceData
+public class PGSQLAgentPreferencesData : PGSQLGenericTableHandler<AgentPreferencesData>, IAgentPreferencesData
 {
     public PGSQLAgentPreferencesData(string connectionString, string realm)
         : base(connectionString, realm, "AgentPrefs")
@@ -54,80 +54,4 @@ public class PGSQLAgentPreferencesData : PGSQLGenericTableHandler<AgentPreferenc
         return ret[0];
     }
 
-    // IExperienceData implementation
-    public Dictionary<UUID, bool> GetExperiencePermissions(UUID agent_id)
-    {
-        return new Dictionary<UUID, bool>();
-    }
-
-    public bool ForgetExperiencePermissions(UUID agent_id, UUID experience_id)
-    {
-        return false;
-    }
-
-    public bool SetExperiencePermissions(UUID agent_id, UUID experience_id, bool allow)
-    {
-        return false;
-    }
-
-    public ExperienceInfoData[] GetExperienceInfos(UUID[] experiences)
-    {
-        return new ExperienceInfoData[0];
-    }
-
-    public ExperienceInfoData[] FindExperiences(string search)
-    {
-        return new ExperienceInfoData[0];
-    }
-
-    public UUID[] GetAgentExperiences(UUID agent_id)
-    {
-        return new UUID[0];
-    }
-
-    public UUID[] GetGroupExperiences(UUID agent_id)
-    {
-        return new UUID[0];
-    }
-
-    public UUID[] GetExperiencesForGroups(UUID[] groups)
-    {
-        return new UUID[0];
-    }
-
-    public bool UpdateExperienceInfo(ExperienceInfoData data)
-    {
-        return false;
-    }
-
-    public string GetKeyValue(UUID experience, string key)
-    {
-        return null;
-    }
-
-    public bool SetKeyValue(UUID experience, string key, string val)
-    {
-        return false;
-    }
-
-    public bool DeleteKey(UUID experience, string key)
-    {
-        return false;
-    }
-
-    public int GetKeyCount(UUID experience)
-    {
-        return 0;
-    }
-
-    public string[] GetKeys(UUID experience, int start, int count)
-    {
-        return new string[0];
-    }
-
-    public int GetKeyValueSize(UUID experience)
-    {
-        return 0;
-    }
 }
-

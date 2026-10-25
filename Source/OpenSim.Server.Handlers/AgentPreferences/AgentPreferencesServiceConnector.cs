@@ -53,7 +53,7 @@ public class AgentPreferencesServiceConnector : ServiceConnector
             throw new Exception("No LocalServiceModule in config file");
 
         Object[] args = new Object[] { config };
-        m_AgentPreferencesService = ServerUtils.LoadPlugin<IAgentPreferencesService>(service, args);
+        m_AgentPreferencesService = ServerUtils.LoadRequiredPlugin<IAgentPreferencesService>(service, args);
 
         IServiceAuth auth = ServiceAuth.Create(config, m_ConfigName);
 

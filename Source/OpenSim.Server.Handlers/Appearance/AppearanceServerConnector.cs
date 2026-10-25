@@ -60,7 +60,7 @@ public class AppearanceServerConnector : ServiceConnector
             throw new Exception($"No LocalServiceModule in [{m_ConfigName}]");
 
         object[] args = new object[] { config };
-        IAppearanceService service = ServerUtils.LoadPlugin<IAppearanceService>(serviceName, args);
+        IAppearanceService service = ServerUtils.LoadRequiredPlugin<IAppearanceService>(serviceName, args);
         if (service is null)
             throw new Exception($"Could not load an IAppearanceService from '{serviceName}'");
 
