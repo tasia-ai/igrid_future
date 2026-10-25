@@ -614,8 +614,22 @@ public class PGSQLEstateStore : IEstateDataStore
 
     public bool DeleteEstate(int estateID)
     {
-        // TODO: Implementation!
-        return false;
+        using var connection = new NpgsqlConnection(m_connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+        // Serialize against estate edits; never delete an estate still assigned to a region.
+        using var command = new NpgsqlCommand("SELECT \"EstateID\" FROM estate_settings WHERE \"EstateID\"=@estate FOR UPDATE", connection, transaction);
+        command.Parameters.AddWithValue("estate", estateID);
+        if (command.ExecuteScalar() == null) return false;
+        command.CommandText = "SELECT count(*) FROM estate_map WHERE \"EstateID\"=@estate";
+        if ((long)command.ExecuteScalar() != 0) return false;
+        foreach (string table in new[] { "estate_groups", "estate_managers", "estate_users", "estateban", "estate_allowed_experiences", "estate_key_experiences", "estate_blocked_experiences", "estate_settings" })
+        {
+            command.CommandText = $"DELETE FROM {table} WHERE \"EstateID\"=@estate";
+            command.ExecuteNonQuery();
+        }
+        transaction.Commit();
+        return true;
     }
     #endregion
 }

@@ -63,9 +63,9 @@ public class PGSQLMigration : Migration
                     reader.Close();
                 }
             }
-            catch
+            catch (PostgresException error) when (error.SqlState == PostgresErrorCodes.UndefinedTable)
             {
-                // Return -1 to indicate table does not exist
+                // Return -1 only for a missing migrations table
                 return -1;
             }
         }
@@ -89,9 +89,9 @@ public class PGSQLMigration : Migration
                     cmd.ExecuteNonQuery();
                 }
             }
-            catch (Exception)
+            catch (Exception error)
             {
-                throw new Exception(sql);
+                throw new InvalidOperationException("PostgreSQL migration command failed.", error);
 
             }
         }

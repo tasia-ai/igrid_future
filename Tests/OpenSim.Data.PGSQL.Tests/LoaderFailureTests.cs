@@ -9,6 +9,7 @@ namespace OpenSim.Data.PGSQL.Tests;
 public interface ILoaderProbe { }
 public abstract class AbstractProbe : ILoaderProbe { }
 public class GenericProbe<T> : ILoaderProbe { }
+public class ParameterlessProbe : ILoaderProbe { }
 public class WorkingProbe : ILoaderProbe { public WorkingProbe(string argument) { } }
 public class BrokenProbe : ILoaderProbe
 {
@@ -18,6 +19,14 @@ public class BrokenProbe : ILoaderProbe
 
 public class LoaderFailureTests
 {
+    [Fact]
+    public void NullArgumentsMeanParameterlessConstructor()
+    {
+        var result = StoragePluginLoader.Load<ILoaderProbe>(GetType().Assembly.Location,
+            nameof(ParameterlessProbe), null, new CaptureLogger());
+        Assert.IsType<ParameterlessProbe>(result);
+    }
+
     [Fact]
     public void ConstructorLoaderExceptionsAreLoggedWithoutArgumentValues()
     {

@@ -148,7 +148,7 @@ public class Migration
                 }
                 catch(Exception e)
                 {
-                    throw new Exception(e.Message + " in SQL: " + sql);
+                    throw new InvalidOperationException("Database migration command failed.", e);
                 }
             }
         }
@@ -200,9 +200,10 @@ public class Migration
             }
             catch (Exception e)
             {
-                m_log.LogDebug("[MIGRATIONS]: Cmd was {0}", e.Message.Replace("\n", " "));
-                m_log.LogDebug("[MIGRATIONS]: An error has occurred in the migration.  If you're running OpenSim for the first time then you can probably safely ignore this, since certain migration commands attempt to fetch data out of old tables.  However, if you're using an existing database and you see database related errors while running OpenSim then you will need to fix these problems manually. Continuing.");
-                ExecuteScript("ROLLBACK;");
+                m_log.LogError(e, "[MIGRATIONS]: {Store} migration {Version} failed; schema version will not advance", _type, newversion);
+                try { ExecuteScript("ROLLBACK;"); }
+                catch (Exception rollback) { m_log.LogError(rollback, "[MIGRATIONS]: Rollback failed"); }
+                throw new InvalidOperationException($"Migration {_type} version {newversion} failed.", e);
             }
 
             if (version == 0)
@@ -249,9 +250,11 @@ public class Migration
                     reader.Close();
                 }
             }
-            catch
+            catch (DbException error) when (
+                error.GetType().GetProperty("SqlState")?.GetValue(error)?.ToString() == "42P01" ||
+                error.GetType().GetProperty("Number")?.GetValue(error)?.ToString() is "1146" or "208" ||
+                error.Message.Contains("no such table: migrations", StringComparison.OrdinalIgnoreCase))
             {
-                // Something went wrong (probably no table), so we're at version -1
                 version = -1;
             }
         }
@@ -364,8 +367,7 @@ public class Migration
 
                         if (!int.TryParse(sLine.Substring(9).Trim(), out nVersion))
                         {
-                            m_log.LogError("[MIGRATIONS]: invalid version marker at {0}: line {1}. Migration failed!", sFile, nLineNo);
-                            break;
+                            throw new FormatException($"Invalid migration version marker in {sFile} at line {nLineNo}");
                         }
                     }
                     else

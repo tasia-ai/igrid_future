@@ -13,11 +13,13 @@ COMMIT;
 
 :VERSION 2
 
-BEGIN TRANSACTION;
-
+BEGIN;
+DO $$ BEGIN
+IF to_regclass('userfriends') IS NOT NULL THEN
 INSERT INTO Friends ("PrincipalID", "Friend", "Flags", "Offered") 
 SELECT "ownerID", "friendID", "friendPerms", 0 FROM userfriends;
-
+END IF;
+END $$;
 COMMIT;
 
 :VERSION 3 

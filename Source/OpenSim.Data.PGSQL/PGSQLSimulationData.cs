@@ -2043,7 +2043,16 @@ public class PGSQLSimulationData : ISimulationDataStore
 
     public UUID[] GetObjectIDs(UUID regionID)
     {
-        return new UUID[0];
+        var ids = new List<UUID>();
+        {
+            using var connection = new NpgsqlConnection(m_connectionString);
+            connection.Open();
+            using var command = new NpgsqlCommand("SELECT \"UUID\" FROM prims WHERE \"RegionUUID\" = @region AND \"SceneGroupID\" = \"UUID\"", connection);
+            command.Parameters.Add(_Database.CreateParameter("region", regionID));
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) ids.Add(UUID.Parse(reader.GetValue(0).ToString()));
+        }
+        return ids.ToArray();
     }
 
     public void SaveExtra(UUID regionID, string name, string value)

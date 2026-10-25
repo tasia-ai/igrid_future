@@ -169,6 +169,13 @@ public class PGSQLGenericTableHandler<T> : PGSqlFramework where T : class, new()
         return Get(new string[] { field }, new string[] { value });
     }
 
+    public virtual T[] Get(string whereClause, params NpgsqlParameter[] parameters)
+    {
+        using var cmd = new NpgsqlCommand("SELECT * FROM " + m_Realm + " WHERE " + whereClause);
+        cmd.Parameters.AddRange(parameters);
+        return DoQuery(cmd);
+    }
+
     public virtual T[] Get(string whereClause)
     {
         using (NpgsqlCommand cmd = new NpgsqlCommand())

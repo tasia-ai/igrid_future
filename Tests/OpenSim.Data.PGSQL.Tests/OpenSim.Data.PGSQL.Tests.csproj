@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Resources/*.migrations" />
     <ProjectReference Include="../../Source/OpenSim.Server.GridServer/OpenSim.Server.GridServer.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Data.PGSQL/OpenSim.Data.PGSQL.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Services.Base/OpenSim.Services.Base.csproj" />

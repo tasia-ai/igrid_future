@@ -201,24 +201,19 @@ public class PGSQLManager
     {
         if (PGFieldType == "uuid")
         {
-            if(value is not UUID uid)
-                UUID.TryParse(value.ToString(), out uid);
-            return uid.Guid;
+            return value is UUID uid ? uid.Guid : UUID.Parse(value.ToString()).Guid;
         }
         if (PGFieldType == "smallint" || PGFieldType == "smallserial")
         {
-            short.TryParse(value.ToString(), out short sintout);
-            return sintout;
+            return short.Parse(value.ToString(), System.Globalization.CultureInfo.InvariantCulture);
         }
         if (PGFieldType == "integer")
         {
-            int.TryParse(value.ToString(), out int intout);
-            return intout;
+            return int.Parse(value.ToString(), System.Globalization.CultureInfo.InvariantCulture);
         }
         if (PGFieldType == "bigint")
         {
-            long.TryParse(value.ToString(), out long lintout);
-            return lintout;
+            return long.Parse(value.ToString(), System.Globalization.CultureInfo.InvariantCulture);
         }
         if (PGFieldType == "boolean" || PGFieldType == "bit")
         {

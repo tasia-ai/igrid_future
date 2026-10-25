@@ -25,21 +25,13 @@ DELETE FROM `migrations` WHERE name='diva_im_Store';
 
 COMMIT;
 
-:VERSION 3         # -------------------------- 
+:VERSION 3
 
 BEGIN;
-
--- dropping the table here as there most likely is only one record in the table at the time of migration
-
-DROP TABLE IF EXISTS "public"."im_offline";
-CREATE TABLE "public"."im_offline" (
-	"ID" serial,
-	"PrincipalID" uuid NOT NULL,
-	"Message" text NOT NULL COLLATE "default",
-	"TMStamp" timestamp(6) NOT NULL DEFAULT clock_timestamp(),
-	"FromID" uuid NOT NULL
-)
-;
-ALTER TABLE "public"."im_offline" ADD PRIMARY KEY ("ID","PrincipalID","FromID") NOT DEFERRABLE INITIALLY IMMEDIATE;
-
+-- Preserve queued messages during the UUID/FromID schema upgrade.
+ALTER TABLE im_offline ALTER COLUMN "PrincipalID" DROP DEFAULT;
+ALTER TABLE im_offline ALTER COLUMN "PrincipalID" TYPE uuid USING trim("PrincipalID")::uuid;
+ALTER TABLE im_offline ADD COLUMN "FromID" uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+ALTER TABLE im_offline DROP CONSTRAINT im_offline_pkey;
+ALTER TABLE im_offline ADD PRIMARY KEY ("ID","PrincipalID","FromID");
 COMMIT;

@@ -79,18 +79,9 @@ public class PGSQLGroupsData : IGroupsData
     public GroupData[] RetrieveGroups(string pattern)
     {
 
-        if (string.IsNullOrEmpty(pattern)) // True for where clause
-        {
-            pattern = "1";
-
-            return m_Groups.Get(pattern);
-        }
-        else
-        {
-            pattern = " \"ShowInList\" = 1 AND lower(\"Name\") LIKE lower('%" + pattern + "%')";
-
-            return m_Groups.Get(pattern);
-        }
+        if (string.IsNullOrEmpty(pattern))
+            return m_Groups.Get("TRUE");
+        return m_Groups.Get("\"ShowInList\" = 1 AND \"Name\" ILIKE @pattern", new NpgsqlParameter("pattern", "%" + pattern + "%"));
     }
 
     public bool DeleteGroup(UUID groupID)
@@ -100,7 +91,7 @@ public class PGSQLGroupsData : IGroupsData
 
     public int GroupsCount()
     {
-        return (int)m_Groups.GetCount(" \"Location\" = \"\"");
+        return (int)m_Groups.GetCount(" \"Location\" = ''");
     }
 
     #endregion
@@ -340,13 +331,11 @@ public class PGSQLGroupsData : IGroupsData
     #region combinations
     public MembershipData RetrievePrincipalGroupMembership(string principalID, UUID groupID)
     {
-        // TODO
-        return null;
+        return RetrieveMember(groupID, principalID);
     }
     public MembershipData[] RetrievePrincipalGroupMemberships(string principalID)
     {
-        // TODO
-        return null;
+        return RetrieveMemberships(principalID);
     }
 
     #endregion
@@ -430,7 +419,7 @@ public class PGSqlGroupsInvitesHandler : PGSQLGenericTableHandler<InvitationData
 
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
-            cmd.CommandText = String.Format("delete from {0} where \"TMStamp\"::abstime::timestamp < now() - INTERVAL '2 week'", m_Realm);
+            cmd.CommandText = String.Format("delete from {0} where \"TMStamp\" < now() - INTERVAL '2 week'", m_Realm);
 
             ExecuteNonQuery(cmd);
         }
@@ -456,7 +445,7 @@ public class PGSqlGroupsNoticesHandler : PGSQLGenericTableHandler<NoticeData>
 
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
-            cmd.CommandText = String.Format("delete from {0} where \"TMStamp\"::abstime::timestamp < now() - INTERVAL '2 week'", m_Realm);
+            cmd.CommandText = String.Format("delete from {0} where to_timestamp(\"TMStamp\") < now() - INTERVAL '2 week'", m_Realm);
 
             ExecuteNonQuery(cmd);
         }

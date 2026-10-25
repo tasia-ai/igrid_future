@@ -9,6 +9,7 @@ public static class StoragePluginLoader
 {
     public static T Load<T>(string path, string className, object[] args, ILogger logger) where T : class
     {
+        args ??= Array.Empty<object>();
         try
         {
             Assembly assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(path));

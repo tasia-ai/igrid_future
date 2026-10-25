@@ -20,14 +20,16 @@ COMMIT;
 
 :VERSION 2
 
-BEGIN TRANSACTION;
-
-   INSERT INTO auth (uuid, "passwordHash", "passwordSalt", "webLoginKey", "accountType") 
-	SELECT uuid AS UUID, passwordHash AS passwordHash, passwordSalt AS passwordSalt, webLoginKey AS webLoginKey, 'UserAccount' as accountType 
+BEGIN;
+DO $$ BEGIN
+IF to_regclass('users') IS NOT NULL THEN
+INSERT INTO auth (uuid, "passwordHash", "passwordSalt", "webLoginKey", "accountType")
+	SELECT uuid AS UUID, passwordHash AS passwordHash, passwordSalt AS passwordSalt, webLoginKey AS webLoginKey, 'UserAccount' as accountType
 	FROM users
       where exists ( Select * from information_schema.tables where table_name = 'users' )
 	;
-
+END IF;
+END $$;
 COMMIT;
 
 :VERSION 3

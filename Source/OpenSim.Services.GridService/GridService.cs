@@ -343,7 +343,8 @@ public class GridService : GridServiceBase, IGridService
             }
             catch (Exception e)
             {
-                m_log.LogDebug("[GRID SERVICE]: Database exception: {0}", e);
+                m_log.LogError(e, "[GRID SERVICE]: Region registration could not be persisted");
+                return "Region registration failed: database error";
             }
         }
 
@@ -382,11 +383,13 @@ public class GridService : GridServiceBase, IGridService
         try
         {
             rdata.Data["last_seen"] = Util.UnixTimeSinceEpoch();
-            m_Database.Store(rdata);
+            if (!m_Database.Store(rdata))
+                return "Region registration failed: storage rejected the region record";
         }
         catch (Exception e)
         {
-            m_log.LogDebug("[GRID SERVICE]: Database exception: {0}", e);
+            m_log.LogError(e, "[GRID SERVICE]: Region registration could not be persisted");
+            return "Region registration failed: database error";
         }
 
         m_log.LogDebug("[GRID SERVICE]: Region {0} ({1}, {2}x{3}) registered at {4},{5} with flags {6}",
@@ -430,11 +433,12 @@ public class GridService : GridServiceBase, IGridService
             region.Data["last_seen"] = Util.UnixTimeSinceEpoch();
             try
             {
-                m_Database.Store(region);
+                if (!m_Database.Store(region)) return false;
             }
             catch (Exception e)
             {
-                m_log.LogDebug("[GRID SERVICE]: Database exception: {0}", e);
+                m_log.LogError(e, "[GRID SERVICE]: Region deregistration could not be persisted");
+                return false;
             }
 
             return true;

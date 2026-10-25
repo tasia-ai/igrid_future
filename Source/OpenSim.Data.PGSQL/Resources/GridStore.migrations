@@ -248,3 +248,10 @@ ALTER TABLE regions ADD "viewerLocalAddress" varchar(64) NULL;
 
 COMMIT;
 
+
+:VERSION 11
+
+BEGIN;
+ALTER TABLE regions ADD COLUMN IF NOT EXISTS "quicHost" varchar(255) NOT NULL DEFAULT '';
+ALTER TABLE regions ADD COLUMN IF NOT EXISTS "quicPort" integer NOT NULL DEFAULT 0 CHECK ("quicPort" BETWEEN 0 AND 65535);
+COMMIT;

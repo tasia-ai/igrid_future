@@ -47,13 +47,22 @@ public class GridLoginSmokeTests
             var region = new OpenSim.Services.Interfaces.GridRegion {
                 RegionID = UUID.Random(), RegionName = "PGSQL Smoke " + UUID.Random(),
                 RegionLocX = 256000, RegionLocY = 256000, RegionSizeX = 256, RegionSizeY = 256,
-                ExternalHostName = "127.0.0.1", HttpPort = 59000,
+                ExternalHostName = "127.0.0.1", HttpPort = 59000, QuicHost = "127.0.0.1", QuicPort = 59001,
                 InternalEndPoint = new IPEndPoint(IPAddress.Loopback, 59000),
                 ServerURI = "http://127.0.0.1:59000/" };
             // Unique scope isolates region coordinates from other smoke test executions.
             UUID scope = UUID.Random();
             Assert.Equal(string.Empty, grid.RegisterRegion(scope, region));
             Assert.Equal(region.RegionID, grid.GetRegionByUUID(scope, region.RegionID).RegionID);
+            Assert.Equal(region.QuicHost, grid.GetRegionByUUID(scope, region.RegionID).QuicHost);
+            Assert.Equal(region.QuicPort, grid.GetRegionByUUID(scope, region.RegionID).QuicPort);
+            var invalid = new OpenSim.Services.Interfaces.GridRegion {
+                RegionID = UUID.Random(), RegionName = "Invalid QUIC port", RegionLocX = 257024, RegionLocY = 256000,
+                RegionSizeX = 256, RegionSizeY = 256, ExternalHostName = "127.0.0.1", HttpPort = 59000,
+                InternalEndPoint = new IPEndPoint(IPAddress.Loopback, 59000), ServerURI = "http://127.0.0.1:59000/",
+                QuicHost = "127.0.0.1", QuicPort = 70000 };
+            Assert.NotEqual(string.Empty, grid.RegisterRegion(scope, invalid));
+            Assert.Null(grid.GetRegionByUUID(scope, invalid.RegionID));
             Assert.NotNull(grid.GetNeighbours(scope, region.RegionID));
 
             var users = new UserAccountService(config);

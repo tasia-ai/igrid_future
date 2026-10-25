@@ -1,0 +1,4 @@
+:VERSION 1
+SELECT 1;
+:VERSION 2
+SELECT * FROM quality_deliberately_missing_migration_table;
