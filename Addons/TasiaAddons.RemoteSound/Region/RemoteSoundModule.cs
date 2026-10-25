@@ -266,7 +266,7 @@ public class RemoteSoundModule : INonSharedRegionModule, ITasiaAddonsFeature, IR
                 return string.Empty;
             }
 
-            UUID soundId = EnsureAsset(data, uri);
+            UUID soundId = EnsureAsset(data, uri, part.OwnerID);
             if (soundId.IsZero())
                 return "Failed to store audio asset";
 
@@ -365,7 +365,7 @@ public class RemoteSoundModule : INonSharedRegionModule, ITasiaAddonsFeature, IR
         if (m_scene is null || m_soundModule is null)
             return "Scene or sound module unavailable";
 
-        UUID fullAssetId = EnsureAsset(data, uri);
+        UUID fullAssetId = EnsureAsset(data, uri, part.OwnerID);
         if (fullAssetId.IsZero())
             return "Failed to store audio asset";
 
@@ -657,9 +657,9 @@ public class RemoteSoundModule : INonSharedRegionModule, ITasiaAddonsFeature, IR
         return buffer;
     }
 
-    private UUID EnsureAsset(CachedSoundData data, Uri uri)
+    private UUID EnsureAsset(CachedSoundData data, Uri uri, UUID creatorID)
     {
-        if (m_scene is null)
+        if (m_scene is null || data.Data is null || data.Data.Length == 0)
            return UUID.Zero;
 
         UUID assetId = UUID.Parse(RemoteSoundSettings.GetCacheKey(uri));
@@ -677,6 +677,16 @@ public class RemoteSoundModule : INonSharedRegionModule, ITasiaAddonsFeature, IR
             _ => (sbyte)AssetType.Sound
         };
 
+        string assetName = Path.GetFileName(uri.AbsolutePath);
+        if (string.IsNullOrWhiteSpace(assetName))
+            assetName = "Remote sound";
+        if (assetName.Length > AssetBase.MAX_ASSET_NAME)
+            assetName = assetName[..AssetBase.MAX_ASSET_NAME];
+
+        asset = new AssetBase(assetId, assetName, assetType, creatorID.ToString())
+        {
+            Data = data.Data
+        };
         asset.Metadata.ContentType = data.ContentType;
 
         string storedId = m_scene.AssetService.Store(asset);
