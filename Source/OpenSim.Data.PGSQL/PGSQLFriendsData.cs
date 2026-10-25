@@ -35,7 +35,7 @@ public class PGSQLFriendsData : PGSQLGenericTableHandler<FriendsData>, IFriendsD
     public PGSQLFriendsData(string connectionString, string realm)
         : base(connectionString, realm, "FriendsStore")
     {
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         {
             conn.Open();
             Migration m = new Migration(conn, GetType().Assembly, "FriendsStore");
@@ -58,7 +58,7 @@ public class PGSQLFriendsData : PGSQLGenericTableHandler<FriendsData>, IFriendsD
 
     public bool Delete(UUID principalID, string friend)
     {
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
             cmd.CommandText = String.Format("delete from {0} where \"PrincipalID\" = :PrincipalID and \"Friend\" = :Friend", m_Realm);
@@ -86,7 +86,7 @@ public class PGSQLFriendsData : PGSQLGenericTableHandler<FriendsData>, IFriendsD
 
     public FriendsData[] GetFriends(UUID principalID)
     {
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
 

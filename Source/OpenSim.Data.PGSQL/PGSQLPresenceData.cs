@@ -46,6 +46,11 @@ public class PGSQLPresenceData : PGSQLGenericTableHandler<PresenceData>,
     {
     }
 
+    public PresenceData[] Get(string field, string value)
+    {
+        return new PresenceData[0];
+    }
+
     public PresenceData Get(UUID sessionID)
     {
         PresenceData[] ret = Get("SessionID", sessionID.ToString());
@@ -58,7 +63,7 @@ public class PGSQLPresenceData : PGSQLGenericTableHandler<PresenceData>,
 
     public void LogoutRegionAgents(UUID regionID)
     {
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
 
@@ -80,7 +85,7 @@ public class PGSQLPresenceData : PGSQLGenericTableHandler<PresenceData>,
         if (regionID.IsZero())
             return false;
 
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
 

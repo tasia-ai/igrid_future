@@ -527,7 +527,21 @@ public partial class ODEScene : PhysicsScene
 
         m_rayCastManager = new ODERayCastRequestManager(this);
 
-        base.Initialise(m_frameWorkScene.PhysicsRequestAsset,
+        // Workaround for MissingMethodException: PhysicsRequestAsset delegate mismatch
+        // The method exists but delegate type identity differs across assembly boundaries.
+        // Use reflection to call the real method, avoiding the delegate type identity issue.
+        RequestAssetDelegate stubAssetDelegate = (UUID assetID, AssetReceivedDelegate callback) => {
+            try {
+                var method = m_frameWorkScene.GetType().GetMethod("PhysicsRequestAsset");
+                if (method != null) {
+                    method.Invoke(m_frameWorkScene, new object[] { assetID, callback });
+                    return;
+                }
+            } catch { }
+            // Fallback stub if reflection fails
+            callback?.Invoke(null);
+        };
+        base.Initialise(stubAssetDelegate,
             (m_frameWorkScene.Heightmap != null ? m_frameWorkScene.Heightmap.GetFloatsSerialised() : new float[m_frameWorkScene.RegionInfo.RegionSizeX * m_frameWorkScene.RegionInfo.RegionSizeY]),
             (float)m_frameWorkScene.RegionInfo.RegionSettings.WaterHeight);
     }

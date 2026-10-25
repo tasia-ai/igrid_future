@@ -155,7 +155,7 @@ class GloebitSubscriptionData {
             //// SET SubscriptionID=val, Enabled=val
             //// WHERE ObjectID=val AND AppKey=val AND GlbApiUrl=Val
             
-            using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+            using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
             using (NpgsqlCommand cmd = new NpgsqlCommand())
             {
                 // Build Query Structure

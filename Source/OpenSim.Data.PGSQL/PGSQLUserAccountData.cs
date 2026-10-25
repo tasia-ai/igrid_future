@@ -1,30 +1,3 @@
-/*
- * Copyright (c) Contributors, http://opensimulator.org/
- * See CONTRIBUTORS.TXT for a full list of copyright holders.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the OpenSimulator Project nor the
- *       names of its contributors may be used to endorse or promote products
- *       derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ''AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY
- * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
- * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
 using System.Data;
 using OpenMetaverse;
 using System.Text;
@@ -40,7 +13,6 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
 {
     private static readonly ILogger m_log = LoggerProvider.CreateLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
-
     public PGSQLUserAccountData(string connectionString, string realm) :
         base(connectionString, realm, "UserAccount")
     {
@@ -55,10 +27,10 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
         base(connectionString, realm, "UserAccount")
     {
         m_Realm = realm;
-        m_ConnectionString = connectionString;
+        m_connectionString = connectionString;
         m_database = new PGSQLManager(connectionString);
 
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         {
             conn.Open();
             Migration m = new Migration(conn, GetType().Assembly, "UserAccount");
@@ -114,7 +86,7 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
         if (scopeID != UUID.Zero)
             sql += @" and ""ScopeID"" = :ScopeID";
 
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn))
         {
             cmd.Parameters.Add(m_database.CreateParameter("PrincipalID", principalID));
@@ -165,7 +137,7 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
 
         string[] fields = new List<string>(data.Data.Keys).ToArray();
 
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
             m_log.LogDebug("[USER]: Try to update user {0} {1}", data.FirstName, data.LastName);
@@ -249,7 +221,7 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
     public bool SetDataItem(UUID principalID, string item, string value)
     {
         string sql = string.Format(@"update {0} set {1} = :{1} where ""UUID"" = :UUID", m_Realm, item);
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn))
         {
             if (m_FieldTypes.ContainsKey(item))
@@ -281,8 +253,10 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
             if (words[i].Length < 3)
             {
                 if (i != words.Length - 1)
+                {
                     Array.Copy(words, i + 1, words, i, words.Length - i - 1);
-                Array.Resize(ref words, words.Length - 1);
+                    Array.Resize(ref words, words.Length - 1);
+                }
             }
         }
 
@@ -293,7 +267,7 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
             return new UserAccountData[0];
 
         string sql = "";
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
             if (words.Length == 1)
@@ -320,7 +294,7 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
 
     public UserAccountData[] GetUsersWhere(UUID scopeID, string where)
     {
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
             // Fix case sensitivity for PostgreSQL column names
@@ -331,7 +305,7 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
                         
             if (!scopeID.IsZero())
             {
-                where = "(\"ScopeID\"=:ScopeID or \"ScopeID\"='00000000-0000-0000-0000-000000000000') and (" + where + ")";
+                where = "(\"ScopeID\"=:ScopeID) and (" + where + ")";
                 cmd.Parameters.Add(m_database.CreateParameter("ScopeID", scopeID));
             }
 
@@ -341,5 +315,15 @@ public class PGSQLUserAccountData : PGSQLGenericTableHandler<UserAccountData>,IU
             conn.Open();
             return DoQuery(cmd);
         }
+    }
+
+    public UserAccountData[] Get(string[] fields, string[] values)
+    {
+        return new UserAccountData[0];
+    }
+
+    public bool Delete(string field, string val)
+    {
+        return false;
     }
 }

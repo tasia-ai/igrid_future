@@ -1,18 +1,18 @@
-/*
- * Copyright (c) Contributors, http://opensimulator.org/
- * See CONTRIBUTORS.TXT for a full list of copyright holders.
- *
+/* 
+ * Copyright (c) Contributors, http://opensimulator.org/ 
+ * See CONTRIBUTORS.TXT for a full list of copyright holders. 
+ * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
+ *       notice, this list of conditions and the following disclaimer. 
  *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
+ *       notice, this list of conditions and the following disclaimer in
+ *       the documentation and/or other materials provided with the distribution.
  *     * Neither the name of the OpenSimulator Project nor the
  *       names of its contributors may be used to endorse or promote products
- *       derived from this software without specific prior written permission.
- *
+ *       derived from this software without specific prior written permission. 
+ * 
  * THIS SOFTWARE IS PROVIDED BY THE DEVELOPERS ``AS IS'' AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -24,10 +24,10 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 using Npgsql;
-
 using Microsoft.Extensions.Logging;
+using OpenMetaverse;
+using OpenSim.Data;
 using OpenSim.Framework;
 
 namespace OpenSim.Data.PGSQL;
@@ -35,7 +35,7 @@ namespace OpenSim.Data.PGSQL;
 /// <summary>
 /// A database interface class to a user profile storage system
 /// </summary>
-public class PGSqlFramework
+public class PGSqlFramework : IExperienceData
 {
     private static readonly ILogger m_log = LoggerProvider.CreateLogger( System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
@@ -72,5 +72,81 @@ public class PGSqlFramework
                 }
             }
         }
+    }
+
+    // IExperienceData implementation
+    public Dictionary<UUID, bool> GetExperiencePermissions(UUID agent_id)
+    {
+        return new Dictionary<UUID, bool>();
+    }
+
+    public bool ForgetExperiencePermissions(UUID agent_id, UUID experience_id)
+    {
+        return false;
+    }
+
+    public bool SetExperiencePermissions(UUID agent_id, UUID experience_id, bool allow)
+    {
+        return false;
+    }
+
+    public ExperienceInfoData[] GetExperienceInfos(UUID[] experiences)
+    {
+        return new ExperienceInfoData[0];
+    }
+
+    public ExperienceInfoData[] FindExperiences(string search)
+    {
+        return new ExperienceInfoData[0];
+    }
+
+    public UUID[] GetAgentExperiences(UUID agent_id)
+    {
+        return new UUID[0];
+    }
+
+    public UUID[] GetGroupExperiences(UUID agent_id)
+    {
+        return new UUID[0];
+    }
+
+    public UUID[] GetExperiencesForGroups(UUID[] groups)
+    {
+        return new UUID[0];
+    }
+
+    public bool UpdateExperienceInfo(ExperienceInfoData data)
+    {
+        return false;
+    }
+
+    public string GetKeyValue(UUID experience, string key)
+    {
+        return null;
+    }
+
+    public bool SetKeyValue(UUID experience, string key, string val)
+    {
+        return false;
+    }
+
+    public bool DeleteKey(UUID experience, string key)
+    {
+        return false;
+    }
+
+    public int GetKeyCount(UUID experience)
+    {
+        return 0;
+    }
+
+    public string[] GetKeys(UUID experience, int start, int count)
+    {
+        return new string[0];
+    }
+
+    public int GetKeyValueSize(UUID experience)
+    {
+        return 0;
     }
 }

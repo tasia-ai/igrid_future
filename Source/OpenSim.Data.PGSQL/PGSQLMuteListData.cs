@@ -50,7 +50,7 @@ public class PGSQLMuteListData: PGSQLGenericTableHandler<MuteData>, IMuteListDat
                     $"\"MuteID\" = :MuteID and " +
                     $"\"MuteName\" = :MuteName";
 
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         using (NpgsqlCommand cmd = new NpgsqlCommand())
         {
             cmd.CommandText = query;

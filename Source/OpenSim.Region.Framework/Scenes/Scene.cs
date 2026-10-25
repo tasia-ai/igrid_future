@@ -6613,14 +6613,14 @@ Environment.Exit(1);
     /// </remarks>
     /// <param name="assetID"></param>
     /// <param name="callback"></param>
-    public void PhysicsRequestAsset(UUID assetID, AssetReceivedDelegate callback)
+    public void PhysicsRequestAsset(UUID assetID, OpenSim.Region.PhysicsModules.SharedBase.AssetReceivedDelegate callback)
     {
         AssetService.Get(assetID.ToString(), callback, PhysicsAssetReceived);
     }
 
     private void PhysicsAssetReceived(string id, Object sender, AssetBase asset)
     {
-        AssetReceivedDelegate callback = (AssetReceivedDelegate)sender;
+        OpenSim.Region.PhysicsModules.SharedBase.AssetReceivedDelegate callback = (OpenSim.Region.PhysicsModules.SharedBase.AssetReceivedDelegate)sender;
 
         callback(asset);
     }

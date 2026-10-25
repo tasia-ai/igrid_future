@@ -140,7 +140,7 @@ public class PGSQLItemHandler : PGSQLInventoryHandler<XInventoryItem>
 
         UUID oldParent = retrievedItems[0].parentFolderID;
 
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         {
             using (NpgsqlCommand cmd = new NpgsqlCommand())
             {
@@ -167,7 +167,7 @@ public class PGSQLItemHandler : PGSQLInventoryHandler<XInventoryItem>
 
     public XInventoryItem[] GetActiveGestures(UUID principalID)
     {
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         {
             using (NpgsqlCommand cmd = new NpgsqlCommand())
             {
@@ -186,7 +186,7 @@ public class PGSQLItemHandler : PGSQLInventoryHandler<XInventoryItem>
 
     public int GetAssetPermissions(UUID principalID, UUID assetID)
     {
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         {
             using (NpgsqlCommand cmd = new NpgsqlCommand())
             {
@@ -257,7 +257,7 @@ public class PGSQLFolderHandler : PGSQLInventoryHandler<XInventoryFolder>
 
         UUID oldParentFolderUUID = folders[0].parentFolderID;
 
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         {
             using (NpgsqlCommand cmd = new NpgsqlCommand())
             {
@@ -309,7 +309,7 @@ public class PGSQLInventoryHandler<T> : PGSQLGenericTableHandler<T> where T: cla
 
         string sql = @"update inventoryfolders set version=version+1 where folderID = :folderID";
 
-        using (NpgsqlConnection conn = new NpgsqlConnection(m_ConnectionString))
+        using (NpgsqlConnection conn = new NpgsqlConnection(m_connectionString))
         {
             using (NpgsqlCommand cmd = new NpgsqlCommand(sql, conn))
             {
