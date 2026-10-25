@@ -109,6 +109,7 @@
     <ProjectReference Include="../../Addons/TasiaAddons.MACAudit/TasiaAddons.MACAudit.csproj" />
     <ProjectReference Include="../../Addons/TasiaAddons.Marketplace/TasiaAddons.Marketplace.csproj" />
     <ProjectReference Include="../../Addons/TasiaAddons.MetricsConnector/TasiaAddons.MetricsConnector.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.WebScripts/TasiaAddons.WebScripts.csproj" />
     <ProjectReference Include="../../Addons/TasiaAddons.Quic/TasiaAddons.Quic.csproj" />
     <ProjectReference Include="../../Addons/TasiaAddons.RemoteSound/TasiaAddons.RemoteSound.csproj" />
     <ProjectReference Include="../../Addons/TasiaAddons.RestartModule/TasiaAddons.RestartModule.csproj" />

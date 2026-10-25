@@ -48,6 +48,8 @@ public partial class ScriptBaseClass
             m_MOD_Functions = p;
     }
 
+    public LSL_Key maRunScriptFromWeb(string url) => m_MOD_Functions.maRunScriptFromWeb(url);
+
     public void modInvokeN(string fname, params object[] parms)
     {
         m_MOD_Functions.modInvokeN(fname, parms);

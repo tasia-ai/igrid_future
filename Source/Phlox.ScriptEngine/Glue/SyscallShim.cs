@@ -1051,6 +1051,7 @@ private static string ConvToString(object o)
 								Shim_osPerlinNoise2D,                 //964
 								Shim_osAgentSaveAppearance,           //965
 								Shim_osAgentSaveAppearance3,          //966
+                                Shim_maRunScriptFromWeb,             //967
         };
 
         /// <summary>
@@ -9202,6 +9203,11 @@ private static string ConvToString(object o)
         {
             LSLList ret = self._systemAPI.osGetAvatarList();
             self._interpreter.SafeOperandsPush(ConvToLSLType(ret));
+        }
+        static private void Shim_maRunScriptFromWeb(SyscallShim self)
+        {
+            string url = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.maRunScriptFromWeb(url)));
         }
     }
 }

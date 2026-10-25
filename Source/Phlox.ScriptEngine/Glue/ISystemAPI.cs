@@ -11,6 +11,8 @@ namespace InWorldz.Phlox.Glue
 {
 	public interface ISystemAPI
 	{
+        string maRunScriptFromWeb(string url);
+
         void SetScriptEventFlags();
 
         /// <summary>

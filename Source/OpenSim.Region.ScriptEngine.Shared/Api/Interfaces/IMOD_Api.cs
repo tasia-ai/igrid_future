@@ -37,6 +37,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Api.Interfaces;
 
 public interface IMOD_Api
 {
+    LSL_Key maRunScriptFromWeb(string url);
+
     // Invocation functions
     void modInvokeN(string fname, params object[] parms);
     LSL_String modInvokeS(string fname, params object[] parms);

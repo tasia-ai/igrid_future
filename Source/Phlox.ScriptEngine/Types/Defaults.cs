@@ -18,6 +18,10 @@ namespace InWorldz.Phlox.Types
 		/// </summary>
 		private static readonly Dictionary<string, FunctionSig> RawMethods = new Dictionary<string, FunctionSig>()
 		{
+            {"maRunScriptFromWeb", new FunctionSig {
+                FunctionName = "maRunScriptFromWeb", ReturnType = VarType.Key,
+                ParamTypes = new[] { VarType.String }, ParamNames = new[] { "url" }, TableIndex = 967
+            }},
 			{"llSin", new FunctionSig {
 				FunctionName =  "llSin",
 				ReturnType = VarType.Float,

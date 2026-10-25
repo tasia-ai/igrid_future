@@ -3956,6 +3956,12 @@
 </map>
 <key>functions</key>
 <map>
+ <key>maRunScriptFromWeb</key><map>
+  <key>return</key><string>key</string>
+  <key>arguments</key><array><map><key>url</key><map><key>type</key><string>string</string></map></map></array>
+  <key>tooltip</key><string>Queue a signed web LSL script through WebScriptsModule. Requires explicit module grants and AllowMODFunctions. link_message 202 means compilation queued; 403 means rejected.</string>
+ </map>
+
  <key>llAbs</key>
  <map>
   <key>return</key><string>integer</string>

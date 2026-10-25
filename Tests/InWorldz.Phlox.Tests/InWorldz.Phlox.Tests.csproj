@@ -15,6 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../Addons/TasiaAddons.WebScripts/TasiaAddons.WebScripts.csproj" />
     <None Include="dispatch-baseline.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\*.lsl" CopyToOutputDirectory="PreserveNewest" />
     <!-- iwStringCodec golden vectors from Halcyon's own code on .NET Framework (Golden/README.md). The
@@ -33,7 +34,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Source\Phlox.ScriptEngine\Phlox.ScriptEngine.csproj" />
     <ProjectReference Include="..\..\Source\Phlox.ScriptEngine\Phlox.ScriptEngine.csproj" />
     <ProjectReference Include="..\..\Source\OpenSim.Region.ScriptEngine.YEngine\OpenSim.Region.ScriptEngine.YEngine.csproj" />
     <ProjectReference Include="..\OpenSim.Tests.Common\OpenSim.Tests.Common.csproj" />

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <WebScriptsTargetFramework Condition="'$(WebScriptsTargetFramework)' == ''">net8.0</WebScriptsTargetFramework>
+    <TargetFramework>$(WebScriptsTargetFramework)</TargetFramework>
+    <AssemblyName>TasiaAddons.WebScripts</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <NiniFile Condition="Exists('$(OpenSimHome)/nini-core.dll')">nini-core.dll</NiniFile>
+    <NiniFile Condition="'$(NiniFile)' == ''">Nini.dll</NiniFile>
+    <TypesFile Condition="Exists('$(OpenSimHome)/OpenMetaverse.Types.dll')">OpenMetaverse.Types.dll</TypesFile>
+    <TypesFile Condition="'$(TypesFile)' == ''">OpenMetaverseTypes.dll</TypesFile>
+    <LoggingVersion Condition="'$(TargetFramework)' == 'net8.0'">8.0.3</LoggingVersion>
+    <LoggingVersion Condition="'$(LoggingVersion)' == ''">10.0.13</LoggingVersion>
+    <DefineConstants Condition="'$(LegacyDiscovery)' == 'true'">$(DefineConstants);LEGACY_DISCOVERY</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../WebScriptSecurity.cs;../WebScriptDownloader.cs;../WebScriptsModule.cs" />
+    <Compile Include="../PluginRegistration.cs" Condition="'$(LegacyDiscovery)' != 'true'" />
+    <Compile Include="LegacyRegistration.cs" Condition="'$(LegacyDiscovery)' == 'true'" />
+    <Reference Include="OpenSim.Framework" HintPath="$(OpenSimHome)/OpenSim.Framework.dll" Private="false" />
+    <Reference Include="OpenSim.Region.Framework" HintPath="$(OpenSimHome)/OpenSim.Region.Framework.dll" Private="false" />
+    <Reference Include="OpenSim.Services.Interfaces" HintPath="$(OpenSimHome)/OpenSim.Services.Interfaces.dll" Private="false" />
+    <Reference Include="OpenMetaverseTypes" HintPath="$(OpenSimHome)/$(TypesFile)" Private="false" />
+    <Reference Include="OpenMetaverse" HintPath="$(OpenSimHome)/OpenMetaverse.dll" Private="false" />
+    <Reference Include="Nini" HintPath="$(OpenSimHome)/$(NiniFile)" Private="false" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(LoggingVersion)" />
+    <Reference Include="Mono.Addins" HintPath="$(OpenSimHome)/Mono.Addins.dll" Private="false" Condition="'$(LegacyDiscovery)' == 'true'" />
+  </ItemGroup>
+</Project>

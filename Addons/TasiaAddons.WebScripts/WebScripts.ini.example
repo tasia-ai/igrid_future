@@ -1,0 +1,12 @@
+[WebScripts]
+    Enabled = false
+    ; Explicit owner AND caller-script creator UUIDs, comma-separated. No wildcard grants.
+    AllowedOwners =
+    AllowedScriptCreators =
+    AllowedHosts = scripts.example.org
+    PublisherPublicKeyFile = /secure/config/webscripts-publisher-public.pem
+    ScriptEngine = YEngine
+
+[OSSL]
+    ; Needed for the builtin bridge and stock-grid modInvokeK wrapper.
+    AllowMODFunctions = true

@@ -151,6 +151,16 @@ namespace Phlox.ScriptEngine
         private static readonly ILogger m_log = LoggerProvider.CreateLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         protected PhloxEngine m_ScriptEngine;
+        public string maRunScriptFromWeb(string url)
+        {
+            var config = m_ScriptEngine.ConfigSource.Configs["OSSL"];
+            if (config == null || !config.GetBoolean("AllowMODFunctions", false))
+                throw new InvalidOperationException("WebScripts requires AllowMODFunctions");
+            var comms = World.RequestModuleInterface<IScriptModuleComms>()
+                ?? throw new InvalidOperationException("WebScripts requires ScriptModuleComms");
+            return ((UUID)comms.InvokeOperation(m_host.UUID, m_itemID, "maRunScriptFromWeb", new object[] { url })).ToString();
+        }
+
         protected SceneObjectPart m_host;
         protected uint m_localID;
         protected UUID m_itemID;

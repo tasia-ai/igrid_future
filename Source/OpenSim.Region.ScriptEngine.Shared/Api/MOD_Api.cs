@@ -174,6 +174,12 @@ public class MOD_Api : IMOD_Api, IScriptApi
         return new LSL_Float(result);
     }
 
+    public LSL_Key maRunScriptFromWeb(string url)
+    {
+        if (!m_MODFunctionsEnabled || m_comms == null) MODError("WebScripts requires AllowMODFunctions and ScriptModuleComms");
+        return modInvokeK("maRunScriptFromWeb", url);
+    }
+
     public LSL_Key modInvokeK(string fname, params object[] parms)
     {
 //            m_log.LogDebug(
