@@ -1,0 +1,26 @@
+-- Tasia Grid Functions addon profile table. Run against the grid's robust database.
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS "TasiaVirtualAvatars" (
+    "VirtualID" uuid PRIMARY KEY,
+    "AvatarName" varchar(255) NOT NULL,
+    "FirstName" varchar(64) NOT NULL,
+    "LastName" varchar(64) NOT NULL,
+    "DisplayName" varchar(255) NOT NULL,
+    "OwnerID" uuid NOT NULL,
+    "AboutText" text NOT NULL DEFAULT '',
+    "ProfileImage" uuid NOT NULL,
+    "FirstLifeImage" uuid NOT NULL,
+    "FirstLifeText" text NOT NULL DEFAULT '',
+    "WebUrl" varchar(255) NOT NULL DEFAULT '',
+    "UserTitle" varchar(255) NOT NULL DEFAULT '',
+    "BornOn" varchar(64) NOT NULL DEFAULT '',
+    "Enabled" integer NOT NULL DEFAULT 1,
+    "Created" integer NOT NULL DEFAULT 0,
+    "Updated" integer NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS "ix_tasiavirtualavatars_enabled"
+    ON "TasiaVirtualAvatars" ("Enabled");
+
+COMMIT;

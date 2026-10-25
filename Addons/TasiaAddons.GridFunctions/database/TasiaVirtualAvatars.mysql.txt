@@ -1,0 +1,21 @@
+-- Tasia Grid Functions addon profile table. Run against the grid's robust database.
+CREATE TABLE IF NOT EXISTS `TasiaVirtualAvatars` (
+    `VirtualID` char(36) NOT NULL,
+    `AvatarName` varchar(255) NOT NULL,
+    `FirstName` varchar(64) NOT NULL,
+    `LastName` varchar(64) NOT NULL,
+    `DisplayName` varchar(255) NOT NULL,
+    `OwnerID` char(36) NOT NULL,
+    `AboutText` text NOT NULL,
+    `ProfileImage` char(36) NOT NULL,
+    `FirstLifeImage` char(36) NOT NULL,
+    `FirstLifeText` text NOT NULL,
+    `WebUrl` varchar(255) NOT NULL,
+    `UserTitle` varchar(255) NOT NULL,
+    `BornOn` varchar(64) NOT NULL,
+    `Enabled` int NOT NULL DEFAULT 1,
+    `Created` int NOT NULL DEFAULT 0,
+    `Updated` int NOT NULL DEFAULT 0,
+    PRIMARY KEY (`VirtualID`),
+    KEY `ix_tasiavirtualavatars_enabled` (`Enabled`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

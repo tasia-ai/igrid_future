@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>TasiaAddons.GridFunctions</AssemblyName>
+    <RootNamespace>TasiaAddons.GridFunctions</RootNamespace>
+    <Company>Tasia Extensions</Company>
+    <Product>Tasia Grid Functions</Product>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Source/OpenSim.Framework/OpenSim.Framework.csproj" Private="false" />
+    <ProjectReference Include="../../Source/OpenSim.Region.Framework/OpenSim.Region.Framework.csproj" Private="false" />
+    <ProjectReference Include="../../Source/OpenSim.Services.Interfaces/OpenSim.Services.Interfaces.csproj" Private="false" />
+    <ProjectReference Include="../../Source/OpenSim.Server.Base/OpenSim.Server.Base.csproj" Private="false" />
+    <PackageReference Include="MySqlConnector" Version="2.6.2" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="README.md;config/**;database/**;lsl/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

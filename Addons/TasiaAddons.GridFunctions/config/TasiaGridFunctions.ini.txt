@@ -1,0 +1,20 @@
+; Merge these entries into the sister grid's existing Robust and Region config.
+; Do not replace the grid's other service settings.
+
+[TasiaGridFunctions]
+Enabled = true
+DatabaseProvider = PostgreSQL ; or MySQL
+DatabaseName = robust
+MinimumUserLevel = 150
+BaseUserAccountService = OpenSim.Services.UserAccountService.dll:UserAccountService
+BaseUserProfilesService = OpenSim.Services.UserProfilesService.dll:UserProfilesService
+
+; Robust [UserAccountService]: preserve the regular account store through the addon adapter.
+; LocalServiceModule = TasiaAddons.GridFunctions.dll:TasiaVirtualAvatarAccountService
+
+; Robust [UserProfilesService]: enable profiles and route profile RPCs through the adapter.
+; LocalServiceModule = TasiaAddons.GridFunctions.dll:TasiaVirtualAvatarProfilesService
+; Enabled = true
+
+; Keep existing DatabaseService, profile StorageProvider/Realm, ProfileServiceURL,
+; UserAccountServerURI, and service connector settings unchanged.
