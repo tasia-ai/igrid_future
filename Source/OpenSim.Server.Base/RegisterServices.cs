@@ -8,6 +8,7 @@
  */
 
 using System.Reflection;
+using System.Linq;
 
 using Autofac.Core;
 using Autofac.Core.Registration;
@@ -33,7 +34,19 @@ public static class RegisterServices
         // Register services from the modules in the assemblies
         foreach (var assembly in assemblies)
         {
-            var moduleTypes = assembly.GetTypes()
+            Type[] types;
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                // Some types in the assembly may have unresolved references
+                // (e.g. types moved to another assembly). Load only resolvable types.
+                types = ex.Types.Where(t => t != null).ToArray();
+            }
+
+            var moduleTypes = types
                 .Where(t => typeof(IModule).IsAssignableFrom(t) && t.IsClass && !t.IsAbstract)
                 .ToList();
 

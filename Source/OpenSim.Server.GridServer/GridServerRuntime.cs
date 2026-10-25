@@ -125,7 +125,9 @@ public sealed class GridServerRuntime : IGridServerRuntime
 
             PrintFileToConsole("gridserver.startuplogo.txt");
 
-            _loader = new PluginLoader(config, registryLocation);
+            // Temporarily disable PluginLoader due to native crash (AccessViolation in DotNetCorePluginLoader)
+            // _loader = new PluginLoader(config, registryLocation);
+            _loader = null;
 
             _initialized = true;
         }
