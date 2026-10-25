@@ -1,4 +1,4 @@
-name: PostgreSQL provider discovery and login smoke
+name: Repository quality and PostgreSQL smoke
 on:
   pull_request:
   push:
@@ -29,9 +29,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - run: dotnet test Tests/OpenSim.Data.PGSQL.Tests -c Release -m:4 --logger "trx;LogFileName=pgsql.trx" --results-directory TestResults
+      - name: Review repository quality
+        run: tools/quality-review.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: pgsql-test-results
-          path: TestResults
+          path: artifacts/quality

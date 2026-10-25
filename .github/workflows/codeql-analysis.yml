@@ -2,11 +2,15 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ master, develop ]
+    branches: [ master, develop, upgrade/develop-20261022 ]
   pull_request:
-    branches: [ master, develop ]
+    branches: [ master, develop, upgrade/develop-20261022 ]
   schedule:
     - cron: '0 2 * * 1' # Runs every Monday at 2 AM UTC
+
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   analyze:
@@ -17,13 +21,18 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - uses: actions/setup-dotnet@v4
+      with:
+        global-json-file: global.json
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
         languages: csharp
+        build-mode: manual
 
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v3
+    - name: Build with the pinned SDK
+      run: dotnet build Tranquillity.sln -c Release -m:4 -p:CopyLocalLockFileAssemblies=false
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
