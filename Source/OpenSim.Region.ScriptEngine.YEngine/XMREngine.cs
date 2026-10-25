@@ -68,6 +68,7 @@ public partial class Yengine: INonSharedRegionModule, IScriptEngine, IScriptModu
 
     private bool m_LateInit;
     private bool m_TraceCalls;
+    public bool m_SuppressScriptErrorNotifications;
     public bool m_Verbose;
     public bool m_ScriptDebug;
     public bool m_ScriptDebugSaveSource;
@@ -207,6 +208,7 @@ public partial class Yengine: INonSharedRegionModule, IScriptEngine, IScriptModu
         numThreadScriptWorkers = m_Config.GetInt("NumThreadScriptWorkers", 2);
         string priority = m_Config.GetString("Priority", "Normal");
         m_TraceCalls = m_Config.GetBoolean("TraceCalls", false);
+        m_SuppressScriptErrorNotifications = m_Config.GetBoolean("SuppressScriptErrorNotifications", false);
         m_Verbose = m_Config.GetBoolean("Verbose", false);
         m_ScriptDebug = m_Config.GetBoolean("ScriptDebug", false);
         m_ScriptDebugSaveSource = m_Config.GetBoolean("ScriptDebugSaveSource", false);

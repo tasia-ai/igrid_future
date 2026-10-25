@@ -464,6 +464,12 @@ public class RegionInfo
     {
         bool creatingNew = false;
 
+        // RegionInfo may be serialized/registered before the database has supplied
+        // its server port. Seed it from the region server's global Network config.
+        IConfig networkConfig = globalSource?.Configs["Network"];
+        m_httpPort = (uint)(networkConfig?.GetInt("http_listener_port",
+            (int)ConfigSettings.DefaultRegionHttpPort) ?? (int)ConfigSettings.DefaultRegionHttpPort);
+
         if (source.Configs.Count == 0)
         {
             MainConsole.Instance.Output("=====================================\n");
@@ -552,11 +558,11 @@ public class RegionInfo
         RegionSizeX = Convert.ToUInt32(configSizeX);
         allKeys.Remove("SizeY");
         string configSizeY = config.GetString("SizeY", Constants.RegionSize.ToString());
-        config.Set("SizeY", configSizeX);
+        config.Set("SizeY", configSizeY);
         RegionSizeY = Convert.ToUInt32(configSizeY);
         allKeys.Remove("SizeZ");
         string configSizeZ = config.GetString("SizeZ", Constants.RegionHeight.ToString());
-        config.Set("SizeZ", configSizeX);
+        config.Set("SizeZ", configSizeZ);
         RegionSizeZ = Convert.ToUInt32(configSizeZ);
 
         DoRegionSizeSanityChecks();

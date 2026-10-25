@@ -589,14 +589,14 @@ public partial class XMRInstance
         if (msgst.Length > 1000)
             msgst = msgst[..1000];
 
-        if (toowner)
+        if (!m_Engine.m_SuppressScriptErrorNotifications && toowner)
         {
             ScenePresence sp = m_Engine.World.GetScenePresence(m_Part.OwnerID);
             if (sp != null && !sp.IsNPC)
                 m_Engine.World.SimChatToAgent(m_Part.OwnerID, Utils.StringToBytes(msgst), 0x7FFFFFFF, m_Part.AbsolutePosition,
                                                        m_Part.Name, m_Part.UUID, false);
         }
-        else
+        else if (!m_Engine.m_SuppressScriptErrorNotifications)
             m_Engine.World.SimChat(Utils.StringToBytes(msgst),
                                                        ChatTypeEnum.DebugChannel, 0x7FFFFFFF,
                                                        m_Part.AbsolutePosition,
@@ -659,18 +659,21 @@ public partial class XMRInstance
         if(!msgst.EndsWith("\n"))
             msgst += '\n';
         int j = 0;
-        for(int i = 0; (i = msgst.IndexOf('\n', i)) >= 0; j = ++i)
+        if (!m_Engine.m_SuppressScriptErrorNotifications)
         {
-            string line = msgst[j..i];
-            if(line.StartsWith("at "))
+            for(int i = 0; (i = msgst.IndexOf('\n', i)) >= 0; j = ++i)
             {
-                if(line.StartsWith("at (wrapper"))
-                    continue;  // at (wrapper ...
-                int k = line.LastIndexOf(".cs:");  // ... .cs:linenumber
-                if(Int32.TryParse(line.AsSpan(k + 4), out _))
-                    continue;
+                string line = msgst[j..i];
+                if(line.StartsWith("at "))
+                {
+                    if(line.StartsWith("at (wrapper"))
+                        continue;  // at (wrapper ...
+                    int k = line.LastIndexOf(".cs:");  // ... .cs:linenumber
+                    if(Int32.TryParse(line.AsSpan(k + 4), out _))
+                        continue;
+                }
+                this.llOwnerSay(line);
             }
-            this.llOwnerSay(line);
         }
 
         // Say script is sleeping for a very long time.
