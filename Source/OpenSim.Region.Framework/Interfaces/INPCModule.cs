@@ -113,7 +113,7 @@ public interface INPCModule
     /// </returns>
     UUID CreateNPC(string firstname, string lastname,
             Vector3 position, UUID agentID, UUID owner, string groupTitle, UUID groupID, bool senseAsAgent, Scene scene,
-            AvatarAppearance appearance);
+            AvatarAppearance appearance, bool autoAnimation = false);
 
     /// <summary>
     /// Check if the agent is an NPC.
@@ -158,6 +158,9 @@ public interface INPCModule
     /// given ID.
     /// </returns>
     bool CheckPermissions(UUID npcID, UUID callerID);
+
+    /// <summary>Check whether a caller may start or stop animations on an NPC.</summary>
+    bool CheckAnimationPermissions(UUID npcID, UUID callerID);
 
     /// <summary>
     /// Set the appearance for an NPC.

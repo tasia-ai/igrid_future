@@ -84,6 +84,10 @@ namespace OpenSim.Region.Framework.Interfaces
         UUID CreateBot(string firstName, string lastName, Vector3 startPos,
             string outfitName, UUID scriptItemID, UUID ownerID, out string reason);
 
+        /// <summary>Create a SmartNPC bot with optional delegated animation control.</summary>
+        UUID CreateBot(string firstName, string lastName, Vector3 startPos,
+            string outfitName, UUID scriptItemID, UUID ownerID, out string reason, bool autoAnimation);
+
         /// <summary>
         /// The osNpcCreate door onto the same bots: <paramref name="ownerID"/> supplies the scene
         /// and the appearance as before, but the NPC (and its BotData) is owned by nobody when
@@ -92,6 +96,11 @@ namespace OpenSim.Region.Framework.Interfaces
         /// </summary>
         UUID CreateBot(string firstName, string lastName, Vector3 startPos,
             string outfitName, UUID scriptItemID, UUID ownerID, bool owned, bool senseAsAgent, out string reason);
+
+        /// <summary>Create an osNpcCreate bot with optional delegated animation control.</summary>
+        UUID CreateBot(string firstName, string lastName, Vector3 startPos,
+            string outfitName, UUID scriptItemID, UUID ownerID, bool owned, bool senseAsAgent,
+            out string reason, bool autoAnimation);
 
         /// <summary>
         /// osNpcSaveAppearance's door: capture the BOT's current appearance into the caller's

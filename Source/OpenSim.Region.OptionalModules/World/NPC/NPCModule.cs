@@ -225,7 +225,7 @@ public class NPCModule : INPCModule, ISharedRegionModule
 
     public UUID CreateNPC(string firstname, string lastname,
             Vector3 position, UUID agentID, UUID owner, string groupTitle, UUID groupID, bool senseAsAgent, Scene scene,
-            AvatarAppearance appearance)
+            AvatarAppearance appearance, bool autoAnimation = false)
     {
         if(m_MaxNumberNPCperScene > 0)
         {
@@ -262,6 +262,7 @@ public class NPCModule : INPCModule, ISharedRegionModule
         }
 
         agentID = npcAvatar.AgentId;
+        npcAvatar.AutoAnimation = autoAnimation;
         uint circuit = (uint)Random.Shared.Next(0, int.MaxValue);
         npcAvatar.CircuitCode = circuit;
 
@@ -986,6 +987,50 @@ public class NPCModule : INPCModule, ISharedRegionModule
                 return false;
             }
         }
+    }
+
+    public bool CheckAnimationPermissions(UUID npcID, UUID callerID)
+    {
+        NPCAvatar av;
+        lock (m_avatars)
+        {
+            if (!m_avatars.TryGetValue(npcID, out av))
+                return false;
+            if (CheckPermissions(av, callerID))
+                return true;
+            if (!av.AutoAnimation || callerID.IsZero() || av.OwnerID.IsZero())
+                return false;
+        }
+
+        IGroupsModule groups = null;
+        lock (m_scenes)
+        {
+            foreach (Scene scene in m_scenes)
+            {
+                groups = scene.RequestModuleInterface<IGroupsModule>();
+                if (groups != null)
+                    break;
+            }
+        }
+
+        if (groups == null)
+            return false;
+
+        GroupMembershipData[] ownerMemberships = groups.GetMembershipData(av.OwnerID);
+        GroupMembershipData[] callerMemberships = groups.GetMembershipData(callerID);
+        if (ownerMemberships == null || callerMemberships == null)
+            return false;
+
+        HashSet<UUID> ownerGroups = new();
+        foreach (GroupMembershipData membership in ownerMemberships)
+            if (membership != null && membership.GroupID.IsNotZero())
+                ownerGroups.Add(membership.GroupID);
+
+        foreach (GroupMembershipData membership in callerMemberships)
+            if (membership != null && ownerGroups.Contains(membership.GroupID))
+                return true;
+
+        return false;
     }
 
     /// <summary>

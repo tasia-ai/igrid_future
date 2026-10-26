@@ -1854,6 +1854,7 @@
   <key>OS_NPC_AUTO_ANIMATION</key><map>
    <key>type</key><string>integer</string>
    <key>value</key><string>0x10</string>
+   <key>tooltip</key><string>Allow the NPC owner and their group members' scripts to start and stop NPC animations</string>
   </map>
  <key>OS_NPC_RUNNING</key><map>
   <key>type</key><string>integer</string>

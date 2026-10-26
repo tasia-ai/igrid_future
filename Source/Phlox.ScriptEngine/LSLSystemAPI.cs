@@ -13242,12 +13242,12 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
         }
 
         // ── osNpc* - a second door onto BotManager's bots (one BotData per NPC), ported from OSSL_Api.cs ──
-        private const int OS_NPC_NOT_OWNED = 0x2, OS_NPC_SENSE_AS_AGENT = 0x4, OS_NPC_OBJECT_GROUP = 0x8, OS_NPC_NO_FLY = 1, OS_NPC_RUNNING = 4;
+        private const int OS_NPC_NOT_OWNED = 0x2, OS_NPC_SENSE_AS_AGENT = 0x4, OS_NPC_OBJECT_GROUP = 0x8, OS_NPC_AUTO_ANIMATION = 0x10, OS_NPC_NO_FLY = 1, OS_NPC_RUNNING = 4;
         private IBotManager NpcMgr() => World?.RequestModuleInterface<IBotManager>();
         private static bool NpcKey(string npc, out UUID id) => UUID.TryParse(npc, out id) && id.IsNotZero();
 
         /// <summary>OSSL_Api.cs:2848-2975 NpcCreate. The notecard argument is the bot outfit store's outfit name ("" = the owner's current appearance).</summary>
-        private string NpcCreate(string firstname, string lastname, Vector3 position, string notecard, bool owned, bool senseAsAgent, bool hostGroup)
+        private string NpcCreate(string firstname, string lastname, Vector3 position, string notecard, bool owned, bool senseAsAgent, bool hostGroup, bool autoAnimation = false)
         {
             if (World == null || m_host == null) return UUID.Zero.ToString();
             if (!World.Permissions.CanRezObject(1, m_host.OwnerID, position))
@@ -13262,7 +13262,7 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
                 return UUID.Zero.ToString();
             }
             // OS_NPC_OBJECT_GROUP: BotManager's CreateNPC call carries no group - accepted, not applied.
-            UUID id = mgr.CreateBot(firstname, lastname, position, notecard ?? string.Empty, m_itemID, m_host.OwnerID, owned, senseAsAgent, out string reason);
+            UUID id = mgr.CreateBot(firstname, lastname, position, notecard ?? string.Empty, m_itemID, m_host.OwnerID, owned, senseAsAgent, out string reason, autoAnimation);
             if (reason != null) ShoutError("osNpcCreate: " + reason);
             return id.ToString();
         }
@@ -13307,7 +13307,8 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
         {
             OsslCheck(OpenSim.Region.ScriptEngine.Shared.Api.Interfaces.ThreatLevel.High, "osNpcCreate");
             return NpcCreate(firstname, lastname, position, notecard,
-                (options & OS_NPC_NOT_OWNED) == 0, (options & OS_NPC_SENSE_AS_AGENT) != 0, (options & OS_NPC_OBJECT_GROUP) != 0);
+                (options & OS_NPC_NOT_OWNED) == 0, (options & OS_NPC_SENSE_AS_AGENT) != 0,
+                (options & OS_NPC_OBJECT_GROUP) != 0, (options & OS_NPC_AUTO_ANIMATION) != 0);
         }
 
         /// <summary>OSSL_Api.cs:2975 - High (key osNpcSaveAppearance).</summary>
@@ -17399,7 +17400,9 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
                 if (manager != null)
                 {
                     string reason;
-                    string botID = manager.CreateBot(first, last, pos, outfit, m_itemID, m_host.OwnerID, out reason).ToString();
+                    bool autoAnimation = (options & OS_NPC_AUTO_ANIMATION) != 0;
+                    string botID = manager.CreateBot(first, last, pos, outfit, m_itemID, m_host.OwnerID,
+                        out reason, autoAnimation).ToString();
                     if (reason == null)
                     {
                         retVal = botID;

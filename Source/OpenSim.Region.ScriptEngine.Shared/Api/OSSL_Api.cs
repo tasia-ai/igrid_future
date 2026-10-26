@@ -2905,11 +2905,13 @@ public class OSSL_Api : IOSSL_Api, IScriptApi
             firstname, lastname, position, notecard,
             (options & ScriptBaseClass.OS_NPC_NOT_OWNED) == 0,
             (options & ScriptBaseClass.OS_NPC_SENSE_AS_AGENT) != 0,
-            (options & ScriptBaseClass.OS_NPC_OBJECT_GROUP) != 0);
+            (options & ScriptBaseClass.OS_NPC_OBJECT_GROUP) != 0,
+            (options & ScriptBaseClass.OS_NPC_AUTO_ANIMATION) != 0);
     }
 
     private LSL_Key NpcCreate(
-        string firstname, string lastname, LSL_Vector position, string notecard, bool owned, bool senseAsAgent, bool hostGroupID)
+        string firstname, string lastname, LSL_Vector position, string notecard, bool owned, bool senseAsAgent,
+        bool hostGroupID, bool autoAnimation = false)
     {
         if (!World.Permissions.CanRezObject(1, m_host.OwnerID, new Vector3((float)position.x, (float)position.y, (float)position.z)))
         {
@@ -3019,7 +3021,8 @@ public class OSSL_Api : IOSSL_Api, IScriptApi
                                   groupID,
                                   senseAsAgent,
                                   World,
-                                  appearance);
+                                  appearance,
+                                  autoAnimation);
 
         if (World.TryGetScenePresence(x, out ScenePresence sp))
         {
@@ -3420,7 +3423,7 @@ public class OSSL_Api : IOSSL_Api, IScriptApi
         if (target is null || !target.IsNPC || target.Animator is null)
             return;
 
-        if (!module.CheckPermissions(npcID, m_host.OwnerID))
+        if (!module.CheckAnimationPermissions(npcID, m_host.OwnerID))
             return;
 
         TaskInventoryItem item = m_host.Inventory.GetInventoryItem(animation);
@@ -3456,7 +3459,7 @@ public class OSSL_Api : IOSSL_Api, IScriptApi
         if (target is null || !target.IsNPC || target.Animator is null)
             return;
 
-        if (!module.CheckPermissions(npcID, m_host.OwnerID))
+        if (!module.CheckAnimationPermissions(npcID, m_host.OwnerID))
             return;
 
             TaskInventoryItem item = m_host.Inventory.GetInventoryItem(animation);

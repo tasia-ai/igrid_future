@@ -282,6 +282,13 @@ namespace OpenSim.Region.OptionalModules.World.NPC
             return data;
         }
 
+        private BotData GetBotWithAnimationPermission(UUID botID, UUID callerID)
+        {
+            BotData data = GetBot(botID);
+            if (data == null || !m_npcModule.CheckAnimationPermissions(botID, callerID)) return null;
+            return data;
+        }
+
         /// <summary>
         /// Get the scene for a bot, re-resolving it if the bot has moved.
         /// </summary>
@@ -468,7 +475,14 @@ namespace OpenSim.Region.OptionalModules.World.NPC
         public UUID CreateBot(string firstName, string lastName, Vector3 startPos,
             string outfitName, UUID scriptItemID, UUID ownerID, out string reason)
         {
-            UUID botID = CreateBot(firstName, lastName, startPos, outfitName, scriptItemID, ownerID, true, true, out reason);
+            return CreateBot(firstName, lastName, startPos, outfitName, scriptItemID, ownerID, out reason, false);
+        }
+
+        public UUID CreateBot(string firstName, string lastName, Vector3 startPos,
+            string outfitName, UUID scriptItemID, UUID ownerID, out string reason, bool autoAnimation)
+        {
+            UUID botID = CreateBot(firstName, lastName, startPos, outfitName, scriptItemID, ownerID,
+                true, true, out reason, autoAnimation);
             // The bot* door registers the creating script for bot_update, as Halcyon's BotManager.CreateBot did.
             if (botID != UUID.Zero && scriptItemID != UUID.Zero)
                 BotRegisterForPathUpdateEvents(botID, scriptItemID, ownerID);
@@ -479,6 +493,14 @@ namespace OpenSim.Region.OptionalModules.World.NPC
         public UUID CreateBot(string firstName, string lastName, Vector3 startPos,
             string outfitName, UUID scriptItemID, UUID ownerID, bool owned, bool senseAsAgent, out string reason)
         {
+            return CreateBot(firstName, lastName, startPos, outfitName, scriptItemID, ownerID,
+                owned, senseAsAgent, out reason, false);
+        }
+
+        public UUID CreateBot(string firstName, string lastName, Vector3 startPos,
+            string outfitName, UUID scriptItemID, UUID ownerID, bool owned, bool senseAsAgent, out string reason,
+            bool autoAnimation)
+        {
             reason = null;
             if (m_npcModule == null) { reason = "NPC module not available"; return UUID.Zero; }
 
@@ -487,7 +509,7 @@ namespace OpenSim.Region.OptionalModules.World.NPC
             if (ownerScene == null) { reason = "Owner not found in any region"; return UUID.Zero; }
 
             return CreateBotIn(ownerScene, UUID.Zero, firstName, lastName, startPos, outfitName, scriptItemID, ownerID,
-                owned, senseAsAgent, out reason);
+                owned, senseAsAgent, out reason, autoAnimation);
         }
 
         /// <summary>
@@ -529,7 +551,8 @@ namespace OpenSim.Region.OptionalModules.World.NPC
 
         // Makes the bot in the given scene; agentID is the key to give it, or UUID.Zero for a new random key.
         private UUID CreateBotIn(Scene ownerScene, UUID agentID, string firstName, string lastName, Vector3 startPos,
-            string outfitName, UUID scriptItemID, UUID ownerID, bool owned, bool senseAsAgent, out string reason)
+            string outfitName, UUID scriptItemID, UUID ownerID, bool owned, bool senseAsAgent, out string reason,
+            bool autoAnimation = false)
         {
             reason = null;
 
@@ -575,7 +598,7 @@ namespace OpenSim.Region.OptionalModules.World.NPC
             // The bot* door always senses as agent and is always owned; osNpcCreate chooses.
             UUID npcOwner = owned ? ownerID : UUID.Zero;
             UUID botID = m_npcModule.CreateNPC(firstName, lastName, startPos, agentID,
-                npcOwner, "", UUID.Zero, senseAsAgent, ownerScene, appearance);
+                npcOwner, "", UUID.Zero, senseAsAgent, ownerScene, appearance, autoAnimation);
 
             if (botID == UUID.Zero)
             {
@@ -1560,7 +1583,7 @@ namespace OpenSim.Region.OptionalModules.World.NPC
         public void StartBotAnimation(UUID botID, UUID animID, string animName,
             UUID hostID, UUID ownerID)
         {
-            BotData data = GetBotWithPermission(botID, ownerID);
+            BotData data = GetBotWithAnimationPermission(botID, ownerID);
             if (data == null) return;
 
             ScenePresence sp = GetBotSP(data);
@@ -1571,7 +1594,7 @@ namespace OpenSim.Region.OptionalModules.World.NPC
         public void StopBotAnimation(UUID botID, UUID animID, string animName,
             UUID ownerID)
         {
-            BotData data = GetBotWithPermission(botID, ownerID);
+            BotData data = GetBotWithAnimationPermission(botID, ownerID);
             if (data == null) return;
 
             ScenePresence sp = GetBotSP(data);

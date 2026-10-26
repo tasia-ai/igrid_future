@@ -65,6 +65,7 @@ public class NPCAvatar : IClientAPI, INPC
     private readonly Scene m_scene;
     private readonly UUID m_scopeID;
     private readonly UUID m_ownerID;
+    public bool AutoAnimation { get; set; }
     private UUID m_hostGroupID;
     private string m_profileAbout = "";
     private UUID m_profileImage = UUID.Zero;

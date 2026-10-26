@@ -916,6 +916,7 @@ public partial class ScriptBaseClass
     public const int OS_NPC_NOT_OWNED = 0x2;
     public const int OS_NPC_SENSE_AS_AGENT = 0x4;
     public const int OS_NPC_OBJECT_GROUP = 0x08;
+    // Allows scripts owned by the NPC owner or one of the owner's groups to control NPC animations.
     public const int OS_NPC_AUTO_ANIMATION = 0x10;
 
     public const string URL_REQUEST_GRANTED = "URL_REQUEST_GRANTED";
