@@ -4740,23 +4740,27 @@ public void llDetachFromAvatar()
 
         if (presence != null)
         {
-            // If permissions are being requested from an NPC and were not implicitly granted above then
-            // auto grant all requested permissions if the script is owned by the NPC or the NPCs owner
+            // NPCs cannot answer permission dialogs. Their owner keeps the legacy full grant; the
+            // auto-animation opt-in delegates only PERMISSION_TRIGGER_ANIMATION to shared-group scripts.
             INPCModule npcModule = World.RequestModuleInterface<INPCModule>();
             if (npcModule != null && npcModule.IsNPC(agentID, World))
             {
-                if (npcModule.CheckPermissions(agentID, m_host.OwnerID))
+                bool isOwner = npcModule.CheckPermissions(agentID, m_host.OwnerID);
+                bool invitedAnimation = perm == ScriptBaseClass.PERMISSION_TRIGGER_ANIMATION
+                    && npcModule.CheckAnimationPermissions(agentID, m_host.OwnerID);
+                if (isOwner || invitedAnimation)
                 {
+                    int grantedPerms = isOwner ? perm : ScriptBaseClass.PERMISSION_TRIGGER_ANIMATION;
                     lock (m_host.TaskInventory)
                     {
                         m_host.TaskInventory[m_item.ItemID].PermsGranter = agentID;
-                        m_host.TaskInventory[m_item.ItemID].PermsMask = perm;
+                        m_host.TaskInventory[m_item.ItemID].PermsMask = grantedPerms;
                     }
 
                     m_ScriptEngine.PostScriptEvent(
                         m_item.ItemID,
                         new EventParams(
-                            "run_time_permissions", new Object[] { new LSL_Integer(perm) }, Array.Empty<DetectParams>()));
+                            "run_time_permissions", new Object[] { new LSL_Integer(grantedPerms) }, Array.Empty<DetectParams>()));
                 }
 
                 // it is an NPC, exit even if the permissions werent granted above, they are not going to answer

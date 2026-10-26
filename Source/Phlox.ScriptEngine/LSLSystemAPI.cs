@@ -2610,8 +2610,8 @@ namespace Phlox.ScriptEngine
             ScenePresence bot = World.GetScenePresence(agentID);
             if (bot != null && bot.IsNPC && !bot.IsChildAgent)
             {
-                UUID botOwner = World.RequestModuleInterface<INPCModule>()?.GetOwner(agentID) ?? UUID.Zero;
-                if (botOwner != UUID.Zero && botOwner == m_host.OwnerID)
+                INPCModule npcModule = World.RequestModuleInterface<INPCModule>();
+                if (npcModule != null && npcModule.CheckAnimationPermissions(agentID, m_host.OwnerID))
                     return SlConst.PERMISSION_TRIGGER_ANIMATION;
                 SceneObjectPart seat = bot.ParentPart;
                 if (seat != null && seat.OwnerID == m_host.OwnerID)
