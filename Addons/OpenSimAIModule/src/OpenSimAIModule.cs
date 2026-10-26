@@ -794,6 +794,39 @@ namespace OpenSim.Region.OptionalModules.AI
         }
 
         [ScriptInvocation]
+        public int osSetSmartNPCProfile(UUID hostID, UUID scriptID, UUID npcKey,
+            string aboutText, string profileImage, string firstLifeText,
+            string firstLifeImage, string webUrl, string accountTitle, string bornOn)
+        {
+            if (!m_enabled || m_npcModule == null || !m_npcList.ContainsKey(npcKey))
+                return 0;
+
+            Scene activeScene;
+            SceneObjectPart host;
+            GetObjectData(hostID, out activeScene, out host);
+            if (activeScene == null || host == null)
+                return 0;
+
+            if (m_isPrivate && !IsEstateOwner(activeScene, host.OwnerID))
+                return 0;
+
+            INPC npc = m_npcModule.GetNPC(npcKey, activeScene);
+            if (npc == null || npc.Owner != host.OwnerID)
+                return 0;
+
+            UUID imageID = UUID.Zero;
+            if (!string.IsNullOrWhiteSpace(profileImage) && !UUID.TryParse(profileImage, out imageID))
+                return 0;
+
+            // The core INPC profile contract currently exposes these three fields.
+            // Keep the full script signature aligned with Phlox's public API.
+            npc.profileAbout = aboutText ?? string.Empty;
+            npc.profileImage = imageID;
+            npc.Born = bornOn ?? string.Empty;
+            return 1;
+        }
+
+        [ScriptInvocation]
         public int osSetSmartNPCAppearance(UUID hostID, UUID scriptID, UUID npcKey, string notecardName)
         {
             if (!m_enabled || m_npcModule == null || !m_npcList.ContainsKey(npcKey))
