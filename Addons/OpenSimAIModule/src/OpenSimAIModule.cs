@@ -794,6 +794,64 @@ namespace OpenSim.Region.OptionalModules.AI
         }
 
         [ScriptInvocation]
+        public int osSetSmartNPCAppearance(UUID hostID, UUID scriptID, UUID npcKey, string notecardName)
+        {
+            if (!m_enabled || m_npcModule == null || !m_npcList.ContainsKey(npcKey))
+                return 0;
+
+            Scene activeScene;
+            SceneObjectPart sop;
+            GetObjectData(hostID, out activeScene, out sop);
+            if (activeScene == null || sop == null || string.IsNullOrWhiteSpace(notecardName))
+                return 0;
+            if (m_isPrivate && !IsEstateOwner(activeScene, sop.OwnerID))
+                return 0;
+
+            try
+            {
+                if (m_npcModule.GetOwner(npcKey) != sop.OwnerID)
+                    return 0;
+
+                Scene npcScene = null;
+                lock (m_scenes)
+                {
+                    foreach (Scene candidate in m_scenes)
+                    {
+                        if (candidate.TryGetScenePresence(npcKey, out ScenePresence presence) &&
+                            presence != null && presence.IsNPC && !presence.IsDeleted && !presence.IsInTransit)
+                        {
+                            npcScene = candidate;
+                            break;
+                        }
+                    }
+                }
+                if (npcScene == null)
+                    return 0;
+
+                TaskInventoryItem item = sop.Inventory.GetInventoryItem(notecardName);
+                if (item == null || item.Type != (int)AssetType.Notecard)
+                    return 0;
+                AssetBase asset = activeScene.AssetService.Get(item.AssetID.ToString());
+                if (asset == null)
+                    return 0;
+
+                string[] lines = SLUtil.ParseNotecardToArray(asset.Data);
+                OSDMap appearanceData = OSDParser.DeserializeLLSDXml(string.Join("\n", lines ?? new string[0])) as OSDMap;
+                if (appearanceData == null)
+                    return 0;
+
+                AvatarAppearance appearance = new AvatarAppearance();
+                appearance.Unpack(appearanceData);
+                return m_npcModule.SetNPCAppearance(npcKey, appearance, npcScene) ? 1 : 0;
+            }
+            catch (Exception ex)
+            {
+                m_log.Warn("[OpenSim AI] Unable to set NPC appearance from notecard: " + ex.Message);
+                return 0;
+            }
+        }
+
+        [ScriptInvocation]
         public void osNpcInstantMessage(UUID hostID, UUID scriptID, UUID npcKey, UUID destination, string message)
         {
             if (!m_enabled)

@@ -6907,6 +6907,8 @@ namespace InWorldz.Phlox.Types
             {"lsClearWindlightScene", new FunctionSig { FunctionName = "lsClearWindlightScene", ReturnType = VarType.Void, ParamTypes = new VarType[] { }, ParamNames = new string[] { }, TableIndex = 995 }},
             {"osCreateSmartNPC", new FunctionSig { FunctionName = "osCreateSmartNPC", ReturnType = VarType.Key, ParamTypes = new[] { VarType.String, VarType.String, VarType.Vector, VarType.String, VarType.String }, ParamNames = new[] { "firstName", "lastName", "position", "notecardName", "expertise" }, TableIndex = 996 }},
             {"osSetSmartNPCProfile", new FunctionSig { FunctionName = "osSetSmartNPCProfile", ReturnType = VarType.Integer, ParamTypes = new[] { VarType.Key, VarType.String, VarType.String, VarType.String, VarType.String, VarType.String, VarType.String, VarType.String }, ParamNames = new[] { "npcKey", "aboutText", "profileImage", "firstLifeText", "firstLifeImage", "webUrl", "accountTitle", "bornOn" }, TableIndex = 997 }},
+            {"osSetSmartNPCAppearance", new FunctionSig { FunctionName = "osSetSmartNPCAppearance", ReturnType = VarType.Integer, ParamTypes = new[] { VarType.Key, VarType.String }, ParamNames = new[] { "npcKey", "notecardName" }, TableIndex = 998 }},
+            {"osTeleportSmartNPC", new FunctionSig { FunctionName = "osTeleportSmartNPC", ReturnType = VarType.Integer, ParamTypes = new[] { VarType.Key, VarType.Key }, ParamNames = new[] { "npcKey", "targetAgent" }, TableIndex = 999 }},
          };
 
         /// <summary>

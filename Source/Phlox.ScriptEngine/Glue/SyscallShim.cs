@@ -1082,6 +1082,8 @@ private static string ConvToString(object o)
                                 Shim_lsClearWindlightScene,             //995
                                 Shim_osCreateSmartNPC,                    //996
                                 Shim_osSetSmartNPCProfile,                //997
+                                Shim_osSetSmartNPCAppearance,             //998
+                                Shim_osTeleportSmartNPC,                  //999
         };
 
         /// <summary>
@@ -9277,6 +9279,22 @@ private static string ConvToString(object o)
             string npcKey = ConvToString(self._interpreter.ScriptState.Operands.Pop());
             self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osSetSmartNPCProfile(
                 npcKey, aboutText, profileImage, firstLifeText, firstLifeImage, webUrl, accountTitle, bornOn)));
+        }
+
+        static private void Shim_osSetSmartNPCAppearance(SyscallShim self)
+        {
+            string notecardName = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string npcKey = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(
+                self._systemAPI.osSetSmartNPCAppearance(npcKey, notecardName)));
+        }
+
+        static private void Shim_osTeleportSmartNPC(SyscallShim self)
+        {
+            string targetAgent = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string npcKey = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(
+                self._systemAPI.osTeleportSmartNPC(npcKey, targetAgent)));
         }
 
         static private void Shim_osGiveLinkInventory(SyscallShim self)

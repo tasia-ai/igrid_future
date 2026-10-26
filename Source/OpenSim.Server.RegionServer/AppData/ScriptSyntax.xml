@@ -1,4 +1,4 @@
-3c5411df-387f-39c3-345f-4e1b7c7e7c45
+360961cb-d3ab-4578-af27-873c4e30219d
 <llsd><map><key>llsd-lsl-syntax-version</key><integer>2</integer>
 <key>controls</key>
 <map>
@@ -9895,5 +9895,49 @@
   <key>arguments</key><undef/>
   <key>tooltip</key><string>Returns the name of the currently enabled wind plugin.</string>
  </map>
-</map>
+ <key>osCreateSmartNPC</key>
+ <map>
+  <key>return</key><string>key</string>
+  <key>arguments</key><array>
+   <map><key>firstName</key><map><key>type</key><string>string</string></map></map>
+   <map><key>lastName</key><map><key>type</key><string>string</string></map></map>
+   <map><key>position</key><map><key>type</key><string>vector</string></map></map>
+   <map><key>notecardName</key><map><key>type</key><string>string</string></map></map>
+   <map><key>expertise</key><map><key>type</key><string>string</string></map></map>
+  </array>
+  <key>tooltip</key><string>Creates a SmartNPC at a position using the named appearance notecard and expertise.</string>
+ </map>
+ <key>osSetSmartNPCProfile</key>
+ <map>
+  <key>return</key><string>integer</string>
+  <key>arguments</key><array>
+   <map><key>npcKey</key><map><key>type</key><string>key</string></map></map>
+   <map><key>aboutText</key><map><key>type</key><string>string</string></map></map>
+   <map><key>profileImage</key><map><key>type</key><string>string</string></map></map>
+   <map><key>firstLifeText</key><map><key>type</key><string>string</string></map></map>
+   <map><key>firstLifeImage</key><map><key>type</key><string>string</string></map></map>
+   <map><key>webUrl</key><map><key>type</key><string>string</string></map></map>
+   <map><key>accountTitle</key><map><key>type</key><string>string</string></map></map>
+   <map><key>bornOn</key><map><key>type</key><string>string</string></map></map>
+  </array>
+  <key>tooltip</key><string>Updates the virtual profile fields for the specified SmartNPC.</string>
+ </map>
+ <key>osSetSmartNPCAppearance</key>
+ <map>
+  <key>return</key><string>integer</string>
+  <key>arguments</key><array>
+   <map><key>npcKey</key><map><key>type</key><string>key</string></map></map>
+   <map><key>notecardName</key><map><key>type</key><string>string</string></map></map>
+  </array>
+  <key>tooltip</key><string>Applies the named appearance notecard to a SmartNPC. Returns 1 on success, 0 on failure.</string>
+ </map>
+ <key>osTeleportSmartNPC</key>
+ <map>
+  <key>return</key><string>integer</string>
+  <key>arguments</key><array>
+   <map><key>npcKey</key><map><key>type</key><string>key</string></map></map>
+   <map><key>targetAgent</key><map><key>type</key><string>key</string></map></map>
+  </array>
+  <key>tooltip</key><string>Moves a SmartNPC to the specified agent, including across regions. Use NULL_KEY to target the NPC owner. Returns 1 on success, 0 on failure.</string>
+ </map></map>
 </map></llsd>

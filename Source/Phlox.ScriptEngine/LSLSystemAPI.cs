@@ -178,6 +178,22 @@ namespace Phlox.ScriptEngine
                 new object[] { new UUID(npcKey), aboutText, profileImage, firstLifeText, firstLifeImage, webUrl, accountTitle, bornOn });
         }
 
+        public int osSetSmartNPCAppearance(string npcKey, string notecardName)
+        {
+            var comms = World.RequestModuleInterface<IScriptModuleComms>()
+                ?? throw new InvalidOperationException("osSetSmartNPCAppearance requires ScriptModuleComms");
+            return (int)comms.InvokeOperation(m_host.UUID, m_itemID, "osSetSmartNPCAppearance",
+                new object[] { new UUID(npcKey), notecardName });
+        }
+
+        public int osTeleportSmartNPC(string npcKey, string targetAgent)
+        {
+            var comms = World.RequestModuleInterface<IScriptModuleComms>()
+                ?? throw new InvalidOperationException("osTeleportSmartNPC requires ScriptModuleComms");
+            return (int)comms.InvokeOperation(m_host.UUID, m_itemID, "osTeleportSmartNPC",
+                new object[] { new UUID(npcKey), new UUID(targetAgent) });
+        }
+
         protected SceneObjectPart m_host;
         protected uint m_localID;
         protected UUID m_itemID;

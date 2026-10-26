@@ -44,6 +44,8 @@ public class CompilerHarnessTests
                 {
                     npc = osCreateSmartNPC(""Tasia"", ""Mouse"", <128.0, 128.0, 25.0>, ""Appearance"", ""default"");
                     result = osSetSmartNPCProfile(npc, ""About"", ""00000000-0000-0000-0000-000000000000"", ""First life"", ""00000000-0000-0000-0000-000000000000"", ""https://example.invalid"", ""Title"", ""Born"");
+                    integer appearanceResult = osSetSmartNPCAppearance(npc, ""clothed"");
+                    result = osTeleportSmartNPC(npc, NULL_KEY);
                 }
             }";
 

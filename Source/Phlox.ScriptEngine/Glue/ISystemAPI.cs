@@ -14,6 +14,8 @@ namespace InWorldz.Phlox.Glue
         string maRunScriptFromWeb(string url);
         string osCreateSmartNPC(string firstName, string lastName, Vector3 position, string notecardName, string expertise);
         int osSetSmartNPCProfile(string npcKey, string aboutText, string profileImage, string firstLifeText, string firstLifeImage, string webUrl, string accountTitle, string bornOn);
+        int osSetSmartNPCAppearance(string npcKey, string notecardName);
+        int osTeleportSmartNPC(string npcKey, string targetAgent);
         void modInvokeN(string fname, object[] parms);
         string modInvokeS(string fname, object[] parms);
         int modInvokeI(string fname, object[] parms);
