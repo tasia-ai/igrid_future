@@ -1847,10 +1847,14 @@
   <key>type</key><string>integer</string>
   <key>value</key><string>0x2</string>
  </map>
- <key>OS_NPC_OBJECT_GROUP</key><map>
-  <key>type</key><string>integer</string>
-  <key>value</key><string>0x08</string>
- </map>
+  <key>OS_NPC_OBJECT_GROUP</key><map>
+   <key>type</key><string>integer</string>
+   <key>value</key><string>0x08</string>
+  </map>
+  <key>OS_NPC_AUTO_ANIMATION</key><map>
+   <key>type</key><string>integer</string>
+   <key>value</key><string>0x10</string>
+  </map>
  <key>OS_NPC_RUNNING</key><map>
   <key>type</key><string>integer</string>
   <key>value</key><string>4</string>

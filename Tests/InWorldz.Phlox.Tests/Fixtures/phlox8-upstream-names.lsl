@@ -139,6 +139,7 @@ default
         i = OS_NPC_NOT_OWNED;
         i = OS_NPC_SENSE_AS_AGENT;
         i = OS_NPC_OBJECT_GROUP;
+        i = OS_NPC_AUTO_ANIMATION;
         i = RC_REJECT_HOST;
         i = RC_REJECT_HOSTGROUP;
         i = OS_LISTEN_REGEX_NAME;

@@ -1081,6 +1081,7 @@ namespace InWorldz.Phlox.Compiler
             {"OS_NPC_NOT_OWNED",                   new ConstantSymbol("OS_NPC_NOT_OWNED",                   SymbolTable.INT, "2")},
             {"OS_NPC_SENSE_AS_AGENT",              new ConstantSymbol("OS_NPC_SENSE_AS_AGENT",              SymbolTable.INT, "4")},
             {"OS_NPC_OBJECT_GROUP",                new ConstantSymbol("OS_NPC_OBJECT_GROUP",                SymbolTable.INT, "8")},
+            {"OS_NPC_AUTO_ANIMATION",              new ConstantSymbol("OS_NPC_AUTO_ANIMATION",              SymbolTable.INT, "16")},
             {"RC_REJECT_HOST",                     new ConstantSymbol("RC_REJECT_HOST",                     SymbolTable.INT, "536870912")},
             {"RC_REJECT_HOSTGROUP",                new ConstantSymbol("RC_REJECT_HOSTGROUP",                SymbolTable.INT, "1073741824")},
             {"OS_LISTEN_REGEX_NAME",               new ConstantSymbol("OS_LISTEN_REGEX_NAME",               SymbolTable.INT, "1")},
