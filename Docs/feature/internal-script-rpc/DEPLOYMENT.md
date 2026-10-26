@@ -21,6 +21,47 @@ validates the configured DNS hostname. This mode requires Robust and all region
 processes to run on the same machine; it requires no router/NAT port forwarding
 or Windows Firewall openings. Do not use it for a multi-host grid.
 
+## Required runtime version
+
+This source tree currently targets **.NET 10** (`Directory.Build.props` and the
+SmartNPC project explicitly target `net10.0`). The live Robust host's
+`Robust.runtimeconfig.json` targets .NET 10, but the region host selected by the
+launcher was verified to use `OpenSim.runtimeconfig.json` targeting **.NET
+8.0.26**. Do not copy .NET 10 assemblies into that .NET 8 region runtime: the
+repo's region dependency graph also targets .NET 10. The attempted net8 build
+failed with framework-reference incompatibilities across that graph.
+
+Upgrade the region runtime as a complete, matching .NET 10 publish; do not
+change only `Phlox.ScriptEngine.dll` or the RPC addon. The region publish must
+contain the OpenSim host, `Phlox.ScriptEngine.dll`, `OpenSim.Region.OptionalModules.AI.dll`,
+`TasiaAddons.InternalScriptRpc.dll`, and their matching dependency closure. The
+region host project now references the SmartNPC module so its current assembly
+is included in the publish output. Build Robust from the same source revision
+and deploy its matching GridServer/framework output as well, so the Robust
+loopback binding and RPC connector agree with the region build.
+
+From the repository root, build/publish both hosts to staging directories:
+
+```powershell
+dotnet publish Source/OpenSim.Server.RegionServer/OpenSim.Server.RegionServer.csproj `
+  -c Release -o artifacts/region-net10
+dotnet publish Source/OpenSim.Server.GridServer/OpenSim.Server.GridServer.csproj `
+  -c Release -o artifacts/robust-net10
+```
+
+Before deploying, verify the region `OpenSim.runtimeconfig.json` and the
+GridServer publish's `OpenSim.Server.GridServer.runtimeconfig.json` both target
+.NET 10, and confirm the required files exist in the region output. The current
+manager launches a `Robust.dll` host, whereas this repository's GridServer
+publish emits `OpenSim.Server.GridServer.dll`/`.exe`; confirm how the active
+host consumes that output before replacing anything. Do not rename an executable
+or copy a GridServer publish over the live Robust folder blindly. Identify the
+actual launch paths from manager process command lines; do not assume the
+staging tree or folder name identifies the runtime. Stop services, back up each
+active `bin` directory, then overlay only the compatible matching publish
+output. Preserve runtime data, region configs, secrets, PFX files, and manager
+configuration. Never mix one host's publish output with the other's assemblies.
+
 ## Port plan for the current single-host grid
 
 The checked-in source does not contain production secrets or runtime ini files.
@@ -28,14 +69,14 @@ The currently installed grid uses Robust's `PrivatePort=22001` and public
 `Port=22002`; its region HTTP listeners use `22033`-`22062` and `22341` (with
 some lower ports absent). The RPC plan keeps those listeners unchanged:
 
-The 2026-10-26 audit found that native HTTPS was not configured. Loopback-only
-listeners and addon settings have since been written to
-`H:\grid_final\Robust.HG.fixed.ini` and all 32 region ini files. The launcher’s
-actual Robust INI path is not yet confirmed (`H:\grid_final\generated\robust\Robust.ini`
-exists and may be stale), so do not assume the Robust listener/addon settings
-are active until that path is verified. The live RPC secret and PFX password
-remain only in runtime files. The listeners and route have not been verified by
-starting the grid, and a real cross-region teleport test is still required.
+The 2026-10-26 attempt exposed a runtime mismatch: the launcher selected the
+.NET 8 region host and every region stopped with
+`LoopbackOnly is enabled but the HTTPS listener is not bound to loopback`.
+The 32 region ini files were restored from backup after that failure. The
+loopback-only Robust settings remain in `H:\grid_final\Robust.HG.fixed.ini`, but
+the launcher's actual Robust INI path still needs confirmation. Do not enable RPC
+again until the matching .NET 10 hosts are deployed and startup/listener checks
+pass. A real cross-region teleport test is still required.
 
 | Listener | Port plan |
 | --- | --- |
@@ -128,11 +169,9 @@ only a format conversion of the same certificate identity.
 
 1. Stop all Robust and region processes. Confirm no process has the deployed
    assemblies loaded.
-2. Back up the existing `OpenSim.Framework.dll`, `OpenSim.Region.Framework.dll`,
-   and `OpenSim.Region.OptionalModules.dll` before replacing them.
-3. Copy those assemblies and `TasiaAddons.InternalScriptRpc.dll` plus its
-   `.deps.json` into the OpenSim runtime `bin` directory. Do not copy tests, PFX
-   files, passwords, or signing keys from the source tree.
+2. Back up the complete active Robust and region `bin` directories.
+3. Deploy the matching .NET 10 publish outputs as described above. Do not copy
+   tests, PFX files, passwords, or signing keys from the source tree.
 4. Apply the listener and per-process port configuration above, retaining
    encrypted/backup copies of the modified ini files. Verify plugin discovery
    and startup log messages, and verify the TLS handshake/hostname and route
@@ -140,8 +179,8 @@ only a format conversion of the same certificate identity.
 5. Start services, make a bounded authenticated test between two regions, then
    test one SmartNPC teleport. Do not describe the feature as end-to-end verified
    until the actual teleport succeeds.
-6. If startup or tests fail, stop services, restore the backed-up assemblies and
-   ini files, and restart. Keep RPC `Enabled=false` until certificates, URLs,
+6. If startup or tests fail, stop services, restore the backed-up `bin` directories
+   and ini files, and restart. Keep RPC `Enabled=false` until certificates, URLs,
    ports, signing key, and owner allowlist are all set correctly.
 
 Official reference: [OpenSimulator Robust configuration](https://opensimulator.org/wiki/Configuration/files/Robust/Robust.HG.ini).

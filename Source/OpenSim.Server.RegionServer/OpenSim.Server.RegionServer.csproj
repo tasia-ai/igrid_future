@@ -86,6 +86,8 @@
          C5, protobuf-net, Antlr4, System.Data.SQLite/e_sqlite3) deploys automatically —
          no manual DLL copying, no compile/runtime identity splits. -->
     <ProjectReference Include="../../Source/Phlox.ScriptEngine/Phlox.ScriptEngine.csproj" />
+    <!-- Ship the SmartNPC implementation alongside the Phlox API exposed by the region host. -->
+    <ProjectReference Include="../../Addons/OpenSimAIModule/OpenSim.Region.OptionalModules.AI.csproj" />
     <ProjectReference Include="../../Addons/os-webrtc-janus/WebRtcVoiceRegionModule/WebRtcVoiceRegionModule.csproj" />
     <ProjectReference Include="../../Addons/os-webrtc-janus/WebRtcVoiceServiceModule/WebRtcVoiceServiceModule.csproj" />
     <ProjectReference Include="../../Addons/os-webrtc-janus/Janus/WebRtcJanusService.csproj" />

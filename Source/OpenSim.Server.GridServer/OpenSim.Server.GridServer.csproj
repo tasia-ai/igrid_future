@@ -37,6 +37,8 @@
     <ProjectReference Include="../../Source/OpenSim.Framework.Servers.HttpServer/OpenSim.Framework.Servers.HttpServer.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Server.Base/OpenSim.Server.Base.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Server.Handlers/OpenSim.Server.Handlers.csproj" />
+    <!-- Deploy the authenticated internal RPC connector with the Robust host. -->
+    <ProjectReference Include="../../Addons/TasiaAddons.InternalScriptRpc/TasiaAddons.InternalScriptRpc.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Services.AssetService/OpenSim.Services.AssetService.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Services.AuthenticationService/OpenSim.Services.AuthenticationService.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Services.AuthorizationService/OpenSim.Services.AuthorizationService.csproj" />
