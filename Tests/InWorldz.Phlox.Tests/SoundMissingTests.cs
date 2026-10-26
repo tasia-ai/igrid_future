@@ -16,10 +16,9 @@ using Xunit;
 namespace InWorldz.Phlox.Tests;
 
 /// <summary>
-/// A sound the prim does not have. SL (llPlaySound, llLoopSound): "If sound is missing from the prim's inventory and it
-/// is not a UUID or it is not a sound then an error is shouted on DEBUG_CHANNEL." Halcyon also stops the prim's current
-/// sound (UpdateSound with a zero key). Both, for every call that plays a sound on the prim; the trigger calls, which
-/// play no attached sound, give only the error.
+/// A sound the prim does not have. Missing inventory sound names are silent to prevent broken objects flooding
+/// DEBUG_CHANNEL; calls that play an attached sound still stop the prim's current sound. Trigger calls have no attached
+/// sound to stop.
 /// </summary>
 // No test reaches a network service: the sound module is an in-memory recorder.
 // Test grouping: no process-wide state, so the class runs in parallel.
@@ -103,7 +102,7 @@ public class SoundMissingTests
 
     [Theory]
     [MemberData(nameof(AttachedCalls))]
-    public void AMissingSoundStopsThePrimsSoundAndShouts(string fn)
+    public void AMissingSoundStopsThePrimsSoundWithoutShouting(string fn)
     {
         var (h, api, sounds) = Rig();
         using (h)
@@ -111,7 +110,7 @@ public class SoundMissingTests
             Play(api, fn, "nothing here");
             Assert.Contains("StopSound", sounds.Calls);
             Assert.DoesNotContain(sounds.Calls, c => c is "SendSound" or "LoopSound");
-            Assert.True(Shouted(h, "nothing here"), fn + ": no error on DEBUG_CHANNEL");
+            Assert.False(Shouted(h, "nothing here"), fn + ": missing sound flooded DEBUG_CHANNEL");
         }
     }
 
@@ -124,7 +123,7 @@ public class SoundMissingTests
         {
             Play(api, fn, "card");
             Assert.Contains("StopSound", sounds.Calls);
-            Assert.True(Shouted(h, "card"), fn + ": no error on DEBUG_CHANNEL");
+            Assert.False(Shouted(h, "card"), fn + ": non-sound item flooded DEBUG_CHANNEL");
         }
     }
 
@@ -145,14 +144,14 @@ public class SoundMissingTests
     [Theory]
     [InlineData("llTriggerSound")]
     [InlineData("llTriggerSoundLimited")]
-    public void ATriggeredMissingSoundShoutsWithoutStopping(string fn)
+    public void ATriggeredMissingSoundIsSilentWithoutStopping(string fn)
     {
         var (h, api, sounds) = Rig();
         using (h)
         {
             Play(api, fn, "nothing here");
             Assert.Empty(sounds.Calls);
-            Assert.True(Shouted(h, "nothing here"), fn + ": no error on DEBUG_CHANNEL");
+            Assert.False(Shouted(h, "nothing here"), fn + ": missing sound flooded DEBUG_CHANNEL");
         }
     }
 

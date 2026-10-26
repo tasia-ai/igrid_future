@@ -37,7 +37,7 @@ using ScenePrimType = OpenSim.Region.Framework.Scenes.PrimType;
 
 namespace Phlox.ScriptEngine
 {
-    public class LSLSystemAPI : ISystemAPI, InWorldz.Phlox.Glue.ISyscallDeferralAdvisor
+    public partial class LSLSystemAPI : ISystemAPI, InWorldz.Phlox.Glue.ISyscallDeferralAdvisor
     {
         // ── Inline or deferred ──────────────────────────────────────────────
         //
@@ -159,6 +159,23 @@ namespace Phlox.ScriptEngine
             var comms = World.RequestModuleInterface<IScriptModuleComms>()
                 ?? throw new InvalidOperationException("WebScripts requires ScriptModuleComms");
             return ((UUID)comms.InvokeOperation(m_host.UUID, m_itemID, "maRunScriptFromWeb", new object[] { url })).ToString();
+        }
+
+        public string osCreateSmartNPC(string firstName, string lastName, Vector3 position, string notecardName, string expertise)
+        {
+            var comms = World.RequestModuleInterface<IScriptModuleComms>()
+                ?? throw new InvalidOperationException("osCreateSmartNPC requires ScriptModuleComms");
+            return (string)comms.InvokeOperation(m_host.UUID, m_itemID, "osCreateSmartNPC",
+                new object[] { firstName, lastName, position, notecardName, expertise });
+        }
+
+        public int osSetSmartNPCProfile(string npcKey, string aboutText, string profileImage, string firstLifeText,
+            string firstLifeImage, string webUrl, string accountTitle, string bornOn)
+        {
+            var comms = World.RequestModuleInterface<IScriptModuleComms>()
+                ?? throw new InvalidOperationException("osSetSmartNPCProfile requires ScriptModuleComms");
+            return (int)comms.InvokeOperation(m_host.UUID, m_itemID, "osSetSmartNPCProfile",
+                new object[] { new UUID(npcKey), aboutText, profileImage, firstLifeText, firstLifeImage, webUrl, accountTitle, bornOn });
         }
 
         protected SceneObjectPart m_host;
@@ -635,7 +652,7 @@ namespace Phlox.ScriptEngine
 
         /// <summary>
         /// Halcyon's reset throttle - more than 5 resets of this script in one second and it sleeps 5 s before
-        /// its state_entry, with a warning in the log and on DEBUG_CHANNEL once an hour. [InWorldz.Phlox] ResetThrottle.
+        /// its state_entry, with a warning in the server log once an hour. [InWorldz.Phlox] ResetThrottle.
         /// </summary>
         private void ThrottleScriptResets()
         {
@@ -651,7 +668,6 @@ namespace Phlox.ScriptEngine
                             m_host.ParentGroup?.Name, m_host.LinkNum < 2 ? string.Empty : " link #" + m_host.LinkNum,
                             (int)m_host.AbsolutePosition.X, (int)m_host.AbsolutePosition.Y, (int)m_host.AbsolutePosition.Z);
                         m_log.LogWarning("[Phlox]: Script '{0}' calling llResetScript too frequently: {1}", llGetScriptName(), context);
-                        ScriptShoutError("Script '" + llGetScriptName() + "' calling llResetScript too frequently: " + context);
                         m_resetWarned = DateTime.UtcNow;
                     }
                     ResetSleepCount++;
@@ -9135,8 +9151,9 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
 
         /// <summary>
         /// A sound the prim does not have: the sound playing on each of <paramref name="stop"/> stops, as Halcyon's
-        /// UpdateSound with a zero key stops it, and SL's error goes out on DEBUG_CHANNEL with the text Phlox gives for a
-        /// missing collision sound. The trigger calls pass no prims: they play no attached sound to stop.
+        /// UpdateSound with a zero key stops it. Missing inventory sound names are intentionally silent: broken objects
+        /// can call these functions every frame, and shouting the same missing-sound error floods region chat. The
+        /// trigger calls pass no prims: they play no attached sound to stop.
         /// </summary>
         private void MissingSound(string sound, params SceneObjectPart[] stop)
         {
@@ -9145,7 +9162,8 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
                 ISoundModule sm = World?.RequestModuleInterface<ISoundModule>();
                 foreach (SceneObjectPart part in stop) sm?.StopSound(part);
             }
-            ShoutError($"Could not find sound '{sound}'");
+            // Intentionally do not shout an error here. This is a common repeated failure in old/broken objects;
+            // stopping the current sound is sufficient and avoids flooding DEBUG_CHANNEL with script errors.
         }
 
         public void llAdjustSoundVolume(float volume)
@@ -10669,6 +10687,68 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
         private void OsslCheck() => m_ScriptEngine.Ossl.Check();
         private void OsslCheck(OpenSim.Region.ScriptEngine.Shared.Api.Interfaces.ThreatLevel level, string function)
             => m_ScriptEngine.Ossl.Check(level, function, World, m_host, OsslItem);
+
+        /// <summary>OSSL_Api.cs:2239-2319 - High; writes the same bounded notecard asset and task item.</summary>
+        public void osMakeNotecard(string notecardName, string contents)
+        {
+            OsslCheck(OpenSim.Region.ScriptEngine.Shared.Api.Interfaces.ThreatLevel.High, "osMakeNotecard");
+            SaveOsslNotecard(notecardName, contents + "\n");
+        }
+
+        /// <summary>OSSL_Api.cs:2245-2254 - High; each LSL list value becomes one line.</summary>
+        public void osMakeNotecard(string notecardName, LSLList contents)
+        {
+            OsslCheck(OpenSim.Region.ScriptEngine.Shared.Api.Interfaces.ThreatLevel.High, "osMakeNotecard");
+            var text = new StringBuilder();
+            for (int i = 0; i < contents.Length; i++) text.Append(contents.GetLSLStringItem(i)).Append('\n');
+            SaveOsslNotecard(notecardName, text.ToString());
+        }
+
+        private void SaveOsslNotecard(string name, string data)
+        {
+            const string description = "Script generated notecard";
+            var content = new osUTF8(data, 65536);
+            int length = content.Length;
+            var serialized = new osUTF8Slice(length + 128);
+            serialized.AppendASCII("Linden text version 2\n{\nLLEmbeddedItems version 1\n{\ncount 0\n}\nText length ");
+            serialized.AppendASCII(length.ToString());
+            serialized.AppendASCII("\n");
+            serialized.Append(content);
+            serialized.AppendASCII("}");
+
+            AssetBase asset = new AssetBase(UUID.Random(), name, (sbyte)AssetType.Notecard, m_host.OwnerID.ToString())
+            {
+                Description = description,
+                Data = serialized.ToArray()
+            };
+            World.AssetService.Store(asset);
+
+            var item = new TaskInventoryItem
+            {
+                ParentID = m_host.UUID,
+                CreationDate = (uint)Util.UnixTimeSinceEpoch(),
+                Name = name,
+                Description = description,
+                Type = (int)AssetType.Notecard,
+                InvType = (int)InventoryType.Notecard,
+                OwnerID = m_host.OwnerID,
+                CreatorID = m_host.OwnerID,
+                BasePermissions = (uint)OpenSim.Framework.PermissionMask.All | (uint)OpenSim.Framework.PermissionMask.Export,
+                CurrentPermissions = (uint)OpenSim.Framework.PermissionMask.All | (uint)OpenSim.Framework.PermissionMask.Export,
+                EveryonePermissions = 0,
+                NextPermissions = (uint)OpenSim.Framework.PermissionMask.All,
+                GroupID = m_host.GroupID,
+                GroupPermissions = 0,
+                Flags = 0,
+                PermsGranter = UUID.Zero,
+                PermsMask = 0,
+                AssetID = asset.FullID
+            };
+            item.ResetIDs(m_host.UUID);
+            m_host.Inventory.AddInventoryItem(item, false);
+            m_host.ParentGroup.InvalidateDeepEffectivePerms();
+        }
+
         private const string GridInfoSection = "GridInfoService";
 
         /// <summary>OSSL_Api.cs:2580 - ungated upstream.</summary>

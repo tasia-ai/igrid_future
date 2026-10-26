@@ -149,7 +149,7 @@ STRING
 
 fragment STR_INTERNALS : ( ESC_SEQ | ~[\\"] )* ;
 
-fragment ESC_SEQ : '\\' [tn"\\] ;
+fragment ESC_SEQ : '\\' ~[\r\n] ;
 
 FLOAT
     : INT '.' INT*

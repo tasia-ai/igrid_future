@@ -69,6 +69,8 @@ public partial class Yengine: INonSharedRegionModule, IScriptEngine, IScriptModu
     private bool m_LateInit;
     private bool m_TraceCalls;
     public bool m_SuppressScriptErrorNotifications;
+    private string m_ScriptErrorsUrl = string.Empty;
+    private string m_ScriptErrorsSigningKey = string.Empty;
     public bool m_Verbose;
     public bool m_ScriptDebug;
     public bool m_ScriptDebugSaveSource;
@@ -209,6 +211,8 @@ public partial class Yengine: INonSharedRegionModule, IScriptEngine, IScriptModu
         string priority = m_Config.GetString("Priority", "Normal");
         m_TraceCalls = m_Config.GetBoolean("TraceCalls", false);
         m_SuppressScriptErrorNotifications = m_Config.GetBoolean("SuppressScriptErrorNotifications", false);
+        m_ScriptErrorsUrl = m_Config.GetString("ScriptErrorsURL", string.Empty);
+        m_ScriptErrorsSigningKey = m_Config.GetString("ScriptErrorsSigningKey", string.Empty);
         m_Verbose = m_Config.GetBoolean("Verbose", false);
         m_ScriptDebug = m_Config.GetBoolean("ScriptDebug", false);
         m_ScriptDebugSaveSource = m_Config.GetBoolean("ScriptDebugSaveSource", false);
@@ -279,6 +283,12 @@ public partial class Yengine: INonSharedRegionModule, IScriptEngine, IScriptModu
                 HandleConsoleCmds);
 
         TraceCalls("[YEngine]: Initialize successful");
+    }
+
+    internal void ReportRuntimeScriptError(string script, string message)
+    {
+        ScriptErrorReporter.TryReport(m_ScriptErrorsUrl, m_ScriptErrorsSigningKey,
+            m_Scene?.RegionInfo?.RegionName ?? string.Empty, "YEngine", script, message);
     }
 
     public void AddRegion(Scene scene)

@@ -373,18 +373,29 @@ These are facts about Phlox's compiler. Where SL's rule is known, it is cited.
 
 ### Function sets
 - **YEngine has, Phlox lacks:**
-  - the LightShare `ls*` functions;
-  - the `mod*` functions (`modInvoke*`, `modSendCommand`);
-  - `llRemoteLoadScript`;
-  - ten OSSL functions: `osGiveLinkInventory`, `osGiveLinkInventoryList`, `osMakeNotecard`,
-    `osMessageAttachments`, `osNpcLookAt`, `osNpcSayTo`, `osReplaceAgentEnvironment`,
-    `osReplaceParcelEnvironment`, `osReplaceRegionEnvironment`, `osResetEnvironment`.
+  - none of the `ls*` or `mod*` entries identified in the API parity audit; both families are now registered in Phlox.
+- **Restored in Phlox:** the OSSL functions `osGiveLinkInventory`, `osGiveLinkInventoryList`,
+  `osMakeNotecard`, `osMessageAttachments`, `osNpcLookAt`, `osNpcSayTo`,
+  `osReplaceAgentEnvironment`, `osReplaceParcelEnvironment`, `osReplaceRegionEnvironment`,
+  `osResetEnvironment`, `osWindVolumeCreate`, `osWindVolumeRemove` and `osWindVolumes`.
+  `llRemoteLoadScript` is also registered for source compatibility; like YEngine, Phlox reports
+  it as deprecated and does not load a script. These restored APIs have compile/dispatch
+  coverage; consult their OSSL permission rules before enabling them in a region.
+- The MOD bridge is restored: `modInvokeN/S/I/F/K/V/R/L` dispatches module-registered operations
+  through `IScriptModuleComms`, and `modSendCommand` raises the registered module event. The
+  `modInvoke*` functions accept a variable argument tail; the region must enable
+  `[OSSL] AllowMODFunctions` and load `ScriptModuleComms`.
+- The four LightShare functions (`lsGetWindlightScene`, `lsSetWindlightScene`,
+  `lsSetWindlightSceneTargeted`, `lsClearWindlightScene`) are registered and delegate to the
+  shared YEngine implementation. They require `[OSSL] AllowLightShareFunctions` and
+  `ScriptModuleComms`. `lsSetWindlightSceneTargeted` deliberately preserves YEngine's current
+  behavior: it reports that the function is temporarily unsupported and returns 0.
 - **Spelled differently:** YEngine's `osTemperature2sRBG` is `osTemperature2sRGB` on Phlox.
 - **Phlox has, YEngine lacks:**
   - the `iw*` and `bot*` families (section 3);
   - some newer SL functions, for example `llSetAgentRot`, `llSortListStrided` and
     `llTransferOwnership`.
-- Phlox declares 258 OSSL functions. They honour the `[OSSL]` keys (`AllowOSFunctions`,
+- Phlox's OSSL functions honour the `[OSSL]` keys (`AllowOSFunctions`,
   `OSFunctionThreatLevel`, `PermissionErrorToOwner`, `Allow_<function>`,
   `Creators_<function>`) with the same meanings as YEngine.
 

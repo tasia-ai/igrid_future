@@ -1052,6 +1052,36 @@ private static string ConvToString(object o)
 								Shim_osAgentSaveAppearance,           //965
 								Shim_osAgentSaveAppearance3,          //966
                                 Shim_maRunScriptFromWeb,             //967
+                                Shim_osMakeNotecard,                  //968
+                                Shim_osMakeNotecard__2,               //969
+                                Shim_osGiveLinkInventory,              //970
+                                Shim_osGiveLinkInventoryList,          //971
+                                Shim_osMessageAttachments,             //972
+                                Shim_osNpcLookAt,                      //973
+                                Shim_osNpcSayTo,                       //974
+                                Shim_osReplaceAgentEnvironment,        //975
+                                Shim_osReplaceParcelEnvironment,       //976
+                                Shim_osReplaceRegionEnvironment,       //977
+                                Shim_osResetEnvironment,               //978
+                                Shim_osWindVolumeCreate,               //979
+                                Shim_osWindVolumeRemove,               //980
+                                Shim_osWindVolumes,                    //981
+                                Shim_llRemoteLoadScript,               //982
+                                Shim_modInvokeN,                        //983
+                                Shim_modInvokeS,                        //984
+                                Shim_modInvokeI,                        //985
+                                Shim_modInvokeF,                        //986
+                                Shim_modInvokeK,                        //987
+                                Shim_modInvokeV,                        //988
+                                Shim_modInvokeR,                        //989
+                                Shim_modInvokeL,                        //990
+                                Shim_modSendCommand,                    //991
+                                Shim_lsGetWindlightScene,               //992
+                                Shim_lsSetWindlightScene,               //993
+                                Shim_lsSetWindlightSceneTargeted,       //994
+                                Shim_lsClearWindlightScene,             //995
+                                Shim_osCreateSmartNPC,                    //996
+                                Shim_osSetSmartNPCProfile,                //997
         };
 
         /// <summary>
@@ -4587,6 +4617,20 @@ private static string ConvToString(object o)
             {
                 self._systemAPI.iwMakeNotecard(p0, p1);
             });
+        }
+
+        static private void Shim_osMakeNotecard(SyscallShim self)
+        {
+            string p1 = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string p0 = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._systemAPI.osMakeNotecard(p0, p1);
+        }
+
+        static private void Shim_osMakeNotecard__2(SyscallShim self)
+        {
+            LSLList p1 = ConvToLSLList(self._interpreter.ScriptState.Operands.Pop());
+            string p0 = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._systemAPI.osMakeNotecard(p0, p1);
         }
 
         static private void Shim_iwAvatarName2Key(SyscallShim self)
@@ -9208,6 +9252,207 @@ private static string ConvToString(object o)
         {
             string url = ConvToString(self._interpreter.ScriptState.Operands.Pop());
             self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.maRunScriptFromWeb(url)));
+        }
+
+        static private void Shim_osCreateSmartNPC(SyscallShim self)
+        {
+            string expertise = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string notecardName = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            Vector3 position = ConvToVector(self._interpreter.ScriptState.Operands.Pop());
+            string lastName = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string firstName = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(
+                self._systemAPI.osCreateSmartNPC(firstName, lastName, position, notecardName, expertise)));
+        }
+
+        static private void Shim_osSetSmartNPCProfile(SyscallShim self)
+        {
+            string bornOn = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string accountTitle = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string webUrl = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string firstLifeImage = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string firstLifeText = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string profileImage = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string aboutText = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string npcKey = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osSetSmartNPCProfile(
+                npcKey, aboutText, profileImage, firstLifeText, firstLifeImage, webUrl, accountTitle, bornOn)));
+        }
+
+        static private void Shim_osGiveLinkInventory(SyscallShim self)
+        {
+            string inventory = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string destination = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            int linkNumber = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            self._systemAPI.osGiveLinkInventory(linkNumber, destination, inventory);
+        }
+        static private void Shim_osGiveLinkInventoryList(SyscallShim self)
+        {
+            LSLList inventory = ConvToLSLList(self._interpreter.ScriptState.Operands.Pop());
+            string folderName = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string destination = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            int linkNumber = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            self._systemAPI.osGiveLinkInventoryList(linkNumber, destination, folderName, inventory);
+        }
+        static private void Shim_osMessageAttachments(SyscallShim self)
+        {
+            int flags = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            LSLList attachmentPoints = ConvToLSLList(self._interpreter.ScriptState.Operands.Pop());
+            string message = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string avatar = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._systemAPI.osMessageAttachments(avatar, message, attachmentPoints, flags);
+        }
+        static private void Shim_osNpcLookAt(SyscallShim self)
+        {
+            Vector3 offset = ConvToVector(self._interpreter.ScriptState.Operands.Pop());
+            string objectKey = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            int type = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            string npcKey = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osNpcLookAt(npcKey, type, objectKey, offset)));
+        }
+        static private void Shim_osNpcSayTo(SyscallShim self)
+        {
+            string message = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            int channel = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            string target = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string npc = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._systemAPI.osNpcSayTo(npc, target, channel, message);
+        }
+        static private void Shim_osReplaceAgentEnvironment(SyscallShim self)
+        {
+            string daycycle = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            int transition = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            string agentKey = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osReplaceAgentEnvironment(agentKey, transition, daycycle)));
+        }
+        static private void Shim_osReplaceParcelEnvironment(SyscallShim self)
+        {
+            string daycycle = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            int transition = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osReplaceParcelEnvironment(transition, daycycle)));
+        }
+        static private void Shim_osReplaceRegionEnvironment(SyscallShim self)
+        {
+            float altitude3 = ConvToFloat(self._interpreter.ScriptState.Operands.Pop());
+            float altitude2 = ConvToFloat(self._interpreter.ScriptState.Operands.Pop());
+            float altitude1 = ConvToFloat(self._interpreter.ScriptState.Operands.Pop());
+            float dayOffset = ConvToFloat(self._interpreter.ScriptState.Operands.Pop());
+            float dayLength = ConvToFloat(self._interpreter.ScriptState.Operands.Pop());
+            string daycycle = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            int transition = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osReplaceRegionEnvironment(transition, daycycle, dayLength, dayOffset, altitude1, altitude2, altitude3)));
+        }
+        static private void Shim_osResetEnvironment(SyscallShim self)
+        {
+            int transition = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            int parcelOrRegion = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osResetEnvironment(parcelOrRegion, transition)));
+        }
+        static private void Shim_osWindVolumeCreate(SyscallShim self)
+        {
+            LSLList rules = ConvToLSLList(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osWindVolumeCreate(rules)));
+        }
+        static private void Shim_osWindVolumeRemove(SyscallShim self)
+        {
+            int handle = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osWindVolumeRemove(handle)));
+        }
+        static private void Shim_osWindVolumes(SyscallShim self)
+        {
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.osWindVolumes()));
+        }
+        static private void Shim_llRemoteLoadScript(SyscallShim self)
+        {
+            int startParam = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            int running = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            string name = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string target = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._systemAPI.llRemoteLoadScript(target, name, running, startParam);
+        }
+
+        private static string PopModInvocation(SyscallShim self, out object[] parameters)
+        {
+            int argumentCount = ConvToInt(self._interpreter.ScriptState.Operands.Pop());
+            if (argumentCount < 1)
+                throw new InvalidOperationException("MOD invocation requires a function name");
+
+            object[] arguments = new object[argumentCount];
+            for (int i = argumentCount - 1; i >= 0; i--)
+                arguments[i] = self._interpreter.ScriptState.Operands.Pop();
+
+            string functionName = ConvToString(arguments[0]);
+            parameters = new object[argumentCount - 1];
+            Array.Copy(arguments, 1, parameters, 0, parameters.Length);
+            return functionName;
+        }
+
+        static private void Shim_modInvokeN(SyscallShim self)
+        {
+            string fname = PopModInvocation(self, out object[] parms);
+            self._systemAPI.modInvokeN(fname, parms);
+        }
+        static private void Shim_modInvokeS(SyscallShim self)
+        {
+            string fname = PopModInvocation(self, out object[] parms);
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.modInvokeS(fname, parms)));
+        }
+        static private void Shim_modInvokeI(SyscallShim self)
+        {
+            string fname = PopModInvocation(self, out object[] parms);
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.modInvokeI(fname, parms)));
+        }
+        static private void Shim_modInvokeF(SyscallShim self)
+        {
+            string fname = PopModInvocation(self, out object[] parms);
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.modInvokeF(fname, parms)));
+        }
+        static private void Shim_modInvokeK(SyscallShim self)
+        {
+            string fname = PopModInvocation(self, out object[] parms);
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.modInvokeK(fname, parms)));
+        }
+        static private void Shim_modInvokeV(SyscallShim self)
+        {
+            string fname = PopModInvocation(self, out object[] parms);
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.modInvokeV(fname, parms)));
+        }
+        static private void Shim_modInvokeR(SyscallShim self)
+        {
+            string fname = PopModInvocation(self, out object[] parms);
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.modInvokeR(fname, parms)));
+        }
+        static private void Shim_modInvokeL(SyscallShim self)
+        {
+            string fname = PopModInvocation(self, out object[] parms);
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.modInvokeL(fname, parms)));
+        }
+        static private void Shim_modSendCommand(SyscallShim self)
+        {
+            string k = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string command = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            string module = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.modSendCommand(module, command, k)));
+        }
+        static private void Shim_lsGetWindlightScene(SyscallShim self)
+        {
+            LSLList rules = ConvToLSLList(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.lsGetWindlightScene(rules)));
+        }
+        static private void Shim_lsSetWindlightScene(SyscallShim self)
+        {
+            LSLList rules = ConvToLSLList(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.lsSetWindlightScene(rules)));
+        }
+        static private void Shim_lsSetWindlightSceneTargeted(SyscallShim self)
+        {
+            string targetId = ConvToString(self._interpreter.ScriptState.Operands.Pop());
+            LSLList rules = ConvToLSLList(self._interpreter.ScriptState.Operands.Pop());
+            self._interpreter.SafeOperandsPush(ConvToLSLType(self._systemAPI.lsSetWindlightSceneTargeted(rules, targetId)));
+        }
+        static private void Shim_lsClearWindlightScene(SyscallShim self)
+        {
+            self._systemAPI.lsClearWindlightScene();
         }
     }
 }

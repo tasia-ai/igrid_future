@@ -111,6 +111,32 @@ public class LoginViewerAddressTests
     }
 
     [Fact]
+    public void LoginResponse_IncludesAdvertisedQuicEndpointInXmlAndLlsd()
+    {
+        GridRegion destination = Region();
+        destination.QuicHost = "quic.example.org";
+        destination.QuicPort = 22213;
+        LLLoginResponse response = Response(RemoteViewer, null, destination: destination);
+
+        Hashtable xml = response.ToHashtable();
+        Assert.Equal("quic.example.org", xml["sim_quic_host"]);
+        Assert.Equal(22213, xml["sim_quic_port"]);
+
+        OSDMap llsd = (OSDMap)response.ToOSDMap();
+        Assert.Equal("quic.example.org", llsd["sim_quic_host"].AsString());
+        Assert.Equal(22213, llsd["sim_quic_port"].AsInteger());
+    }
+
+    [Fact]
+    public void LoginResponse_OmitsQuicEndpointWhenDestinationDoesNotAdvertiseOne()
+    {
+        LLLoginResponse response = Response(RemoteViewer, null);
+
+        Assert.False(response.ToHashtable().ContainsKey("sim_quic_host"));
+        Assert.False(((OSDMap)response.ToOSDMap()).ContainsKey("sim_quic_port"));
+    }
+
+    [Fact]
     public void DisabledSelector_GivesTheRegionsOwnAddress_ForEverySource()
     {
         foreach (string source in new[] { LanViewer, RemoteViewer, "127.0.0.1" })

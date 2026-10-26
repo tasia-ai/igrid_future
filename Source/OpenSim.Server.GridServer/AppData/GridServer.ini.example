@@ -128,8 +128,10 @@
     ; ExperienceServiceConnector = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:ExperienceServiceConnector"
     ;; Uncomment this if you want offline IM to work
     ; OfflineIMServiceConnector = "${Const|PrivatePort}/OpenSim.Addons.OfflineIM.dll:OfflineIMServiceRobustConnector"
-    ;; Uncomment this if you want Groups V2 to work
-    ; GroupsServiceConnector = "${Const|PrivatePort}/OpenSim.Addons.Groups.dll:GroupsServiceRobustConnector"
+     ;; Uncomment this if you want Groups V2 to work
+     ; GroupsServiceConnector = "${Const|PrivatePort}/OpenSim.Addons.Groups.dll:GroupsServiceRobustConnector"
+     ;; Uncomment to enable the authenticated global script-error page; configure [ScriptErrors] below.
+     ; ScriptErrorsConnector = "${Const|PrivatePort}/TasiaAddons.ScriptErrors.dll:ScriptErrorsConnector"
     ;; Uncomment to provide bakes caching
     ; BakedTextureService = "${Const|PrivatePort}/OpenSim.Server.Handlers.dll:XBakesConnector"
 
@@ -764,6 +766,14 @@
 
 [MuteListService]
 	LocalServiceModule = "OpenSim.Services.MuteListService.dll:MuteListService"
+
+[ScriptErrors]
+    ;; Enable the global authenticated HTML script-error feed after configuring its connector above.
+    Enabled = false
+    ; Generate >=32 random bytes; configure the identical value in each region's YEngine/Phlox settings.
+    ;SigningKey = set-a-private-random-secret-here
+    MaxIngestPerMinute = 120
+    FeedFile = ScriptErrors/errors.jsonl
 
 ;; The grid-wide voice call session store. Loaded only when VoiceSessionConnector is uncommented in
 ;; [ServiceList]. Sessions live in memory and are gone when this process restarts. Regions must also

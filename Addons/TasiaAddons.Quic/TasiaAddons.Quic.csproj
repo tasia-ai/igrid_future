@@ -13,6 +13,7 @@
     <Compile Include="QuicViewerTransport.cs" />
     <Compile Include="PacketFraming.cs" />
     <Compile Include="QuicServerConfig.cs" />
+    <Compile Include="QuicCertificateKeyStorage.cs" />
     <Compile Include="QuicClientConnection.cs" />
     <!-- Tranquillity discovers region modules through IPluginRegistryProvider,
          not Mono.Addins [Extension]. Must be listed explicitly: this project sets

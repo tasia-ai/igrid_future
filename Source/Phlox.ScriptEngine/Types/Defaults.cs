@@ -5538,6 +5538,20 @@ namespace InWorldz.Phlox.Types
                 ParamNames = new string[] { "mass", "radius", "centerOfMass" },
                 TableIndex = 778
             }},
+            {"osMakeNotecard", new FunctionSig {
+                FunctionName = "osMakeNotecard",
+                ReturnType = VarType.Void,
+                ParamTypes = new VarType[] { VarType.String, VarType.String },
+                ParamNames = new string[] { "notecardName", "contents" },
+                TableIndex = 968
+            }},
+            {"osMakeNotecard__2", new FunctionSig {
+                FunctionName = "osMakeNotecard",
+                ReturnType = VarType.Void,
+                ParamTypes = new VarType[] { VarType.String, VarType.List },
+                ParamNames = new string[] { "notecardName", "contents" },
+                TableIndex = 969
+            }},
             {"osSetInertiaAsCylinder", new FunctionSig {
                 FunctionName = "osSetInertiaAsCylinder",
                 ReturnType = VarType.Void,
@@ -6865,6 +6879,34 @@ namespace InWorldz.Phlox.Types
                 ParamNames = new string[] { "avatarKey", "notecard", "includeHuds" },
                 TableIndex = 966
             }},
+            {"osGiveLinkInventory", new FunctionSig { FunctionName = "osGiveLinkInventory", ReturnType = VarType.Void, ParamTypes = new VarType[] { VarType.Integer, VarType.Key, VarType.String }, ParamNames = new string[] { "linkNumber", "destination", "inventory" }, TableIndex = 970 }},
+            {"osGiveLinkInventoryList", new FunctionSig { FunctionName = "osGiveLinkInventoryList", ReturnType = VarType.Void, ParamTypes = new VarType[] { VarType.Integer, VarType.Key, VarType.String, VarType.List }, ParamNames = new string[] { "linkNumber", "destination", "folderName", "inventory" }, TableIndex = 971 }},
+            {"osMessageAttachments", new FunctionSig { FunctionName = "osMessageAttachments", ReturnType = VarType.Void, ParamTypes = new VarType[] { VarType.Key, VarType.String, VarType.List, VarType.Integer }, ParamNames = new string[] { "avatar", "message", "attachmentPoints", "flags" }, TableIndex = 972 }},
+            {"osNpcLookAt", new FunctionSig { FunctionName = "osNpcLookAt", ReturnType = VarType.Integer, ParamTypes = new VarType[] { VarType.Key, VarType.Integer, VarType.Key, VarType.Vector }, ParamNames = new string[] { "npcKey", "type", "objectKey", "offset" }, TableIndex = 973 }},
+            {"osNpcSayTo", new FunctionSig { FunctionName = "osNpcSayTo", ReturnType = VarType.Void, ParamTypes = new VarType[] { VarType.Key, VarType.Key, VarType.Integer, VarType.String }, ParamNames = new string[] { "npc", "target", "channel", "message" }, TableIndex = 974 }},
+            {"osReplaceAgentEnvironment", new FunctionSig { FunctionName = "osReplaceAgentEnvironment", ReturnType = VarType.Integer, ParamTypes = new VarType[] { VarType.Key, VarType.Integer, VarType.String }, ParamNames = new string[] { "agentKey", "transition", "daycycle" }, TableIndex = 975 }},
+            {"osReplaceParcelEnvironment", new FunctionSig { FunctionName = "osReplaceParcelEnvironment", ReturnType = VarType.Integer, ParamTypes = new VarType[] { VarType.Integer, VarType.String }, ParamNames = new string[] { "transition", "daycycle" }, TableIndex = 976 }},
+            {"osReplaceRegionEnvironment", new FunctionSig { FunctionName = "osReplaceRegionEnvironment", ReturnType = VarType.Integer, ParamTypes = new VarType[] { VarType.Integer, VarType.String, VarType.Float, VarType.Float, VarType.Float, VarType.Float, VarType.Float }, ParamNames = new string[] { "transition", "daycycle", "daylen", "dayoffset", "altitude1", "altitude2", "altitude3" }, TableIndex = 977 }},
+            {"osResetEnvironment", new FunctionSig { FunctionName = "osResetEnvironment", ReturnType = VarType.Integer, ParamTypes = new VarType[] { VarType.Integer, VarType.Integer }, ParamNames = new string[] { "parcelOrRegion", "transition" }, TableIndex = 978 }},
+            {"osWindVolumeCreate", new FunctionSig { FunctionName = "osWindVolumeCreate", ReturnType = VarType.Integer, ParamTypes = new VarType[] { VarType.List }, ParamNames = new string[] { "rules" }, TableIndex = 979 }},
+            {"osWindVolumeRemove", new FunctionSig { FunctionName = "osWindVolumeRemove", ReturnType = VarType.Integer, ParamTypes = new VarType[] { VarType.Integer }, ParamNames = new string[] { "handle" }, TableIndex = 980 }},
+            {"osWindVolumes", new FunctionSig { FunctionName = "osWindVolumes", ReturnType = VarType.List, ParamTypes = new VarType[] { }, ParamNames = new string[] { }, TableIndex = 981 }},
+            {"llRemoteLoadScript", new FunctionSig { FunctionName = "llRemoteLoadScript", ReturnType = VarType.Void, ParamTypes = new VarType[] { VarType.String, VarType.String, VarType.Integer, VarType.Integer }, ParamNames = new string[] { "target", "name", "running", "start_param" }, TableIndex = 982 }},
+            {"modInvokeN", new FunctionSig { FunctionName = "modInvokeN", ReturnType = VarType.Void, ParamTypes = new[] { VarType.String }, ParamNames = new[] { "fname" }, TableIndex = 983, IsVariadic = true }},
+            {"modInvokeS", new FunctionSig { FunctionName = "modInvokeS", ReturnType = VarType.String, ParamTypes = new[] { VarType.String }, ParamNames = new[] { "fname" }, TableIndex = 984, IsVariadic = true }},
+            {"modInvokeI", new FunctionSig { FunctionName = "modInvokeI", ReturnType = VarType.Integer, ParamTypes = new[] { VarType.String }, ParamNames = new[] { "fname" }, TableIndex = 985, IsVariadic = true }},
+            {"modInvokeF", new FunctionSig { FunctionName = "modInvokeF", ReturnType = VarType.Float, ParamTypes = new[] { VarType.String }, ParamNames = new[] { "fname" }, TableIndex = 986, IsVariadic = true }},
+            {"modInvokeK", new FunctionSig { FunctionName = "modInvokeK", ReturnType = VarType.Key, ParamTypes = new[] { VarType.String }, ParamNames = new[] { "fname" }, TableIndex = 987, IsVariadic = true }},
+            {"modInvokeV", new FunctionSig { FunctionName = "modInvokeV", ReturnType = VarType.Vector, ParamTypes = new[] { VarType.String }, ParamNames = new[] { "fname" }, TableIndex = 988, IsVariadic = true }},
+            {"modInvokeR", new FunctionSig { FunctionName = "modInvokeR", ReturnType = VarType.Rotation, ParamTypes = new[] { VarType.String }, ParamNames = new[] { "fname" }, TableIndex = 989, IsVariadic = true }},
+            {"modInvokeL", new FunctionSig { FunctionName = "modInvokeL", ReturnType = VarType.List, ParamTypes = new[] { VarType.String }, ParamNames = new[] { "fname" }, TableIndex = 990, IsVariadic = true }},
+            {"modSendCommand", new FunctionSig { FunctionName = "modSendCommand", ReturnType = VarType.String, ParamTypes = new[] { VarType.String, VarType.String, VarType.String }, ParamNames = new[] { "module", "command", "k" }, TableIndex = 991 }},
+            {"lsGetWindlightScene", new FunctionSig { FunctionName = "lsGetWindlightScene", ReturnType = VarType.List, ParamTypes = new[] { VarType.List }, ParamNames = new[] { "rules" }, TableIndex = 992 }},
+            {"lsSetWindlightScene", new FunctionSig { FunctionName = "lsSetWindlightScene", ReturnType = VarType.Integer, ParamTypes = new[] { VarType.List }, ParamNames = new[] { "rules" }, TableIndex = 993 }},
+            {"lsSetWindlightSceneTargeted", new FunctionSig { FunctionName = "lsSetWindlightSceneTargeted", ReturnType = VarType.Integer, ParamTypes = new[] { VarType.List, VarType.Key }, ParamNames = new[] { "rules", "targetId" }, TableIndex = 994 }},
+            {"lsClearWindlightScene", new FunctionSig { FunctionName = "lsClearWindlightScene", ReturnType = VarType.Void, ParamTypes = new VarType[] { }, ParamNames = new string[] { }, TableIndex = 995 }},
+            {"osCreateSmartNPC", new FunctionSig { FunctionName = "osCreateSmartNPC", ReturnType = VarType.Key, ParamTypes = new[] { VarType.String, VarType.String, VarType.Vector, VarType.String, VarType.String }, ParamNames = new[] { "firstName", "lastName", "position", "notecardName", "expertise" }, TableIndex = 996 }},
+            {"osSetSmartNPCProfile", new FunctionSig { FunctionName = "osSetSmartNPCProfile", ReturnType = VarType.Integer, ParamTypes = new[] { VarType.Key, VarType.String, VarType.String, VarType.String, VarType.String, VarType.String, VarType.String, VarType.String }, ParamNames = new[] { "npcKey", "aboutText", "profileImage", "firstLifeText", "firstLifeImage", "webUrl", "accountTitle", "bornOn" }, TableIndex = 997 }},
          };
 
         /// <summary>

@@ -12,6 +12,21 @@ namespace InWorldz.Phlox.Glue
 	public interface ISystemAPI
 	{
         string maRunScriptFromWeb(string url);
+        string osCreateSmartNPC(string firstName, string lastName, Vector3 position, string notecardName, string expertise);
+        int osSetSmartNPCProfile(string npcKey, string aboutText, string profileImage, string firstLifeText, string firstLifeImage, string webUrl, string accountTitle, string bornOn);
+        void modInvokeN(string fname, object[] parms);
+        string modInvokeS(string fname, object[] parms);
+        int modInvokeI(string fname, object[] parms);
+        float modInvokeF(string fname, object[] parms);
+        string modInvokeK(string fname, object[] parms);
+        Vector3 modInvokeV(string fname, object[] parms);
+        Quaternion modInvokeR(string fname, object[] parms);
+        LSLList modInvokeL(string fname, object[] parms);
+        string modSendCommand(string module, string command, string k);
+        LSLList lsGetWindlightScene(LSLList rules);
+        int lsSetWindlightScene(LSLList rules);
+        int lsSetWindlightSceneTargeted(LSLList rules, string targetId);
+        void lsClearWindlightScene();
 
         void SetScriptEventFlags();
 
@@ -400,6 +415,21 @@ namespace InWorldz.Phlox.Glue
 		string llGetDisplayName(string id);
 		void llRequestDisplayName(string id);
 		void iwMakeNotecard(string name,LSLList data);
+		void osMakeNotecard(string name, string contents);
+		void osMakeNotecard(string name, LSLList contents);
+		void osGiveLinkInventory(int linkNumber, string destination, string inventory);
+		void osGiveLinkInventoryList(int linkNumber, string destination, string folderName, LSLList inventory);
+		void osMessageAttachments(string avatar, string message, LSLList attachmentPoints, int flags);
+		int osNpcLookAt(string npcKey, int type, string objectKey, Vector3 offset);
+		void osNpcSayTo(string npc, string target, int channel, string message);
+		int osReplaceAgentEnvironment(string agentKey, int transition, string daycycle);
+		int osReplaceParcelEnvironment(int transition, string daycycle);
+		int osReplaceRegionEnvironment(int transition, string daycycle, float dayLength, float dayOffset, float altitude1, float altitude2, float altitude3);
+		int osResetEnvironment(int parcelOrRegion, int transition);
+		int osWindVolumeCreate(LSLList rules);
+		int osWindVolumeRemove(int handle);
+		LSLList osWindVolumes();
+		void llRemoteLoadScript(string target, string name, int running, int startParam);
 		void iwAvatarName2Key(string firstName,string lastName);
         void iwLinkTargetOmega(int linknumber, Vector3 axis, float spinrate, float gain);
         int llSetRegionPos(Vector3 position);

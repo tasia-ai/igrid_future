@@ -742,9 +742,12 @@ namespace InWorldz.Phlox.Compiler
                 return SymbolTable.VOID;
             }
 
-            // Check argument count and types.
+            bool variadic = Defaults.TryGetMethod(funcName, out FunctionSig callSig) && callSig.IsVariadic;
+
+            // Check argument count and types. MOD invocation built-ins accept a variable tail
+            // after their fixed function-name argument; its runtime signature comes from the module.
             var paramSymbols = new List<Symbol>(methSym.Members.Values);
-            if (argTypes.Count != paramSymbols.Count)
+            if (variadic ? argTypes.Count < paramSymbols.Count : argTypes.Count != paramSymbols.Count)
             {
                 string accepted = AcceptedSignatures(funcName);
                 ErrorAtContext(context, accepted == null
@@ -753,7 +756,7 @@ namespace InWorldz.Phlox.Compiler
             }
             else
             {
-               for (int i = 0; i < argTypes.Count; i++)
+               for (int i = 0; i < paramSymbols.Count; i++)
                 {
                     ISymbolType paramType = paramSymbols[i].Type;
                     ISymbolType argType   = argTypes[i];
@@ -916,8 +919,9 @@ namespace InWorldz.Phlox.Compiler
                 return SymbolTable.VOID;
             }
 
+            bool variadic = Defaults.TryGetMethod(funcName, out FunctionSig callSig) && callSig.IsVariadic;
             var paramSymbols = new List<Symbol>(methSym.Members.Values);
-            if (argTypes.Count != paramSymbols.Count)
+            if (variadic ? argTypes.Count < paramSymbols.Count : argTypes.Count != paramSymbols.Count)
             {
                 string accepted = AcceptedSignatures(funcName);
                 ErrorAtContext(context, accepted == null
@@ -927,7 +931,7 @@ namespace InWorldz.Phlox.Compiler
             else
             {
                 var exprs = context.callParamList().expr();
-                for (int i = 0; i < argTypes.Count; i++)
+                for (int i = 0; i < paramSymbols.Count; i++)
                 {
                     ISymbolType paramType = paramSymbols[i].Type;
                     ISymbolType argType   = argTypes[i];
@@ -1225,7 +1229,7 @@ namespace InWorldz.Phlox.Compiler
                 return null;
             var forms = new List<string>();
             foreach (var sig in sigs)
-                forms.Add(funcName + "(" + string.Join(", ", Array.ConvertAll(sig.ParamTypes, t => t.ToString().ToLowerInvariant())) + ")");
+                forms.Add(funcName + "(" + string.Join(", ", Array.ConvertAll(sig.ParamTypes, t => t.ToString().ToLowerInvariant())) + (sig.IsVariadic ? (sig.ParamTypes.Length > 0 ? ", ..." : "...") : "") + ")");
             return string.Join("; ", forms);
         }
 

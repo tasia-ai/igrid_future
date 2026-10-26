@@ -2486,6 +2486,7 @@ namespace Phlox.ScriptEngine
             m_Engine.StateManager?.ScriptChanged(script);
             m_log.LogError("[PhloxExe]: Script {0} asset {1} terminated: {2}",
                 script.ItemId, script.Script.AssetId, e);
+            m_Engine.ReportRuntimeScriptError(script.ItemId, e?.Message ?? "Script runtime exception");
             try
             {
                 // Halcyon's wording (ExecutionScheduler.TerminateScriptWithError), which error-catcher scripts match

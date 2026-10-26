@@ -40,6 +40,8 @@ namespace Phlox.ScriptEngine
         private Scene m_Scene;
         private IConfigSource m_ConfigSource;
         private IConfig m_Config;
+        private string m_ScriptErrorsUrl = string.Empty;
+        private string m_ScriptErrorsSigningKey = string.Empty;
         private bool m_Enabled = false;
 
         private PhloxScriptLoader m_ScriptLoader;
@@ -157,6 +159,8 @@ namespace Phlox.ScriptEngine
                 return;
             }
             m_Enabled = m_Config.GetBoolean("Enabled", false);
+            m_ScriptErrorsUrl = m_Config.GetString("ScriptErrorsURL", string.Empty);
+            m_ScriptErrorsSigningKey = m_Config.GetString("ScriptErrorsSigningKey", string.Empty);
             m_log.LogInformation("[PhloxEngine]: Enabled = {0}", m_Enabled);
 
             // The floor for llSetTimerEvent. Same key name and same default as the
@@ -241,6 +245,12 @@ namespace Phlox.ScriptEngine
                     "Run the SLua Tier-1 back-half proof (assemble non-LSL bytecode, run, serialize, resume).",
                     HandleSluaProofCommand);
             }
+        }
+
+        internal void ReportRuntimeScriptError(UUID itemId, string message)
+        {
+            ScriptErrorReporter.TryReport(m_ScriptErrorsUrl, m_ScriptErrorsSigningKey,
+                World?.RegionInfo?.RegionName ?? string.Empty, "Phlox", itemId.ToString(), message);
         }
 
         private static bool s_sluaProofCmdRegistered = false;

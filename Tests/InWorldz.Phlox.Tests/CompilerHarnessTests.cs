@@ -6,6 +6,8 @@
  */
 
 using Xunit;
+using InWorldz.Phlox.ByteCompiler;
+using InWorldz.Phlox.Types;
 
 namespace InWorldz.Phlox.Tests;
 
@@ -16,6 +18,36 @@ public class CompilerHarnessTests
     public void AValidScriptCompilesWithoutErrors()
     {
         var c = PhloxCompiler.CompileInDefault("        llOwnerSay(\"hello\");");
+        Assert.False(c.HasErrors(), c.Report);
+    }
+
+    [Fact]
+    public void StringLiteralsAcceptAndPreserveUnknownBackslashEscapes()
+    {
+        var c = PhloxCompiler.CompileInDefault(@"llOwnerSay(""literal \x and \q"");");
+        Assert.False(c.HasErrors(), c.Report);
+
+        var bytecode = new BytecodeGenerator(Array.Empty<FunctionSig>());
+        Assert.Equal(@"\x", bytecode.UnescapeStringChars(@"\x"));
+        Assert.Equal(@"\q", bytecode.UnescapeStringChars(@"\q"));
+    }
+
+    [Fact]
+    public void SmartNpcScriptInvocationFunctionsCompileWithTheirPublicSignatures()
+    {
+        var source = @"
+            key npc;
+            integer result;
+            default
+            {
+                state_entry()
+                {
+                    npc = osCreateSmartNPC(""Tasia"", ""Mouse"", <128.0, 128.0, 25.0>, ""Appearance"", ""default"");
+                    result = osSetSmartNPCProfile(npc, ""About"", ""00000000-0000-0000-0000-000000000000"", ""First life"", ""00000000-0000-0000-0000-000000000000"", ""https://example.invalid"", ""Title"", ""Born"");
+                }
+            }";
+
+        var c = PhloxCompiler.Compile(source);
         Assert.False(c.HasErrors(), c.Report);
     }
 

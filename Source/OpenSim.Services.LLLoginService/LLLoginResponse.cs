@@ -159,11 +159,7 @@ private uint simPort;
 private uint simHttpPort;
 private string simAddress;
 
-// QUIC viewer transport. Carried over from the Amber/i-Grid fork so that
-// consumers compiled against it (TasiaAddons.MACAudit) keep working, and so the
-// QUIC server module has somewhere to publish its endpoint when it is ported.
-// Nothing populates these while QUIC is disabled: SimQuicHost stays null and
-// SimQuicPort stays 0, which is how callers detect "no QUIC on this sim".
+// QUIC viewer transport. Empty host / zero port mean that this destination does not advertise QUIC.
 private string simQuicHost;
 private uint simQuicPort;
     private string agentAccess;
@@ -414,6 +410,11 @@ private uint simQuicPort;
         }
         SimAddress = endPoint.Address.ToString();
         SimPort = (uint)endPoint.Port;
+        if (!string.IsNullOrWhiteSpace(destination.QuicHost) && destination.QuicPort > 0)
+        {
+            SimQuicHost = destination.QuicHost;
+            SimQuicPort = destination.QuicPort;
+        }
         RegionX = (uint)destination.RegionLocX;
         RegionY = (uint)destination.RegionLocY;
         RegionSizeX = destination.RegionSizeX;
@@ -523,6 +524,11 @@ private uint simQuicPort;
 
             responseData["sim_port"] = (Int32) SimPort;
             responseData["sim_ip"] = SimAddress;
+            if (!string.IsNullOrWhiteSpace(SimQuicHost) && SimQuicPort > 0)
+            {
+                responseData["sim_quic_host"] = SimQuicHost;
+                responseData["sim_quic_port"] = (Int32)SimQuicPort;
+            }
             responseData["http_port"] = (Int32)SimHttpPort;
 
             responseData["agent_id"] = AgentID.ToString();
@@ -630,6 +636,11 @@ private uint simQuicPort;
 
             map["sim_port"] = OSD.FromInteger(SimPort);
             map["sim_ip"] = OSD.FromString(SimAddress);
+            if (!string.IsNullOrWhiteSpace(SimQuicHost) && SimQuicPort > 0)
+            {
+                map["sim_quic_host"] = OSD.FromString(SimQuicHost);
+                map["sim_quic_port"] = OSD.FromInteger(SimQuicPort);
+            }
 
             map["agent_id"] = OSD.FromUUID(AgentID);
             map["real_id"] = OSD.FromUUID(RealID);

@@ -737,7 +737,7 @@ public class ScriptCleanupTests
         Assert.True(r.ResetSleeps(id) >= 1, "no throttle after 20 resets");
         Assert.InRange(resets, 6, 11);   // the sixth in one second; the eleventh at worst when the flood straddles a second
         Assert.Equal(RuntimeState.Status.Sleeping, r.Interp(id).ScriptState.RunState);
-        Assert.Contains(r.H.SaidOn, s => s.Channel == 0x7FFFFFFF && s.Message.Contains("calling llResetScript too frequently"));
+        Assert.DoesNotContain(r.H.SaidOn, s => s.Channel == 0x7FFFFFFF && s.Message.Contains("calling llResetScript too frequently"));
 
         // it runs its state_entry once the 5 s are up
         int entries = r.Count("entry");

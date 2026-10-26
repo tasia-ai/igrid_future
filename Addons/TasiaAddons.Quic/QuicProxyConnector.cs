@@ -1283,7 +1283,7 @@ namespace TasiaAddons.Quic
 
         private (SslStreamCertificateContext ctx, DateTime certWrite, DateTime keyWrite, int intermediateCount) BuildFreshCertificateContext()
         {
-            const X509KeyStorageFlags exportableEphemeral = X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet;
+            X509KeyStorageFlags importFlags = QuicCertificateKeyStorage.ImportFlags;
             X509Certificate2 certificate;
             X509Certificate2Collection intermediates = new();
             string eff = EffectiveCertPathRO();
@@ -1295,12 +1295,12 @@ namespace TasiaAddons.Quic
                 if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey))
                 {
                     using (X509Certificate2 pem = X509Certificate2.CreateFromPemFile(eff, effKey))
-                        certificate = new X509Certificate2(pem.Export(X509ContentType.Pkcs12), (string)null, exportableEphemeral);
+                        certificate = X509CertificateLoader.LoadPkcs12(pem.Export(X509ContentType.Pkcs12), (string)null, importFlags);
                 }
                 else if (!string.IsNullOrEmpty(effP12) && File.Exists(effP12))
-                    certificate = new X509Certificate2(effP12, m_certPassword, exportableEphemeral);
+                    certificate = new X509Certificate2(effP12, m_certPassword, importFlags);
                 else
-                    certificate = new X509Certificate2(eff, m_certPassword, exportableEphemeral);
+                    certificate = new X509Certificate2(eff, m_certPassword, importFlags);
 
                 try
                 {
@@ -1371,11 +1371,9 @@ namespace TasiaAddons.Quic
                 X509Certificate2 certificate;
                 X509Certificate2Collection intermediates = new();
 
-                // The leaf always ends up with an exportable ephemeral key,
-                // which OpenSSL-based MsQuic requires on Windows 10
-                // (SChannel-backed keys are not usable there).
-                const X509KeyStorageFlags exportableEphemeral =
-                    X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet;
+                // Schannel-backed QUIC on Windows requires a persisted key;
+                // ephemeral imports remain appropriate on non-Windows hosts.
+                X509KeyStorageFlags importFlags = QuicCertificateKeyStorage.ImportFlags;
 
                 string effLC = EffectiveCertPathRO();
                 string effLK = EffectiveKeyPathRO();
@@ -1385,12 +1383,12 @@ namespace TasiaAddons.Quic
                     if (!string.IsNullOrEmpty(effLK) && System.IO.File.Exists(effLK))
                     {
                         using (X509Certificate2 pem = X509Certificate2.CreateFromPemFile(effLC, effLK))
-                            certificate = new X509Certificate2(pem.Export(X509ContentType.Pkcs12), (string)null, exportableEphemeral);
+                            certificate = X509CertificateLoader.LoadPkcs12(pem.Export(X509ContentType.Pkcs12), (string)null, importFlags);
                     }
                     else if (!string.IsNullOrEmpty(effLP12) && System.IO.File.Exists(effLP12))
-                        certificate = new X509Certificate2(effLP12, m_certPassword, exportableEphemeral);
+                        certificate = new X509Certificate2(effLP12, m_certPassword, importFlags);
                     else
-                        certificate = new X509Certificate2(effLC, m_certPassword, exportableEphemeral);
+                        certificate = new X509Certificate2(effLC, m_certPassword, importFlags);
 
                     // Load the full chain from the fullchain PEM to extract intermediate CA certs.
                     try
@@ -1447,8 +1445,8 @@ namespace TasiaAddons.Quic
                     DateTimeOffset.UtcNow.AddDays(-1),
                     DateTimeOffset.UtcNow.AddYears(10));
 
-                return new X509Certificate2(cert.Export(X509ContentType.Pkcs12), (string)null,
-                    X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
+                return X509CertificateLoader.LoadPkcs12(cert.Export(X509ContentType.Pkcs12), (string)null,
+                    QuicCertificateKeyStorage.ImportFlags);
             }
         }
 

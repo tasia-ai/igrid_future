@@ -18,6 +18,7 @@
     <Project Path="Addons/TasiaAddons.Quic/TasiaAddons.Quic.csproj" />
     <Project Path="Addons/TasiaAddons.RemoteSound/TasiaAddons.RemoteSound.csproj" />
     <Project Path="Addons/TasiaAddons.RestartModule/TasiaAddons.RestartModule.csproj" />
+    <Project Path="Addons/TasiaAddons.ScriptErrors/TasiaAddons.ScriptErrors.csproj" />
     <Project Path="Addons/TasiaAddons.SharedInventory/TasiaAddons.SharedInventory.csproj" />
     <Project Path="Addons/TasiaAddons.GridFunctions/TasiaAddons.GridFunctions.csproj" />
     <Project Path="Addons/TasiaAddons.WebScripts/TasiaAddons.WebScripts.csproj" />

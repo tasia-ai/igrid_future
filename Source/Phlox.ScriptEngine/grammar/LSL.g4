@@ -260,7 +260,7 @@ STRING_LITERAL
 
 fragment
 ESC_SEQ
-    : '\\' [tn"\\]
+    : '\\' ~[\r\n]
     ;
 
 INTEGER_LITERAL

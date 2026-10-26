@@ -172,10 +172,13 @@ namespace InWorldz.Phlox.Compiler
         // ── Method call ───────────────────────────────────────────────────────
 
         public static string MethCall(string name, IEnumerable<string> exprs,
-            bool isSyscall, bool popResult)
+            bool isSyscall, bool popResult, bool variadic = false)
         {
             var sb = new StringBuilder();
-            foreach (var e in exprs) if (e != null) { sb.AppendLine(e); }
+            var arguments = new List<string>();
+            foreach (var e in exprs) if (e != null) arguments.Add(e);
+            foreach (var e in arguments) sb.AppendLine(e);
+            if (variadic) sb.AppendLine(IConst(arguments.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             sb.AppendLine(isSyscall ? $"syscall {name}" : $"call {name}");
             if (popResult) sb.AppendLine("pop");
             return sb.ToString().TrimEnd();

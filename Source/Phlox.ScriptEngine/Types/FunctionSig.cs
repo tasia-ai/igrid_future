@@ -15,5 +15,7 @@ namespace InWorldz.Phlox.Types
         public VarType[] ParamTypes;
         public string[] ParamNames;
         public int TableIndex;
+        /// <summary>Accept additional arguments after the declared fixed parameters.</summary>
+        public bool IsVariadic;
     }
 }

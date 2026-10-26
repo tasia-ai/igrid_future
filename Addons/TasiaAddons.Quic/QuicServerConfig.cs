@@ -137,14 +137,13 @@ namespace TasiaAddons.Quic
         /// Load or generate a TLS certificate for QUIC.
         /// If CertificatePath is set, loads from file.
         /// Otherwise generates a self-signed cert for localhost.
-        /// The returned certificate always carries an exportable ephemeral
-        /// private key, which OpenSSL-based MsQuic requires on Windows 10
-        /// (SChannel-backed keys are not usable there).
+        /// The returned certificate carries an exportable key. Windows imports
+        /// persist it because Schannel-backed QUIC cannot use ephemeral keys;
+        /// other platforms retain ephemeral imports.
         /// </summary>
         public X509Certificate2 LoadCertificate()
         {
-            const X509KeyStorageFlags exportableEphemeral =
-                X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet;
+            X509KeyStorageFlags importFlags = QuicCertificateKeyStorage.ImportFlags;
 
             string effCert = EffectiveCertPath();
             string effKey = EffectiveKeyPath();
@@ -154,13 +153,13 @@ namespace TasiaAddons.Quic
                 if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey))
                 {
                     using (X509Certificate2 pem = X509Certificate2.CreateFromPemFile(effCert, effKey))
-                        return new X509Certificate2(pem.Export(X509ContentType.Pkcs12), (string)null, exportableEphemeral);
+                        return X509CertificateLoader.LoadPkcs12(pem.Export(X509ContentType.Pkcs12), (string)null, importFlags);
                 }
 
                 // P12 fallback ( central bin/SSL/quic/quic-cert.p12 ) if no PEM key
                 if (!string.IsNullOrEmpty(effP12) && File.Exists(effP12))
-                    return new X509Certificate2(effP12, CertificatePassword, exportableEphemeral);
-                return new X509Certificate2(effCert, CertificatePassword, exportableEphemeral);
+                    return new X509Certificate2(effP12, CertificatePassword, importFlags);
+                return new X509Certificate2(effCert, CertificatePassword, importFlags);
             }
 
             // Generate a self-signed certificate for development
@@ -299,8 +298,8 @@ namespace TasiaAddons.Quic
                     DateTimeOffset.UtcNow.AddDays(-1),
                     DateTimeOffset.UtcNow.AddYears(10));
 
-                return new X509Certificate2(certificate.Export(X509ContentType.Pkcs12), (string)null,
-                    X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
+                return X509CertificateLoader.LoadPkcs12(certificate.Export(X509ContentType.Pkcs12), (string)null,
+                    QuicCertificateKeyStorage.ImportFlags);
             }
         }
     }

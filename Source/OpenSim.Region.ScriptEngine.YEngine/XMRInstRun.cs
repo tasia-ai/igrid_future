@@ -586,6 +586,7 @@ public partial class XMRInstance
         msg.Append(">) Script must be Reset to re-enable.\n");
 
         string msgst = msg.ToString();
+        m_Engine.ReportRuntimeScriptError(m_Item.Name, evMessage ?? "Script runtime error");
         if (msgst.Length > 1000)
             msgst = msgst[..1000];
 
@@ -620,6 +621,7 @@ public partial class XMRInstance
      */
     private void SendErrorMessage(Exception e)
     {
+        m_Engine.ReportRuntimeScriptError(m_Item.Name, e?.Message ?? "Script runtime exception");
         StringBuilder msg = new();
 
         msg.Append("[YEngine]: Exception while running ");

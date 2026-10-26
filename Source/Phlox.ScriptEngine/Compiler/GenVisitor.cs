@@ -5,6 +5,7 @@ using Antlr4.Runtime;
 using Antlr4.Runtime.Misc;
 using Antlr4.Runtime.Tree;
 using Antlr4.StringTemplate;
+using InWorldz.Phlox.Types;
 
 namespace InWorldz.Phlox.Compiler
 {
@@ -754,8 +755,9 @@ namespace InWorldz.Phlox.Compiler
                     exprs.Add(DoPromotion(e, Visit(e)));
 
             bool isSyscall = methSym?.IsSyscall ?? false;
+            bool variadic = funcName != null && Defaults.TryGetMethod(funcName, out FunctionSig callSig) && callSig.IsVariadic;
             return ByteCodeEmitter.MethCall(
-                methSym?.Name ?? (funcName + "()"), exprs, isSyscall, false);
+                methSym?.Name ?? (funcName + "()"), exprs, isSyscall, false, variadic);
         }
 
         public override string VisitPrimaryExpr([NotNull] LSLParser.PrimaryExprContext context)
@@ -847,8 +849,9 @@ namespace InWorldz.Phlox.Compiler
 
             bool isSyscall = methSym?.IsSyscall ?? false;
             bool isVoid    = methSym == null || methSym.Type == SymbolTable.VOID;
+            bool variadic = Defaults.TryGetMethod(funcName, out FunctionSig callSig) && callSig.IsVariadic;
             return ByteCodeEmitter.MethCall(
-                methSym?.Name ?? (funcName + "()"), exprs, isSyscall, !isVoid);
+                methSym?.Name ?? (funcName + "()"), exprs, isSyscall, !isVoid, variadic);
         }
 
         // ── Default ───────────────────────────────────────────────────────────
