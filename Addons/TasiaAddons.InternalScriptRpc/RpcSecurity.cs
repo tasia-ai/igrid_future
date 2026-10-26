@@ -19,6 +19,14 @@ internal static class RpcSecurity
         .Select(x => UUID.TryParse(x, out UUID id) && id != UUID.Zero ? id : throw new ArgumentException("AllowedOwners must contain only nonzero UUIDs."))
         .ToHashSet();
 
+    internal static bool IsAuthorizedOwner(UUID owner, IReadOnlySet<UUID> allowedOwners,
+        int? userLevel, int minimumAdminLevel)
+    {
+        if (owner == UUID.Zero) return false;
+        if (allowedOwners?.Contains(owner) == true) return true;
+        return minimumAdminLevel > 0 && userLevel.HasValue && userLevel.Value >= minimumAdminLevel;
+    }
+
     internal static void ValidateSecret(string secret)
     {
         if (Encoding.UTF8.GetByteCount(secret ?? "") < 32) throw new InvalidOperationException("InternalScriptRpc SigningKey must contain at least 32 UTF-8 bytes.");

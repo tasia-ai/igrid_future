@@ -2,8 +2,9 @@
 
 ## Transport model
 
-Firestorm's existing HTTP listener does not need to change. RPC uses a separate,
-native OpenSim HTTPS listener over TCP on both legs:
+Firestorm's existing HTTP listener does not need to change. For this single-host
+grid, RPC uses separate native OpenSim HTTPS listeners over TCP, bound to
+loopback only:
 
 1. Region caller to Robust: `RobustURL` on a TLS-enabled Robust listener.
 2. Robust to destination region: the region's HTTP `ServerURI` host plus
@@ -14,43 +15,56 @@ QUIC is a separate UDP transport and its TLS settings do not enable HTTPS.
 OpenSim's native listeners need their own certificate configuration. Use a
 PKCS#12 certificate with its private key, a trusted complete chain, and SANs
 matching the Robust and region DNS names. Do not disable TLS validation or use
-external TLS termination to a plaintext OpenSim listener.
+external TLS termination to a plaintext OpenSim listener. With
+`LoopbackOnly=true`, RPC outbound sockets connect to `127.0.0.1` while TLS still
+validates the configured DNS hostname. This mode requires Robust and all region
+processes to run on the same machine; it requires no router/NAT port forwarding
+or Windows Firewall openings. Do not use it for a multi-host grid.
 
-## Port plan for the current grid (proposed; not yet enabled)
+## Port plan for the current single-host grid
 
 The checked-in source does not contain production secrets or runtime ini files.
 The currently installed grid uses Robust's `PrivatePort=22001` and public
-`Port=22002`; its region HTTP listeners use `22033`-`22061` and `22341` (with
+`Port=22002`; its region HTTP listeners use `22033`-`22062` and `22341` (with
 some lower ports absent). The RPC plan keeps those listeners unchanged:
 
-Audit performed 2026-10-26 found no native HTTPS listener configured in the
-current Robust or region ini files. These are planned RPC ports, not verified
-reachable ports. Keep the addon disabled until the HTTPS listeners, firewall/
-NAT path, certificate, signing key, and owner allowlist are configured and
-verified.
+The 2026-10-26 audit found that native HTTPS was not configured. Loopback-only
+listeners and addon settings have since been written to
+`H:\grid_final\Robust.HG.fixed.ini` and all 32 region ini files. The launcher’s
+actual Robust INI path is not yet confirmed (`H:\grid_final\generated\robust\Robust.ini`
+exists and may be stale), so do not assume the Robust listener/addon settings
+are active until that path is verified. The live RPC secret and PFX password
+remain only in runtime files. The listeners and route have not been verified by
+starting the grid, and a real cross-region teleport test is still required.
 
 | Listener | Port plan |
 | --- | --- |
 | Robust RPC HTTPS | `22003` |
 | Region RPC HTTPS | each existing region HTTP port + `10000` |
-| Region port examples | `22041 -> 32041`; `22341 -> 32341` |
+| Region port examples | `22041 -> 32041`; `22062 -> 32062`; `22341 -> 32341` |
 
-Set Robust's `[ServiceList]` RPC entry to `22003/...` and
+One region has no explicit `http_listener_port` and inherits `9000`, so its RPC
+listener is `19000`.
+
+The fixed Robust config's `[ServiceList]` RPC entry is set to `22003/...`, and
 `RegionHttpsPortOffset=10000`. For every region process, set
 `InternalScriptRpc.HttpsPort` to its own HTTP port plus `10000`. The region
 config's `[Network] https_port` must equal that `HttpsPort`. Assign a unique
 port for any region process that has no explicit `http_listener_port`; do not
-let multiple processes bind the same address/port. Before enabling the module,
-confirm the range is unused, and configure Windows Firewall and edge NAT/firewall
-for TCP 22003 and the region HTTPS ports. Only open these ports if required by
-the actual Robust-to-region routing topology.
+let multiple processes bind the same address/port. The live port range was
+checked for conflicts before configuration. `LoopbackOnly=true` keeps RPC
+listeners inaccessible from external interfaces; do not add firewall/NAT
+exposures for them.
 
 ## Listener and addon config
 
 These examples are templates: use the actual paths and protect the PFX password
-and signing key as secrets. Use the same strong random signing key and
-non-empty, exact owner UUID allowlist on Robust and every participating region.
-Do not commit live secrets or passwords.
+and signing key as secrets. Use the same strong random signing key,
+`MinimumAdminUserLevel=150`, and any manual owner UUID entries on Robust and
+every participating region. Robust and regions need a working
+`UserAccountService` for level-based authorization. An empty `AllowedOwners` is
+safe only when that service is available; failed account lookups never authorize
+an RPC. Do not commit live secrets or passwords.
 
 On Robust, enable a native HTTPS listener in `[Network]` (preserving existing
 HTTP ports):
@@ -69,8 +83,10 @@ HTTP ports):
 [InternalScriptRpc]
     Enabled = true
     SigningKey = <same-32-byte-minimum-random-secret>
-    AllowedOwners = <explicit-owner-uuid-list>
+    AllowedOwners = <optional-manual-owner-uuid-list>
+    MinimumAdminUserLevel = 150
     RegionHttpsPortOffset = 10000
+    LoopbackOnly = true
 ```
 
 For each region process, retain its existing HTTP listener and add its separate
@@ -88,7 +104,9 @@ native HTTPS listener. Example for a process with `http_listener_port=22041`:
     Enabled = true
     HttpsPort = 32041
     SigningKey = <same-32-byte-minimum-random-secret>
-    AllowedOwners = <same-explicit-owner-uuid-list>
+    AllowedOwners = <same-optional-manual-owner-uuid-list>
+    MinimumAdminUserLevel = 150
+    LoopbackOnly = true
     RobustURL = https://ok.tasia.work.gd:22003
 ```
 

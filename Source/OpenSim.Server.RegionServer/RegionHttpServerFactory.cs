@@ -8,6 +8,7 @@
  */
 
 using System.Reflection;
+using System.Net;
 using OpenSim.Framework;
 using OpenSim.Framework.Servers;
 using OpenSim.Framework.Servers.HttpServer;
@@ -71,6 +72,8 @@ public sealed class RegionHttpServerFactory : IRegionHttpServerFactory
                     serversInfo.https_port, serversInfo.ssl_listener,
                     serversInfo.cert_path,
                     serversInfo.cert_pass);
+                if (serversInfo.rpcLoopbackOnly)
+                    server.ListenIPAddress = IPAddress.Loopback;
 
                 m_log.LogInformation("[REGION SERVER]: Starting OOB HTTPS server on port {0}", server.SSLPort);
                 server.Start();

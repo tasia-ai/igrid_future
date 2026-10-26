@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
-using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
 using Nini.Config;
@@ -23,15 +22,11 @@ public sealed class InternalScriptRpcConnector : ServiceConnector
     private readonly IConfigSource config;
     private readonly ConcurrentDictionary<string, long> nonces = new();
     private readonly IGridService grid;
+    private readonly IUserAccountService userAccounts;
     private readonly int regionHttpsPortOffset;
-    // Use ordinary PKI validation (including hostname checks), with no
-    // certificate-bypass callback. RPC forwarding is HTTPS-only.
-    private readonly HttpClient client = new(new HttpClientHandler
-    {
-        AllowAutoRedirect = false,
-        CheckCertificateRevocationList = true,
-        SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13
-    }) { Timeout = TimeSpan.FromSeconds(15) };
+    private readonly int minimumAdminLevel;
+    private HttpClient client;
+    private readonly bool loopbackOnly;
 
     public InternalScriptRpcConnector(IConfigSource config, IHttpServer server, string configName) : base(config, server, configName)
     {
@@ -39,14 +34,23 @@ public sealed class InternalScriptRpcConnector : ServiceConnector
         IConfig cfg = config?.Configs["InternalScriptRpc"];
         if (cfg?.GetBoolean("Enabled", false) != true) return;
         if (!server.UseSSL) throw new InvalidOperationException("InternalScriptRpc requires the Robust listener.UseSSL listener; refusing to register on plaintext HTTP.");
+        loopbackOnly = cfg.GetBoolean("LoopbackOnly", false);
+        if (loopbackOnly && !IPAddress.IsLoopback(server.ListenIPAddress))
+            throw new InvalidOperationException("InternalScriptRpc LoopbackOnly is enabled but the Robust HTTPS listener is not bound to loopback.");
+        client = RpcHttpClientFactory.Create(loopbackOnly);
         key = cfg.GetString("SigningKey", ""); RpcSecurity.ValidateSecret(key);
         owners = RpcSecurity.ParseOwners(cfg.GetString("AllowedOwners", ""));
-        if (owners.Count == 0) throw new InvalidOperationException("InternalScriptRpc requires a non-empty AllowedOwners UUID allowlist.");
+        minimumAdminLevel = cfg.GetInt("MinimumAdminUserLevel", 150);
+        if (minimumAdminLevel is < 1 or > 255)
+            throw new InvalidOperationException("InternalScriptRpc MinimumAdminUserLevel must be 1-255.");
         regionHttpsPortOffset = cfg.GetInt("RegionHttpsPortOffset", 0);
         if (regionHttpsPortOffset is < 1 or > 60000)
             throw new InvalidOperationException("InternalScriptRpc RegionHttpsPortOffset must be configured (1-60000) when region ServerURI values use HTTP.");
         grid = LoadGrid(config);
         if (grid == null) throw new InvalidOperationException("InternalScriptRpc requires a configured GridService LocalServiceModule.");
+        userAccounts = LoadUserAccounts(config);
+        if (owners.Count == 0 && userAccounts is null)
+            throw new InvalidOperationException("InternalScriptRpc requires AllowedOwners or a UserAccountService for admin-level authorization.");
         if (!server.AddHTTPHandler(Path, Handle))
             throw new InvalidOperationException("InternalScriptRpc Robust endpoint is already registered.");
     }
@@ -64,7 +68,7 @@ public sealed class InternalScriptRpcConnector : ServiceConnector
             if (!RpcSecurity.TryParseRequest(body, out RpcRequest request)
                 || request.Timestamp.ToString(System.Globalization.CultureInfo.InvariantCulture) != ts
                 || request.Nonce != nonce
-                || !owners.Contains(new UUID(request.Owner))) return Respond(403, "rejected");
+                || !IsAuthorizedOwner(new UUID(request.Owner))) return Respond(403, "rejected");
             JsonElement destination = request.Payload.GetProperty("targetRegion");
             if (destination.ValueKind != JsonValueKind.String || !UUID.TryParse(destination.GetString(), out UUID targetId) || targetId == UUID.Zero) return Respond(400, "rejected");
             OpenSim.Services.Interfaces.GridRegion target = grid.GetRegionByUUID(UUID.Zero, targetId);
@@ -99,6 +103,29 @@ public sealed class InternalScriptRpcConnector : ServiceConnector
         IConfig section = config?.Configs["GridService"];
         string module = section?.GetString("LocalServiceModule", "");
         return string.IsNullOrWhiteSpace(module) ? null : ServerUtils.LoadPlugin<IGridService>(module, new object[] { config });
+    }
+    private bool IsAuthorizedOwner(UUID owner)
+    {
+        int? userLevel = null;
+        if (owner != UUID.Zero && userAccounts is not null)
+        {
+            try
+            {
+                UserAccount account = userAccounts.GetUserAccount(UUID.Zero, owner);
+                if (account is not null) userLevel = account.UserLevel;
+            }
+            catch { /* A failed account lookup never grants admin-level access. */ }
+        }
+        return RpcSecurity.IsAuthorizedOwner(owner, owners, userLevel, minimumAdminLevel);
+    }
+
+    private static IUserAccountService LoadUserAccounts(IConfigSource config)
+    {
+        IConfig section = config?.Configs["UserAccountService"];
+        string module = section?.GetString("LocalServiceModule", "");
+        return string.IsNullOrWhiteSpace(module)
+            ? null
+            : ServerUtils.LoadPlugin<IUserAccountService>(module, new object[] { config });
     }
     internal static bool TryGetRegionRpcUri(string serverUri, UUID targetId, int httpsPortOffset,
         out Uri rpcUri)

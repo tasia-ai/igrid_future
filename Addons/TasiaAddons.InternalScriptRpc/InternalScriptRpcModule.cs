@@ -1,8 +1,8 @@
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
 using Nini.Config;
@@ -13,6 +13,7 @@ using OpenSim.Framework.Servers.HttpServer;
 using OpenMetaverse.StructuredData;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
+using OpenSim.Services.Interfaces;
 
 namespace TasiaAddons.InternalScriptRpc;
 
@@ -23,19 +24,14 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
     private sealed record RegisteredOperation(Func<UUID, JsonElement, JsonElement> Handler, TimeSpan Timeout);
 
     private readonly ConcurrentDictionary<string, RegisteredOperation> handlers = new(StringComparer.Ordinal);
-    // Keep normal OS certificate-chain and hostname validation. Never install a
-    // callback that accepts arbitrary/self-signed certificates for this channel.
-    private readonly HttpClient client = new(new HttpClientHandler
-    {
-        AllowAutoRedirect = false,
-        CheckCertificateRevocationList = true,
-        SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13
-    }) { Timeout = TimeSpan.FromSeconds(15) };
+    private HttpClient client;
     private HashSet<UUID> owners = new();
     private Scene scene;
     private IScriptModuleComms comms;
     private string key, robustUrl;
     private uint httpsPort;
+    private int minimumAdminLevel = 150;
+    private bool loopbackOnly;
     private IHttpServer endpointServer;
     private string endpointPath;
     private bool enabled;
@@ -50,7 +46,9 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
         if (cfg?.GetBoolean("Enabled", false) != true) return;
         key = cfg.GetString("SigningKey", ""); RpcSecurity.ValidateSecret(key);
         owners = RpcSecurity.ParseOwners(cfg.GetString("AllowedOwners", ""));
-        if (owners.Count == 0) throw new InvalidOperationException("InternalScriptRpc requires a non-empty AllowedOwners UUID allowlist.");
+        minimumAdminLevel = cfg.GetInt("MinimumAdminUserLevel", 150);
+        if (minimumAdminLevel is < 1 or > 255)
+            throw new InvalidOperationException("InternalScriptRpc MinimumAdminUserLevel must be 1-255.");
         robustUrl = cfg.GetString("RobustURL", "");
         if (!Uri.TryCreate(robustUrl, UriKind.Absolute, out Uri robust) || robust.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(robust.UserInfo) || !string.IsNullOrEmpty(robust.Fragment))
             throw new InvalidOperationException("InternalScriptRpc RobustURL must be an absolute HTTPS URL without userinfo or fragment.");
@@ -58,6 +56,8 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
         if (configuredPort is < 1 or > 65535)
             throw new InvalidOperationException("InternalScriptRpc HttpsPort must identify an already configured HTTPS listener port.");
         httpsPort = (uint)configuredPort;
+        loopbackOnly = cfg.GetBoolean("LoopbackOnly", false);
+        client = RpcHttpClientFactory.Create(loopbackOnly);
         enabled = true;
     }
 
@@ -74,6 +74,8 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
         IHttpServer server = mainServer.GetHttpServer(httpsPort)
             ?? throw new InvalidOperationException("InternalScriptRpc could not resolve the configured HTTPS listener.");
         if (!server.UseSSL) throw new InvalidOperationException("InternalScriptRpc requires the region listener.UseSSL listener; refusing to register on plaintext HTTP.");
+        if (loopbackOnly && !IPAddress.IsLoopback(server.ListenIPAddress))
+            throw new InvalidOperationException("InternalScriptRpc LoopbackOnly is enabled but the HTTPS listener is not bound to loopback.");
         string path = $"/internal-script-rpc/execute/{value.RegionInfo.RegionID}";
         if (!server.AddHTTPHandler(path, Handle))
             throw new InvalidOperationException("InternalScriptRpc region endpoint is already registered for this region.");
@@ -82,6 +84,8 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
         {
             IScriptModuleComms scriptComms = value.RequestModuleInterface<IScriptModuleComms>()
                 ?? throw new InvalidOperationException("InternalScriptRpc requires ScriptModuleComms.");
+            if (owners.Count == 0 && value.UserAccountService is null)
+                throw new InvalidOperationException("InternalScriptRpc requires AllowedOwners or UserAccountService for admin-level authorization.");
             RegisterOperation<NpcTransferRpcRequest, NpcTransferRpcResponse>("npc.transfer",
                 (rpcOwner, request) => ReceiveNpcTransfer(value, rpcOwner, request), TimeSpan.FromSeconds(10));
             value.RegisterModuleInterface<IInternalScriptRpcRegistry>(this);
@@ -129,7 +133,7 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
             scene = null;
             comms = null;
         }
-        client.Dispose();
+        client?.Dispose();
     }
 
     /// <summary>Expose only explicitly registered typed operations; no reflection or dynamic code execution.</summary>
@@ -146,10 +150,11 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
         if (!handlers.TryAdd(name, registered)) throw new InvalidOperationException("RPC operation already registered: " + name);
     }
 
-    private static NpcTransferRpcResponse ReceiveNpcTransfer(Scene destination, UUID owner,
+    private NpcTransferRpcResponse ReceiveNpcTransfer(Scene destination, UUID owner,
         NpcTransferRpcRequest request)
     {
-        if (destination is null || owner.IsZero() || request is null || string.IsNullOrEmpty(request.PackedNpcJson))
+        if (destination is null || request is null || string.IsNullOrEmpty(request.PackedNpcJson)
+            || !IsAuthorizedOwner(destination, owner))
             return new NpcTransferRpcResponse { Success = false, Reason = "Invalid NPC transfer request" };
 
         try
@@ -171,6 +176,21 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
         }
     }
 
+    private bool IsAuthorizedOwner(Scene current, UUID owner)
+    {
+        int? userLevel = null;
+        if (owner != UUID.Zero && current?.UserAccountService is IUserAccountService accounts)
+        {
+            try
+            {
+                UserAccount account = accounts.GetUserAccount(current.RegionInfo.ScopeID, owner);
+                if (account is not null) userLevel = account.UserLevel;
+            }
+            catch { /* A failed account lookup never grants admin-level access. */ }
+        }
+        return RpcSecurity.IsAuthorizedOwner(owner, owners, userLevel, minimumAdminLevel);
+    }
+
     [ScriptInvocation]
     public string maInternalScriptRpc(UUID hostID, UUID scriptID, string targetRegion, string operation, string payloadJson)
     {
@@ -181,15 +201,20 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
         if (host?.ParentGroup == null || host.ParentGroup.IsDeleted || host.ParentGroup.inTransit || script == null || script.Type != (int)AssetType.LSLText || script.OwnerID != host.OwnerID)
             throw new InvalidOperationException("InternalScriptRpc caller could not be resolved.");
         owner = host.OwnerID;
-        if (owner == UUID.Zero || !owners.Contains(owner)) throw new InvalidOperationException("InternalScriptRpc caller owner is not allowed.");
+        if (!IsAuthorizedOwner(current, owner)) throw new InvalidOperationException("InternalScriptRpc caller owner is not allowed.");
         if (!UUID.TryParse(targetRegion, out UUID region) || region == UUID.Zero) throw new ArgumentException("targetRegion must be a nonzero region UUID.");
         return InvokeForOwner(owner, region, operation, payloadJson);
     }
 
     public string InvokeForOwner(UUID owner, UUID region, string operation, string payloadJson)
     {
-        if (!enabled || owner == UUID.Zero || !owners.Contains(owner))
-            throw new InvalidOperationException("InternalScriptRpc owner is not allowed.");
+        Scene current;
+        lock (gate)
+        {
+            if (!enabled || scene is null) throw new InvalidOperationException("InternalScriptRpc is disabled.");
+            current = scene;
+        }
+        if (!IsAuthorizedOwner(current, owner)) throw new InvalidOperationException("InternalScriptRpc owner is not allowed.");
         if (region == UUID.Zero) throw new ArgumentException("targetRegion must be a nonzero region UUID.");
         if (operation?.Length is < 1 or > 64) throw new ArgumentException("Invalid operation name.");
         if (Encoding.UTF8.GetByteCount(payloadJson ?? "null") > RpcSecurity.MaxBody) throw new ArgumentException("RPC request is too large.");
@@ -230,7 +255,7 @@ public sealed class InternalScriptRpcModule : INonSharedRegionModule, IInternalS
                 || rpc.Timestamp.ToString(System.Globalization.CultureInfo.InvariantCulture) != ts
                 || rpc.Nonce != nonce
                 || !UUID.TryParse(rpc.Owner, out UUID owner)
-                || !owners.Contains(owner)) return Respond(403, "rejected");
+                || !IsAuthorizedOwner(scene, owner)) return Respond(403, "rejected");
             JsonElement target = rpc.Payload.GetProperty("targetRegion");
             if (!UUID.TryParse(target.GetString(), out UUID region) || scene?.RegionInfo.RegionID != region) return Respond(404, "rejected");
             if (!handlers.TryGetValue(rpc.Operation, out RegisteredOperation registered)) return SignedResult(400, rpc.RequestId, false, "unknown_operation", RpcSecurity.Json(""));

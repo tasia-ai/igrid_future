@@ -8,6 +8,7 @@
  */
 
 using System.Reflection;
+using System.Net;
 using Nini.Config;
 using Microsoft.Extensions.Logging;
 using OpenSim.Framework;
@@ -50,6 +51,9 @@ public sealed class GridHttpServerFactory : IGridHttpServerFactory
         bool ssl_main = networkConfig.GetBoolean("https_main", false);
         bool ssl_listener = networkConfig.GetBoolean("https_listener", false);
         bool ssl_external = networkConfig.GetBoolean("https_external", false);
+        IConfig rpcConfig = config.Configs["InternalScriptRpc"];
+        bool rpcLoopbackOnly = rpcConfig?.GetBoolean("Enabled", false) == true
+            && rpcConfig.GetBoolean("LoopbackOnly", false);
 
         uint consolePort = (uint)networkConfig.GetInt("ConsolePort", 0);
 
@@ -94,7 +98,10 @@ public sealed class GridHttpServerFactory : IGridHttpServerFactory
                 if (cert_pass.Length == 0)
                     _logger.LogError("[SSL]: Password for X509 certificate is missing, server can't start.");
 
-                MainServer.Instance.AddHttpServer(new BaseHttpServer(https_port, ssl_listener, cert_path, cert_pass));
+                BaseHttpServer httpsServer = new(https_port, ssl_listener, cert_path, cert_pass);
+                if (rpcLoopbackOnly)
+                    httpsServer.ListenIPAddress = IPAddress.Loopback;
+                MainServer.Instance.AddHttpServer(httpsServer);
             }
             else
             {

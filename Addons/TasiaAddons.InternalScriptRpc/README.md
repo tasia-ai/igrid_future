@@ -1,6 +1,6 @@
 # Internal Script RPC addon
 
-This addon provides a synchronous MOD function, `maInternalScriptRpc(targetRegion, operation, payloadJson)`, which sends a bounded JSON operation through Robust and forwards it to the selected region. The function derives the caller owner from the live scene host; script arguments cannot provide an owner identity. Both the caller region and destination region, and Robust, must use the same 32-byte-minimum secret and matching non-empty owner UUID allowlists.
+This addon provides a synchronous MOD function, `maInternalScriptRpc(targetRegion, operation, payloadJson)`, which sends a bounded JSON operation through Robust and forwards it to the selected region. The function derives the caller owner from the live scene host; script arguments cannot provide an owner identity. Both the caller region and destination region, and Robust, must use the same 32-byte-minimum secret, minimum admin level, and any manual owner UUID allowlist entries. The default admin threshold is `UserLevel >= 150`; account lookups fail closed. Explicit owner UUIDs can be added manually.
 
 Enable the region module with the normal region addon discovery mechanism and configure:
 
@@ -9,6 +9,8 @@ Enable the region module with the normal region addon discovery mechanism and co
     Enabled = true
     SigningKey = <shared-secret-of-at-least-32-UTF8-bytes>
     AllowedOwners = <owner-uuid>,<another-owner-uuid>
+    MinimumAdminUserLevel = 150
+    LoopbackOnly = true
     RobustURL = https://robust.example.net
     HttpsPort = <already-configured-region-HTTPS-listener-port>
 ```
@@ -23,6 +25,8 @@ Load the connector in Robust:
     Enabled = true
     SigningKey = <same-shared-secret>
     AllowedOwners = <same-owner-uuid-list>
+    MinimumAdminUserLevel = 150
+    LoopbackOnly = true
     RegionHttpsPortOffset = 10000
 ```
 
@@ -43,10 +47,12 @@ For every region process, configure its native OOB HTTPS listener in `[Network]`
     HttpsPort = 32041
     SigningKey = <same-shared-secret>
     AllowedOwners = <same-owner-uuid-list>
+    MinimumAdminUserLevel = 150
+    LoopbackOnly = true
     RobustURL = https://robust.example.net:<RobustTlsPort>
 ```
 
-The grid's region `ServerURI` may remain HTTP for viewer/capability traffic. `RegionHttpsPortOffset` maps that HTTP port to the dedicated RPC TLS port (for example, `22041 + 10000 = 32041`). Set the offset to match the configured port plan, and assign every region process a unique, reachable HTTPS port. If the grid already advertises the RPC-capable HTTPS listener as its region `ServerURI`, the connector uses that HTTPS port directly. Open only required TCP ports in host and edge firewalls/NAT. Certificates must be trusted and valid for the hostnames in `RobustURL` and region `ServerURI` values.
+The grid's region `ServerURI` may remain HTTP for viewer/capability traffic. `RegionHttpsPortOffset` maps that HTTP port to the dedicated RPC TLS port (for example, `22041 + 10000 = 32041`). Set the offset to match the configured port plan, and assign every region process a unique HTTPS port. If the grid already advertises the RPC-capable HTTPS listener as its region `ServerURI`, the connector uses that HTTPS port directly. `LoopbackOnly=true` binds both HTTPS listeners to `127.0.0.1` and makes both outbound clients connect to loopback while preserving TLS hostname checks; this requires Robust and all regions on the same machine and should not be used on a multi-host grid. It needs no external firewall/NAT ports. The Robust and region `UserAccountService` must be available for level-based access; only accounts with `UserLevel >= MinimumAdminUserLevel` or UUIDs explicitly in `AllowedOwners` pass. An empty UUID list is valid only when account-service lookup is available. Certificates must be trusted and valid for the hostnames in `RobustURL` and region `ServerURI` values.
 
 QUIC's certificate options configure QUIC transport only; they do not automatically configure OpenSim's HTTP/HTTPS listener. You may use the same certificate/key files for both listeners if valid for the HTTPS hostname, but configure them independently through each listener's supported settings. Both outbound hops use TLS 1.2 or TLS 1.3, standard platform trust-chain and hostname validation plus certificate revocation checking, and do not follow redirects or accept invalid certificates. Each hop has a 15-second transport timeout.
 

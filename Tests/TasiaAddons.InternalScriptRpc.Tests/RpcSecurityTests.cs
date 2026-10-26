@@ -57,6 +57,20 @@ public sealed class RpcSecurityTests
         Assert.Throws<InvalidOperationException>(() => RpcSecurity.ValidateSecret("short"));
     }
 
+    [Fact]
+    public void OwnerAuthorizationAllowsConfiguredOwnersOrAdminsAtThresholdOnly()
+    {
+        UUID configured = UUID.Random();
+        UUID admin = UUID.Random();
+        HashSet<UUID> allowed = new() { configured };
+
+        Assert.True(RpcSecurity.IsAuthorizedOwner(configured, allowed, null, 150));
+        Assert.True(RpcSecurity.IsAuthorizedOwner(admin, allowed, 150, 150));
+        Assert.False(RpcSecurity.IsAuthorizedOwner(admin, allowed, 149, 150));
+        Assert.False(RpcSecurity.IsAuthorizedOwner(admin, allowed, null, 150));
+        Assert.False(RpcSecurity.IsAuthorizedOwner(UUID.Zero, allowed, 255, 150));
+    }
+
     [Theory]
     [InlineData("http://os.tasia.work.gd:22041/", 10000, "https://os.tasia.work.gd:32041/internal-script-rpc/execute/")]
     [InlineData("https://os.tasia.work.gd:32041/", 10000, "https://os.tasia.work.gd:32041/internal-script-rpc/execute/")]

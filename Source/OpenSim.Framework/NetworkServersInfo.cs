@@ -46,6 +46,7 @@ public class NetworkServersInfo
     public uint https_port = 0;
     public string cert_path = String.Empty;
     public string cert_pass = String.Empty;
+    public bool rpcLoopbackOnly = false;
 
     public NetworkServersInfo()
     {
@@ -57,6 +58,7 @@ public class NetworkServersInfo
 
     public void loadFromConfiguration(IConfigSource config)
     {
+        rpcLoopbackOnly = config.Configs["InternalScriptRpc"]?.GetBoolean("LoopbackOnly", false) == true;
         HttpListenerPort =
             (uint) config.Configs["Network"].GetInt("http_listener_port", (int) ConfigSettings.DefaultRegionHttpPort);
         httpSSLPort =
