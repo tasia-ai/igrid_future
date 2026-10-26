@@ -24,12 +24,13 @@ or Windows Firewall openings. Do not use it for a multi-host grid.
 ## Required runtime version
 
 This source tree currently targets **.NET 10** (`Directory.Build.props` and the
-SmartNPC project explicitly target `net10.0`). The live Robust host's
-`Robust.runtimeconfig.json` targets .NET 10, but the region host selected by the
-launcher was verified to use `OpenSim.runtimeconfig.json` targeting **.NET
-8.0.26**. Do not copy .NET 10 assemblies into that .NET 8 region runtime: the
-repo's region dependency graph also targets .NET 10. The attempted net8 build
-failed with framework-reference incompatibilities across that graph.
+SmartNPC project explicitly target `net10.0`). The active manager configuration
+was verified as `GridRoot=H:\grid_final` and `RobustRoot=H:\grid\robust-net8`.
+Its region home is `H:\grid_final\opensim-base`, and the Robust host's
+`Robust.runtimeconfig.json` in `H:\grid\robust-net8` targets .NET 10. The
+separate `H:\grid\igrid-package\bin` runtime targets .NET 8, but it is not the
+region home selected by this manager configuration. Keep the published region
+and Robust dependency closures on the repo's matching .NET 10 target.
 
 Upgrade the region runtime as a complete, matching .NET 10 publish; do not
 change only `Phlox.ScriptEngine.dll` or the RPC addon. The region publish must
@@ -69,14 +70,15 @@ The currently installed grid uses Robust's `PrivatePort=22001` and public
 `Port=22002`; its region HTTP listeners use `22033`-`22062` and `22341` (with
 some lower ports absent). The RPC plan keeps those listeners unchanged:
 
-The 2026-10-26 attempt exposed a runtime mismatch: the launcher selected the
-.NET 8 region host and every region stopped with
-`LoopbackOnly is enabled but the HTTPS listener is not bound to loopback`.
-The 32 region ini files were restored from backup after that failure. The
-loopback-only Robust settings remain in `H:\grid_final\Robust.HG.fixed.ini`, but
-the launcher's actual Robust INI path still needs confirmation. Do not enable RPC
-again until the matching .NET 10 hosts are deployed and startup/listener checks
-pass. A real cross-region teleport test is still required.
+The 2026-10-26 startup attempt stopped regions with
+`LoopbackOnly is enabled but the HTTPS listener is not bound to loopback` after
+a partial binary deployment. The current full .NET 10 region and GridServer
+publish outputs have since been overlaid at the manager-selected runtime paths,
+with pre-update binaries backed up. The active `H:\grid\robust-net8\Robust.ini`
+and all 32 `H:\grid_final\opensim-base\regions\...\OpenSim.ini` files now have
+loopback-only RPC settings. Configuration and package hashes were checked, but
+no services have been started since deployment; listener startup and a real
+cross-region teleport still need live verification.
 
 | Listener | Port plan |
 | --- | --- |
