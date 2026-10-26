@@ -112,44 +112,43 @@ def render_page(user_id, tos_version, tos_html):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms of Service</title>
     <style>
-        body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; background: #1a1a2e; color: #e0e0e0; }}
-        h1 {{ color: #e94560; }}
-        h2 {{ color: #c73650; margin-top: 20px; }}
-        h3 {{ color: #a05060; margin-top: 15px; }}
-        .tos-box {{ background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 30px; margin: 20px 0; }}
-        .tos-content {{ max-height: 500px; overflow-y: auto; padding: 20px; background: #0f3460; border-radius: 4px; margin-bottom: 20px; line-height: 1.6; }}
-        .tos-content p {{ margin: 10px 0; }}
-        .tos-content ul, .tos-content ol {{ margin: 10px 0 10px 20px; }}
-        .tos-content li {{ margin: 5px 0; }}
-        .tos-content hr {{ border: 1px solid #e94560; margin: 20px 0; }}
-        .btn {{ background: #e94560; color: white; border: none; padding: 12px 30px; border-radius: 5px; cursor: pointer; font-size: 16px; }}
-        .btn:hover {{ background: #c73650; }}
-        .btn:disabled {{ background: #555; cursor: not-allowed; }}
-        .success {{ color: #4ecca3; font-size: 18px; }}
-        .error {{ color: #e94560; font-size: 18px; }}
-        #result {{ margin-top: 20px; }}
-        .version-tag {{ color: #888; font-size: 12px; }}
+        * {{ box-sizing: border-box; }}
+        html, body {{ width: 100%; height: 100%; margin: 0; overflow: hidden; }}
+        body {{ display: flex; flex-direction: column; font: 15px/1.5 Arial, sans-serif; color: #111; background: #fff; }}
+        header {{ flex: 0 0 auto; padding: 8px 14px; border-bottom: 1px solid #bbb; }}
+        h1 {{ display: inline; margin: 0; font-size: 18px; font-weight: 600; }}
+        .version-tag {{ margin-left: 8px; color: #555; font-size: 12px; }}
+        .tos-content {{ flex: 1 1 auto; min-height: 0; overflow-y: scroll; overscroll-behavior: contain; padding: 12px 16px; line-height: 1.45; background: #fff; color: #111; }}
+        .tos-content h2, .tos-content h3 {{ margin: 1em 0 .4em; color: #111; font-size: 1em; }}
+        .tos-content p {{ margin: .45em 0; }}
+        .tos-content ul, .tos-content ol {{ margin: .4em 0 .6em 1.5em; padding: 0; }}
+        .tos-content li {{ margin: .2em 0; }}
+        .tos-content hr {{ border: 0; border-top: 1px solid #aaa; }}
+        .accept-bar {{ flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid #aaa; background: #f3f3f3; }}
+        .accept-label {{ display: flex; align-items: center; gap: 8px; }}
+        .accept-label input {{ width: 18px; height: 18px; margin: 0; }}
+        .btn {{ flex: 0 0 auto; min-width: 100px; padding: 9px 18px; border: 1px solid #555; border-radius: 2px; color: #fff; background: #333; cursor: pointer; font-size: 15px; }}
+        .btn:hover {{ background: #111; }}
+        .btn:disabled {{ color: #555; background: #ddd; cursor: not-allowed; }}
+        #result {{ flex: 0 0 auto; padding: 0 14px; }}
+        .success {{ color: #176b2c; }}
+        .error {{ color: #a00000; }}
+        @media (max-width: 480px) {{ .accept-bar {{ align-items: flex-start; }} .accept-label {{ font-size: 13px; }} .btn {{ min-width: 82px; padding: 8px 12px; }} }}
     </style>
 </head>
 <body>
-    <h1>Terms of Service</h1>
-    <p class="version-tag">Version {tos_version}</p>
-    <div class="tos-box">
-        <div class="tos-content">
-            {tos_html}
-        </div>
-
-        <div>
-            <label>
-                <input type="checkbox" id="agreeCheck" onchange="document.getElementById('acceptBtn').disabled = !this.checked">
-                I have read and agree to the Terms of Service (v{tos_version})
-            </label>
-        </div>
-        <br>
-        <button class="btn" id="acceptBtn" disabled onclick="acceptToS()">I Agree</button>
-
-        <div id="result"></div>
-    </div>
+    <header><h1>Terms of Service</h1><span class="version-tag">Version {tos_version}</span></header>
+    <main class="tos-content" tabindex="0" aria-label="Terms of Service">
+        {tos_html}
+    </main>
+    <div id="result" role="status" aria-live="polite"></div>
+    <footer class="accept-bar">
+        <label class="accept-label">
+            <input type="checkbox" id="agreeCheck" onchange="document.getElementById('acceptBtn').disabled = !this.checked">
+            <span>I have read and agree to the Terms of Service (v{tos_version})</span>
+        </label>
+        <button class="btn" id="acceptBtn" disabled onclick="acceptToS()">Accept</button>
+    </footer>
 
     <script>
         const userId = "{user_id}";

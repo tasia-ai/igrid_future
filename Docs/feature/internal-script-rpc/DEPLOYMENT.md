@@ -83,15 +83,13 @@ cross-region teleport still need live verification.
 | Listener | Port plan |
 | --- | --- |
 | Robust RPC HTTPS | `22003` |
-| Region RPC HTTPS | each existing region HTTP port + `10000` |
-| Region port examples | `22041 -> 32041`; `22062 -> 32062`; `22341 -> 32341` |
+| Region RPC HTTPS | each existing region HTTP port + `30000` |
+| Region port examples | `2000 -> 32000`; `2026 -> 32026`; `2037 -> 32037` |
 
-One region has no explicit `http_listener_port` and inherits `9000`, so its RPC
-listener is `19000`.
-
-The fixed Robust config's `[ServiceList]` RPC entry is set to `22003/...`, and
-`RegionHttpsPortOffset=10000`. For every region process, set
-`InternalScriptRpc.HttpsPort` to its own HTTP port plus `10000`. The region
+The Robust RPC entry is set to `22003/...` on a dedicated HTTPS listener;
+preserve the existing public HTTPS listener and port. `RegionHttpsPortOffset=30000`.
+For every region process, set `InternalScriptRpc.HttpsPort` to its own HTTP port plus
+`30000`. The region
 config's `[Network] https_port` must equal that `HttpsPort`. Assign a unique
 port for any region process that has no explicit `http_listener_port`; do not
 let multiple processes bind the same address/port. The live port range was
@@ -109,15 +107,16 @@ every participating region. Robust and regions need a working
 safe only when that service is available; failed account lookups never authorize
 an RPC. Do not commit live secrets or passwords.
 
-On Robust, enable a native HTTPS listener in `[Network]` (preserving existing
-HTTP ports):
+On Robust, preserve its existing public HTTP/HTTPS listeners and certificate
+settings. The GridServer starts a separate RPC HTTPS listener on
+`InternalScriptRpc.HttpsPort` using the `[Network]` `cert_path` and `cert_pass`:
 
 ```ini
 [Network]
     https_listener = true
     https_external = false
-    https_port = 22003
-    cert_path = "<absolute-path-to-rpc-certificate.p12>"
+    https_port = <existing-public-https-port>
+    cert_path = "<absolute-path-to-certificate.p12>"
     cert_pass = "<PFX-password>"
 
 [ServiceList]
@@ -125,10 +124,11 @@ HTTP ports):
 
 [InternalScriptRpc]
     Enabled = true
+    HttpsPort = 22003
     SigningKey = <same-32-byte-minimum-random-secret>
     AllowedOwners = <optional-manual-owner-uuid-list>
     MinimumAdminUserLevel = 150
-    RegionHttpsPortOffset = 10000
+    RegionHttpsPortOffset = 30000
     LoopbackOnly = true
 ```
 

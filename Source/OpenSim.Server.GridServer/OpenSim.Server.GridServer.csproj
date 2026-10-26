@@ -39,6 +39,20 @@
     <ProjectReference Include="../../Source/OpenSim.Server.Handlers/OpenSim.Server.Handlers.csproj" />
     <!-- Deploy the authenticated internal RPC connector with the Robust host. -->
     <ProjectReference Include="../../Addons/TasiaAddons.InternalScriptRpc/TasiaAddons.InternalScriptRpc.csproj" />
+    <!-- Legacy configured connectors are loaded by file name through the default
+         AssemblyLoadContext; their shared contract assembly must be in the host deps graph. -->
+    <ProjectReference Include="../../Addons/TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />
+    <!-- Robust.ini loads these plugins dynamically; include their dependency graphs
+         in the GridServer host so default-context plugin loading can resolve them. -->
+    <ProjectReference Include="../../Addons/IgridExt/IgridExt.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.AlertNotifications/TasiaAddons.AlertNotifications.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.WoWonder/TasiaAddons.WoWonder.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.LoginSecurity/TasiaAddons.LoginSecurity.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.Quic/TasiaAddons.Quic.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.MACAudit/TasiaAddons.MACAudit.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.ScriptErrors/TasiaAddons.ScriptErrors.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.JoinApi/TasiaAddons.JoinApi.csproj" />
+    <ProjectReference Include="../../Addons/TasiaAddons.GridFunctions/TasiaAddons.GridFunctions.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Services.AssetService/OpenSim.Services.AssetService.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Services.AuthenticationService/OpenSim.Services.AuthenticationService.csproj" />
     <ProjectReference Include="../../Source/OpenSim.Services.AuthorizationService/OpenSim.Services.AuthorizationService.csproj" />

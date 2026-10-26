@@ -52,8 +52,8 @@ public sealed class GridHttpServerFactory : IGridHttpServerFactory
         bool ssl_listener = networkConfig.GetBoolean("https_listener", false);
         bool ssl_external = networkConfig.GetBoolean("https_external", false);
         IConfig rpcConfig = config.Configs["InternalScriptRpc"];
-        bool rpcLoopbackOnly = rpcConfig?.GetBoolean("Enabled", false) == true
-            && rpcConfig.GetBoolean("LoopbackOnly", false);
+        bool rpcEnabled = rpcConfig?.GetBoolean("Enabled", false) == true;
+        bool rpcLoopbackOnly = rpcEnabled && rpcConfig.GetBoolean("LoopbackOnly", false);
 
         uint consolePort = (uint)networkConfig.GetInt("ConsolePort", 0);
 
@@ -99,8 +99,6 @@ public sealed class GridHttpServerFactory : IGridHttpServerFactory
                     _logger.LogError("[SSL]: Password for X509 certificate is missing, server can't start.");
 
                 BaseHttpServer httpsServer = new(https_port, ssl_listener, cert_path, cert_pass);
-                if (rpcLoopbackOnly)
-                    httpsServer.ListenIPAddress = IPAddress.Loopback;
                 MainServer.Instance.AddHttpServer(httpsServer);
             }
             else
@@ -108,6 +106,32 @@ public sealed class GridHttpServerFactory : IGridHttpServerFactory
                 _logger.LogWarning("[SSL]: SSL port is active but no SSL is used because external SSL was requested.");
                 MainServer.Instance.AddHttpServer(new BaseHttpServer(https_port));
             }
+        }
+
+        // InternalScriptRpc needs a dedicated TLS listener. Do not restrict the
+        // grid's existing public HTTPS listener to loopback: it serves viewer and
+        // grid traffic as well. The RPC listener is independently bound to loopback
+        // when requested, leaving the public listener untouched.
+        if (rpcEnabled)
+        {
+            int configuredRpcPort = rpcConfig.GetInt("HttpsPort", 0);
+            if (configuredRpcPort is < 1 or > 65535)
+                throw new InvalidOperationException("[InternalScriptRpc] HttpsPort must be configured to a valid, dedicated port.");
+
+            uint rpcPort = (uint)configuredRpcPort;
+            if (rpcPort == port || (ssl_listener && rpcPort == (uint)networkConfig.GetInt("https_port", 0)))
+                throw new InvalidOperationException("[InternalScriptRpc] HttpsPort must not overlap a grid HTTP/HTTPS listener.");
+
+            string rpcCertPath = networkConfig.GetString("cert_path", string.Empty);
+            string rpcCertPassword = networkConfig.GetString("cert_pass", string.Empty);
+            if (string.IsNullOrWhiteSpace(rpcCertPath) || string.IsNullOrWhiteSpace(rpcCertPassword))
+                throw new InvalidOperationException("[Network] cert_path and cert_pass are required for the InternalScriptRpc HTTPS listener.");
+
+            BaseHttpServer rpcServer = new(rpcPort, true, rpcCertPath, rpcCertPassword);
+            if (rpcLoopbackOnly)
+                rpcServer.ListenIPAddress = IPAddress.Loopback;
+            MainServer.Instance.AddHttpServer(rpcServer);
+            _logger.LogInformation("[InternalScriptRpc]: Starting dedicated HTTPS listener on {Port} (loopback-only: {LoopbackOnly})", rpcPort, rpcLoopbackOnly);
         }
 
         // Start every registered server and wire up the console.
