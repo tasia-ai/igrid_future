@@ -11,6 +11,7 @@
     <Project Path="Addons/TasiaAddons.DisplayNameCaps/TasiaAddons.DisplayNameCaps.csproj" />
     <Project Path="Addons/TasiaAddons.FriendConference/TasiaAddons.FriendConference.csproj" />
     <Project Path="Addons/TasiaAddons.JoinApi/TasiaAddons.JoinApi.csproj" />
+    <Project Path="Addons/TasiaAddons.InternalScriptRpc/TasiaAddons.InternalScriptRpc.csproj" />
     <Project Path="Addons/TasiaAddons.LoginSecurity/TasiaAddons.LoginSecurity.csproj" />
     <Project Path="Addons/TasiaAddons.MACAudit/TasiaAddons.MACAudit.csproj" />
     <Project Path="Addons/TasiaAddons.Marketplace/TasiaAddons.Marketplace.csproj" />

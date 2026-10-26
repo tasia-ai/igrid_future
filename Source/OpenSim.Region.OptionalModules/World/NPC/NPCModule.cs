@@ -26,14 +26,17 @@
  */
 
 using System.Reflection;
+using System.Text.Json;
 
 using Nini.Config;
 using OpenMetaverse;
+using OpenMetaverse.StructuredData;
 
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 using OpenSim.Framework;
 using GridRegion = OpenSim.Services.Interfaces.GridRegion;
+using TasiaAddons.InternalScriptRpc;
 
 using Microsoft.Extensions.Logging;
 
@@ -121,6 +124,7 @@ public class NPCModule : INPCModule, ISharedRegionModule
         {
             m_log.LogError("[NPC MODULE]: script method registration failed: {0}", e.Message);
         }
+
     }
 
     public void PostInitialise()
@@ -531,6 +535,13 @@ public class NPCModule : INPCModule, ISharedRegionModule
     public bool TransferNpcToRegion(UUID agentID, Scene sourceScene, GridRegion destination,
         Vector3 position, Vector3 lookAt, out string reason)
     {
+        return TransferNpcToRegion(agentID, sourceScene, destination, position, lookAt,
+            out reason, UUID.Zero, UUID.Zero);
+    }
+
+    private bool TransferNpcToRegion(UUID agentID, Scene sourceScene, GridRegion destination,
+        Vector3 position, Vector3 lookAt, out string reason, UUID targetAgentID, UUID rpcOwner)
+    {
         reason = string.Empty;
 
         if (sourceScene == null)
@@ -585,6 +596,7 @@ public class NPCModule : INPCModule, ISharedRegionModule
             FirstName = sp.Firstname ?? string.Empty,
             LastName = sp.Lastname ?? string.Empty,
             OwnerID = av.OwnerID,
+            TargetAgentID = targetAgentID,
             SenseAsAgent = av.SenseAsAgent,
             GroupTitle = sp.Grouptitle ?? string.Empty,
             ActiveGroupID = av.ActiveGroupId,
@@ -605,8 +617,36 @@ public class NPCModule : INPCModule, ISharedRegionModule
                 return false;
         }
 
-        if (!sourceScene.SimulationService.CreateNpcAgent(destination, data, false, out reason))
+        IInternalScriptRpcClient rpcClient = rpcOwner.IsZero()
+            ? null
+            : sourceScene.RequestModuleInterface<IInternalScriptRpcClient>();
+
+        if (rpcClient is not null)
+        {
+            try
+            {
+                string packedNpc = OSDParser.SerializeJsonString(data.Pack(new EntityTransferContext()));
+                string request = JsonSerializer.Serialize(new NpcTransferRpcRequest { PackedNpcJson = packedNpc });
+                string responseJson = rpcClient.InvokeForOwner(rpcOwner, destination.RegionID,
+                    "npc.transfer", request);
+                NpcTransferRpcResponse response = JsonSerializer.Deserialize<NpcTransferRpcResponse>(responseJson);
+                if (response is null || !response.Success)
+                {
+                    reason = response?.Reason ?? "RPC destination returned an invalid response";
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                reason = "Internal RPC transfer failed: " + e.Message;
+                m_log.LogWarning("[NPC MODULE]: RPC transfer for NPC {0} failed: {1}", agentID, e.Message);
+                return false;
+            }
+        }
+        else if (!sourceScene.SimulationService.CreateNpcAgent(destination, data, false, out reason))
+        {
             return false;
+        }
 
         // Only now, with the destination confirmed to have it, drop the source copy.
         // DeleteNPC removes m_avatars[agentID] and closes the presence; after that the
@@ -684,7 +724,8 @@ public class NPCModule : INPCModule, ISharedRegionModule
                           offsetZ);
 
         return TransferNpcToRegion(npcKey, npcScene, destination, target,
-                target + new Vector3(0.0f, 1.0f, 0.0f), out string reason)
+                target + new Vector3(0.0f, 1.0f, 0.0f), out string reason,
+                UUID.Zero, caller)
             ? 1
             : ReportTransferRefusal("osTeleportSmartNPCToRegion", npcKey, reason);
     }
@@ -713,19 +754,22 @@ public class NPCModule : INPCModule, ISharedRegionModule
             return 0;
 
         ScenePresence target;
+        GridRegion remoteTargetRegion = null;
         if (targetAgent.IsZero())
         {
             // No target agent: send the NPC to its owner's current position, which is
             // what i-Grid did with a zero target.
-            if (!TryFindPresenceAcrossRegions(caller, out Scene ignoredOwnerScene, out target))
+            if (!TryFindPresenceAcrossRegions(caller, out Scene ignoredOwnerScene, out target)
+                && !TryFindGridPresenceRegion(npcScene, caller, out remoteTargetRegion))
                 return 0;
         }
-        else if (!TryFindPresenceAcrossRegions(targetAgent, out Scene targetScene, out target))
+        else if (!TryFindPresenceAcrossRegions(targetAgent, out Scene targetScene, out target)
+            && !TryFindGridPresenceRegion(npcScene, targetAgent, out remoteTargetRegion))
         {
             return 0;
         }
 
-        if (target is null || target.IsDeleted || target.IsInTransit)
+        if (target is not null && (target.IsDeleted || target.IsInTransit))
             return 0;
 
         if (targetAgent.Equals(npcKey))
@@ -734,33 +778,39 @@ public class NPCModule : INPCModule, ISharedRegionModule
         // Same region: move the existing presence in place. Going through the transfer
         // path would refuse, because the destination still holds a live presence with
         // this UUID - which is the NPC we are moving.
-        if (target.Scene == npcScene)
+        if (target is not null && target.Scene == npcScene)
         {
             return MoveToTarget(npcKey, npcScene, target.AbsolutePosition, false, true, false)
                 ? 1
                 : ReportTransferRefusal("osTeleportSmartNPC", npcKey, "in-region move refused");
         }
 
-        GridRegion targetRegion = TryGetGridRegion(target.Scene);
+        GridRegion targetRegion = target is null ? remoteTargetRegion : TryGetGridRegion(target.Scene);
         if (targetRegion is null)
         {
             // GridService has no record of the target's region. Fall back to a local
             // stub, which is only reachable when the target is hosted here - the
             // remote connector would need a real ServerURI that we do not have.
-            if (target.Scene is null || target.Scene.RegionInfo is null)
+            if (target is null || target.Scene is null || target.Scene.RegionInfo is null)
                 return 0;
 
             return TransferNpcToRegion(npcKey, npcScene, LocalRegionStub(target.Scene),
                     target.AbsolutePosition, target.AbsolutePosition,
-                    out string localReason)
+                    out string localReason, UUID.Zero, caller)
                 ? 1
                 : ReportTransferRefusal("osTeleportSmartNPC", npcKey, localReason);
         }
 
-        Vector3 destinationPosition = target.AbsolutePosition + new Vector3(1.0f, 0.0f, 0.0f);
+        // A grid-wide presence record identifies the destination region, not the
+        // target's coordinates. In that case the destination resolves the target
+        // locally from TargetAgentID and chooses a safe adjacent landing point.
+        Vector3 destinationPosition = target is null
+            ? new Vector3(1.0f, 1.0f, 1.0f)
+            : target.AbsolutePosition + new Vector3(1.0f, 0.0f, 0.0f);
 
         return TransferNpcToRegion(npcKey, npcScene, targetRegion, destinationPosition,
-                destinationPosition + new Vector3(0.0f, 1.0f, 0.0f), out string reason)
+                destinationPosition + new Vector3(0.0f, 1.0f, 0.0f), out string reason,
+                target is null ? (targetAgent.IsZero() ? caller : targetAgent) : UUID.Zero, caller)
             ? 1
             : ReportTransferRefusal("osTeleportSmartNPC", npcKey, reason);
     }
@@ -853,6 +903,30 @@ public class NPCModule : INPCModule, ISharedRegionModule
         scene = null;
         presence = null;
         return false;
+    }
+
+    private bool TryFindGridPresenceRegion(Scene sourceScene, UUID agentID, out GridRegion region)
+    {
+        region = null;
+        if (sourceScene?.PresenceService is null || sourceScene.GridService is null || agentID.IsZero())
+            return false;
+
+        try
+        {
+            OpenSim.Services.Interfaces.PresenceInfo[] agents =
+                sourceScene.PresenceService.GetAgents(new[] { agentID.ToString() });
+            if (agents is null || agents.Length == 0 || agents[0].RegionID.IsZero())
+                return false;
+
+            region = sourceScene.GridService.GetRegionByUUID(UUID.Zero, agents[0].RegionID);
+            return region is not null;
+        }
+        catch (Exception e)
+        {
+            m_log.LogWarning("[NPC MODULE]: Could not resolve online agent {0} through grid presence: {1}",
+                agentID, e.Message);
+            return false;
+        }
     }
 
     private GridRegion TryGetGridRegion(Scene scene)

@@ -58,6 +58,8 @@ public class NpcAgentData
     public string LastName = string.Empty;
 
     public UUID OwnerID;
+    /// <summary>Optional online agent to land beside when the destination resolves the target locally.</summary>
+    public UUID TargetAgentID;
     public bool SenseAsAgent;
     public string GroupTitle = string.Empty;
     public UUID ActiveGroupID;
@@ -86,6 +88,7 @@ public class NpcAgentData
         args["first_name"] = OSD.FromString(FirstName ?? string.Empty);
         args["last_name"] = OSD.FromString(LastName ?? string.Empty);
         args["owner_id"] = OSD.FromUUID(OwnerID);
+        args["target_agent_id"] = OSD.FromUUID(TargetAgentID);
         args["sense_as_agent"] = OSD.FromBoolean(SenseAsAgent);
         args["group_title"] = OSD.FromString(GroupTitle ?? string.Empty);
         args["active_group_id"] = OSD.FromUUID(ActiveGroupID);
@@ -120,6 +123,8 @@ public class NpcAgentData
             FirstName = args["first_name"].AsString();
             LastName = args["last_name"].AsString();
             OwnerID = args["owner_id"].AsUUID();
+            if (args.TryGetValue("target_agent_id", out OSD targetAgent))
+                TargetAgentID = targetAgent.AsUUID();
             SenseAsAgent = args["sense_as_agent"].AsBoolean();
             GroupTitle = args["group_title"].AsString();
             ActiveGroupID = args["active_group_id"].AsUUID();

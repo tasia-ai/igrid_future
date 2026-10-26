@@ -1,8 +1,10 @@
 # SmartNPC grid-wide teleport — findings and options
 
-Status: **design decided, not implemented.** Decision: **the NPC owns its own
-transfer** rather than being routed through `EntityTransferModule`. Intra-region
-teleport already works today with zero core changes.
+Status: **implemented; cross-process target routing is being completed.** The NPC
+owns its transfer through `ISimulationService.CreateNpcAgent`, rather than using
+the viewer-oriented `EntityTransferModule` path. A Robust-specific plugin is not
+part of this route: region simulators exchange the NPC payload over the existing
+region-side simulation HTTP endpoint.
 
 > **Why the NPC-owned path.** Not elegance — risk. The alternative was a new
 > `ISimulationService.CreateNpcAgent` verb modelled on prim crossing. Both are
@@ -33,7 +35,7 @@ the port should follow.
 | `osSetSmartNPC` | 449 | |
 | `osSetSmartNPCProfile` | 477 | |
 | `osSetSmartNPCAppearance` | 511 | |
-| `osTeleportSmartNPC` | 526 | **same-region only** |
+| `osTeleportSmartNPC` | 526 | Same-region and cross-region; UUID/owner targets resolve through grid presence |
 | `osNpcInstantMessage` | 552 | |
 | `osAI` | 576 | |
 
@@ -245,39 +247,31 @@ so neither the host prim nor the NPC's scene may be assumed from the calling
 region. On a one-process-per-region grid this never diverges; it would on any
 other topology.
 
-## If it is to be built
+## Implemented transfer path and operational requirements
 
-The precedent to copy is prim crossing, which already solves the same problem
-for objects: `ISimulationService.CreateObject` → `LocalSimulationConnector` /
-`RemoteSimulationConnector` → `Scene.IncomingCreateObject`. There is no NPC
-equivalent.
+The implementation follows the same connector pattern as prim crossing:
+`ISimulationService.CreateNpcAgent` → `LocalSimulationConnector` /
+`RemoteSimulationConnector` → destination `/npcagent` handler →
+`Scene.IncomingCreateNpcAgent`.
 
-Ordered steps:
+The source keeps the NPC until destination creation confirms success. On a
+one-process-per-region grid the remote HTTP handler must be enabled at each
+destination, and each destination's `ControlPlaneTrustedHosts` must include the
+actual source simulator address. Do not trust the public viewer address or assume
+that loopback is sufficient. The handler is registered by the region-side
+`SimulationServiceInConnector`; no separate Robust plugin is needed.
 
-1. **Unblock `CreateAgent`.** Add `bool IsNpc` to `AgentCircuitData`, serialise it
-   alongside `teleportFlags`, and have `LocalSimulationConnector` call the
-   5-argument `NewUserConnection(..., requirePresenceLookup: !aCircuit.IsNpc)`.
-   In `DoTeleportInternal`, build the outgoing circuit from
-   `currentAgentCircuit` when `sp.IsNPC` instead of from `RequestClientInfo()`.
-2. **Destination-side landing.** Add `Scene.IncomingCreateNpcAgent(...)` that
-   calls `INPCModule.CreateNPC` with the same UUID, then `CompleteMovement`,
-   `UpdateChildAgent`, and clears `IsChildAgent`.
-3. **Transport.** A new `ISimulationService.CreateNpcAgent` plus the local and
-   remote connectors and the HTTP handler in `Simulation/AgentHandlers.cs`.
-4. **New entry point** `IEntityTransferModule.TeleportNpc(...)`, reusing
-   `GetTeleportDestinationRegion`, `GetFinalDestination` and
-   `checkAgentAccessToRegion` — the last of which touches no `ControllingClient`,
-   which is why it is the right pre-flight for a server-side teleport. Delete at
-   the source with `NPCModule.DeleteNPC` *before* creating at the destination, so
-   one UUID is never live in two regions.
-5. **Hypergrid override** in `HGEntityTransferModule`, using the existing
-   `MakeGateKeeperRegion` + `GatekeeperServiceConnector.GetHyperlinkRegion`.
-   Either mint a synthetic `HomeURI`/`ServiceSessionID` per SmartNPC and get the
-   home grid to accept a session with no presence, or introduce an NPC-specific
-   travel token — which is a breaking change on **both** grids.
+Remaining limits and risks:
 
-Steps 1-3 are medium effort. Step 5 is a cross-grid protocol change and should
-not be attempted without both grids' operators agreeing.
+- The transfer does not use viewer `CreateAgent` or modify ordinary avatar
+  teleport. Destination creation must succeed before `NPCModule.DeleteNPC`
+  removes the source presence.
+- Hypergrid is not supported by this grid-transfer path. Supporting it would be
+  a separate protocol change requiring both grids' operators to agree.
+- Transfers are not atomic across HTTP timeouts; an ambiguous timeout can leave
+  duplicate presences and needs separate recovery/idempotency work.
+- Cross-process transfers must be tested in a real two-region deployment before
+  being called verified.
 
 ## Also note for the port
 

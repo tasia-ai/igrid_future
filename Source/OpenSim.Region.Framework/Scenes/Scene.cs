@@ -3211,6 +3211,27 @@ public partial class Scene : SceneBase
             return false;
         }
 
+        if (!npc.TargetAgentID.IsZero())
+        {
+            if (!TryGetScenePresence(npc.TargetAgentID, out ScenePresence target)
+                || target is null || target.IsDeleted || target.IsChildAgent || target.IsInTransit)
+            {
+                reason = "Target agent is no longer present in the destination region";
+                return false;
+            }
+
+            // PresenceService tells the source which region hosts an avatar, but
+            // deliberately does not expose coordinates. Resolve locally here so
+            // UUID/owner teleports land beside the intended avatar.
+            Vector3 landing = target.AbsolutePosition + new Vector3(1.0f, 0.0f, 0.0f);
+            float maxX = Math.Max(1.0f, RegionInfo.RegionSizeX - 1.0f);
+            float maxY = Math.Max(1.0f, RegionInfo.RegionSizeY - 1.0f);
+            landing.X = Math.Clamp(landing.X, 1.0f, maxX);
+            landing.Y = Math.Clamp(landing.Y, 1.0f, maxY);
+            npc.Position = landing;
+            npc.LookAt = target.AbsolutePosition;
+        }
+
         UUID id;
         try
         {

@@ -1,4 +1,4 @@
-# TasiaNGC OpenSim — Tranquillity .NET 10
+# TasiaNGC - BabyAnni — OpenSim .NET 10
 
 <img src="https://i.let-us.cyou/wp-content/uploads/2026/03/image-768x1152.png" alt="Tasia" height="180" align="right" />
 

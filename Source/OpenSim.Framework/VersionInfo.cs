@@ -46,7 +46,7 @@ public class VersionInfo
 
     public static string GetVersionString(string versionNumber, string configuration)
     {
-        string versionString = $"OpenSim-NGC Tranquillity {configuration} {versionNumber}";
+        string versionString = $"TasiaNGC - BabyAnni {configuration} {versionNumber}";
         return versionString.PadRight(VERSIONINFO_VERSION_LENGTH);
     }
 
