@@ -57,6 +57,25 @@ public sealed class RpcSecurityTests
         Assert.Throws<InvalidOperationException>(() => RpcSecurity.ValidateSecret("short"));
     }
 
+    [Theory]
+    [InlineData("http://os.tasia.work.gd:22041/", 10000, "https://os.tasia.work.gd:32041/internal-script-rpc/execute/")]
+    [InlineData("https://os.tasia.work.gd:32041/", 10000, "https://os.tasia.work.gd:32041/internal-script-rpc/execute/")]
+    public void RpcEndpointUsesDedicatedHttpsPort(string serverUri, int offset, string expectedPrefix)
+    {
+        UUID regionId = UUID.Random();
+        Assert.True(InternalScriptRpcConnector.TryGetRegionRpcUri(serverUri, regionId, offset, out Uri uri));
+        Assert.StartsWith(expectedPrefix, uri.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("http://user@os.tasia.work.gd:22041/")]
+    [InlineData("http://os.tasia.work.gd:22041/?redirect=1")]
+    [InlineData("ftp://os.tasia.work.gd:22041/")]
+    public void RpcEndpointRejectsUnsafeOrUnsupportedRegionUris(string serverUri)
+    {
+        Assert.False(InternalScriptRpcConnector.TryGetRegionRpcUri(serverUri, UUID.Random(), 10000, out _));
+    }
+
     [Fact]
     public void SmartNpcPackedStateSurvivesRpcEnvelopeRoundTrip()
     {

@@ -23,9 +23,32 @@ Load the connector in Robust:
     Enabled = true
     SigningKey = <same-shared-secret>
     AllowedOwners = <same-owner-uuid-list>
+    RegionHttpsPortOffset = 10000
 ```
 
-`RobustTlsPort` must be the port of an already configured, native TLS listener in Robust (for example, `[Network] https_listener=true`, `https_external=false`, `https_port=<port>`, and valid `cert_path`/`cert_pass`). The connector rejects a plaintext listener at startup. The `<port>/` prefix in `ServiceList` selects that listener; omitting it selects the default listener, which may be plaintext. External TLS termination alone is not accepted by this connector because OpenSim sees that backend listener as plaintext. Configure each region's `HttpsPort` to an already started, native OpenSim HTTPS listener; the addon selects that listener explicitly, so the Firestorm-facing HTTP listener can remain unchanged. The region HTTPS listener must be advertised in the grid as the region's HTTPS `ServerURI` and its certificate must be trusted and match that hostname. QUIC's certificate options configure QUIC transport only; they do not automatically configure OpenSim's HTTP/HTTPS listener. You may use the same certificate/key files for both listeners if valid for the HTTPS hostname, but configure them independently through each listener's supported settings. Both outbound hops use TLS 1.2 or TLS 1.3, standard platform trust-chain and hostname validation plus certificate revocation checking, and do not follow redirects or accept invalid certificates. Each hop has a 15-second transport timeout.
+`RobustTlsPort` must be the port of an already configured, native TLS listener in Robust (for example, `[Network] https_listener=true`, `https_external=false`, `https_port=<port>`, and valid `cert_path`/`cert_pass`). The connector rejects a plaintext listener at startup. The `<port>/` prefix in `ServiceList` selects that listener; omitting it selects the default listener, which may be plaintext. External TLS termination alone is not accepted by this connector because OpenSim sees that backend listener as plaintext.
+
+For every region process, configure its native OOB HTTPS listener in `[Network]` and set `HttpsPort` in `[InternalScriptRpc]` to the same port:
+
+```ini
+[Network]
+    ssl_listener = true
+    ssl_external = false
+    https_port = 32041
+    cert_path = "<path-to-PKCS12-certificate>"
+    cert_pass = "<certificate-password>"
+
+[InternalScriptRpc]
+    Enabled = true
+    HttpsPort = 32041
+    SigningKey = <same-shared-secret>
+    AllowedOwners = <same-owner-uuid-list>
+    RobustURL = https://robust.example.net:<RobustTlsPort>
+```
+
+The grid's region `ServerURI` may remain HTTP for viewer/capability traffic. `RegionHttpsPortOffset` maps that HTTP port to the dedicated RPC TLS port (for example, `22041 + 10000 = 32041`). Set the offset to match the configured port plan, and assign every region process a unique, reachable HTTPS port. If the grid already advertises the RPC-capable HTTPS listener as its region `ServerURI`, the connector uses that HTTPS port directly. Open only required TCP ports in host and edge firewalls/NAT. Certificates must be trusted and valid for the hostnames in `RobustURL` and region `ServerURI` values.
+
+QUIC's certificate options configure QUIC transport only; they do not automatically configure OpenSim's HTTP/HTTPS listener. You may use the same certificate/key files for both listeners if valid for the HTTPS hostname, but configure them independently through each listener's supported settings. Both outbound hops use TLS 1.2 or TLS 1.3, standard platform trust-chain and hostname validation plus certificate revocation checking, and do not follow redirects or accept invalid certificates. Each hop has a 15-second transport timeout.
 
 Operations are not discovered by reflection. A trusted region addon obtains `IInternalScriptRpcRegistry` from `scene.RequestModuleInterface<IInternalScriptRpcRegistry>()` and registers each destination operation with `RegisterOperation<TRequest,TResponse>(name, handler)` during region initialization. The target receives the authenticated owner UUID separately from typed JSON arguments. Unregistered names are rejected. The built-in `npc.transfer` operation is registered by the RPC module itself and is used by `osTeleportSmartNPC` and `osTeleportSmartNPCToRegion` whenever RPC is enabled; if RPC is not enabled in the source region, those functions retain the existing simulation-service transport. The maximum authenticated request/response body is 512 KiB. General handlers default to a two-second reply deadline; `npc.transfer` is allowed up to ten seconds. At most four handlers run concurrently. A synchronous handler that exceeds its deadline cannot be forcibly stopped and may finish after the caller receives a timeout; handlers must therefore be bounded and idempotent where practical. No generic method invocation, source evaluation, or CLR type-name deserialization is available.
 

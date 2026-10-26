@@ -3,7 +3,7 @@
 ## Status
 
 Implemented in `Addons/TasiaAddons.InternalScriptRpc` as a Robust connector and
-region module. The addon builds and its six focused security tests pass. The
+region module. The addon builds and its eleven focused tests pass. The
 host-level Robust-to-region TLS integration test has not been run; this is source
 code, not a verified live deployment. See the addon's README for configuration
 and the `maInternalScriptRpc` call syntax.
@@ -20,7 +20,10 @@ validation remains enabled. Region modules bind to the explicitly configured
 their route when the region unloads. Robust's `ServiceList` entry must use the
 numeric port prefix of an already-configured native TLS listener; the connector
 rejects plaintext listeners, including external TLS-termination backends. Grid
-`ServerURI` values must advertise the regions' trusted HTTPS hostname and port.
+`ServerURI` hostnames must match the certificate. When a region advertises its
+existing HTTP `ServerURI`, Robust maps its port to the dedicated TLS listener
+using `RegionHttpsPortOffset`; keep that offset and each region's `HttpsPort`
+consistent.
 RPC uses each OpenSim HTTP listener's certificate settings; QUIC certificate
 settings are separate. Firestorm's viewer-facing HTTP listener can remain HTTP.
 
@@ -34,10 +37,10 @@ operator must configure the same high-entropy secret and owner UUID allowlist on
 each participating region and Robust. No secret is committed or included in the
 README.
 
-Before deployment, configure the addon and run a real Robust-to-region request
-through the intended TLS listeners. Confirm discovery loads both plugins and
-that destination region `ServerURI` values point at their TLS-enabled listener.
-The six tests cover HMAC/body binding, time-window rejection, concurrent nonce
+Before production enablement, configure the addon and run a real Robust-to-region
+request through the intended TLS listeners. Confirm discovery loads both plugins
+and that destination region `ServerURI` hosts/port mapping reach their TLS
+listeners. The eleven tests cover HMAC/body binding, time-window rejection, concurrent nonce
 replay, strict request-envelope fields, and fail-closed allowlist/secret parsing;
 they do not replace that host-level integration test. A synchronous registered
 general handler that exceeds its two-second response deadline (ten seconds for

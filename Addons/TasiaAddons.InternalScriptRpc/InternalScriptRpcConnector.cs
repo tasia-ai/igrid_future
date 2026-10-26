@@ -23,6 +23,7 @@ public sealed class InternalScriptRpcConnector : ServiceConnector
     private readonly IConfigSource config;
     private readonly ConcurrentDictionary<string, long> nonces = new();
     private readonly IGridService grid;
+    private readonly int regionHttpsPortOffset;
     // Use ordinary PKI validation (including hostname checks), with no
     // certificate-bypass callback. RPC forwarding is HTTPS-only.
     private readonly HttpClient client = new(new HttpClientHandler
@@ -41,6 +42,9 @@ public sealed class InternalScriptRpcConnector : ServiceConnector
         key = cfg.GetString("SigningKey", ""); RpcSecurity.ValidateSecret(key);
         owners = RpcSecurity.ParseOwners(cfg.GetString("AllowedOwners", ""));
         if (owners.Count == 0) throw new InvalidOperationException("InternalScriptRpc requires a non-empty AllowedOwners UUID allowlist.");
+        regionHttpsPortOffset = cfg.GetInt("RegionHttpsPortOffset", 0);
+        if (regionHttpsPortOffset is < 1 or > 60000)
+            throw new InvalidOperationException("InternalScriptRpc RegionHttpsPortOffset must be configured (1-60000) when region ServerURI values use HTTP.");
         grid = LoadGrid(config);
         if (grid == null) throw new InvalidOperationException("InternalScriptRpc requires a configured GridService LocalServiceModule.");
         if (!server.AddHTTPHandler(Path, Handle))
@@ -64,8 +68,10 @@ public sealed class InternalScriptRpcConnector : ServiceConnector
             JsonElement destination = request.Payload.GetProperty("targetRegion");
             if (destination.ValueKind != JsonValueKind.String || !UUID.TryParse(destination.GetString(), out UUID targetId) || targetId == UUID.Zero) return Respond(400, "rejected");
             OpenSim.Services.Interfaces.GridRegion target = grid.GetRegionByUUID(UUID.Zero, targetId);
-            // The target is intentionally taken from a dedicated payload member, not operation data.
-            if (target?.ServerURI == null || !Uri.TryCreate(target.ServerURI.TrimEnd('/') + "/internal-script-rpc/execute/" + targetId, UriKind.Absolute, out Uri uri) || uri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Fragment)) return Respond(502, "unavailable");
+            // Keep grid/capability ServerURI untouched (it may be viewer-facing
+            // HTTP). The RPC-only TLS listener uses a configured port offset.
+            if (target?.ServerURI == null || !TryGetRegionRpcUri(target.ServerURI, targetId,
+                    regionHttpsPortOffset, out Uri uri)) return Respond(502, "unavailable");
             using var content = new StringContent(body, Encoding.UTF8, "application/json");
             using var message = new HttpRequestMessage(HttpMethod.Post, uri) { Content = content };
             message.Headers.Add("x-isrpc-timestamp", ts); message.Headers.Add("x-isrpc-nonce", nonce); message.Headers.Add("x-isrpc-signature", mac);
@@ -93,6 +99,35 @@ public sealed class InternalScriptRpcConnector : ServiceConnector
         IConfig section = config?.Configs["GridService"];
         string module = section?.GetString("LocalServiceModule", "");
         return string.IsNullOrWhiteSpace(module) ? null : ServerUtils.LoadPlugin<IGridService>(module, new object[] { config });
+    }
+    internal static bool TryGetRegionRpcUri(string serverUri, UUID targetId, int httpsPortOffset,
+        out Uri rpcUri)
+    {
+        rpcUri = null;
+        if (targetId == UUID.Zero || httpsPortOffset is < 1 or > 60000
+            || !Uri.TryCreate(serverUri, UriKind.Absolute, out Uri baseUri)
+            || (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps)
+            || !string.IsNullOrEmpty(baseUri.UserInfo) || !string.IsNullOrEmpty(baseUri.Query)
+            || !string.IsNullOrEmpty(baseUri.Fragment))
+            return false;
+
+        try
+        {
+            var builder = new UriBuilder(baseUri)
+            {
+                Scheme = Uri.UriSchemeHttps,
+                Path = baseUri.AbsolutePath.TrimEnd('/') + "/internal-script-rpc/execute/" + targetId
+            };
+            if (baseUri.Scheme == Uri.UriSchemeHttp)
+            {
+                long tlsPort = (long)baseUri.Port + httpsPortOffset;
+                if (tlsPort is < 1 or > 65535) return false;
+                builder.Port = (int)tlsPort;
+            }
+            rpcUri = builder.Uri;
+            return true;
+        }
+        catch { return false; }
     }
     private static string Header(Hashtable h, string key) { foreach (DictionaryEntry e in h) if (string.Equals(e.Key?.ToString(), key, StringComparison.OrdinalIgnoreCase)) return e.Value?.ToString() ?? ""; return ""; }
     private static Hashtable Respond(int status, string body) => new() { ["int_response_code"] = status, ["content_type"] = "application/json", ["str_response_string"] = body, ["headers"] = new Hashtable { ["Cache-Control"] = "no-store" } };
