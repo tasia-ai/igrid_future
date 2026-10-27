@@ -38,6 +38,16 @@ namespace OpenSim.Region.Framework.Tests
 {
     public class UserInventoryTests : OpenSimTestCase
     {
+        private sealed class RecordingInventoryAccessModule : BasicInventoryAccessModule
+        {
+            public InventoryItemBase TransferredItem { get; private set; }
+
+            public override void TransferInventoryAssets(InventoryItemBase item, UUID sender, UUID receiver)
+            {
+                TransferredItem = item;
+            }
+        }
+
         [Fact]
         public void TestCreateInventoryFolders()
         {
@@ -97,6 +107,35 @@ namespace OpenSim.Region.Framework.Tests
                 = UserInventoryHelpers.GetInventoryItems(scene.InventoryService, user1.PrincipalID, "Notecards/item1");
 
             Assert.Equal(2, reretrievedItems.Count);
+        }
+
+        [Fact]
+        public void TestGiveInventoryItemUsesSourcePermissionsForAssetTransfer()
+        {
+            TestHelpers.InMethod();
+
+            List<object> modules = new();
+            IConfigSource config = DefaultConfig(modules);
+            modules.Clear();
+            RecordingInventoryAccessModule inventoryAccess = new();
+            modules.Add(inventoryAccess);
+
+            Scene scene = new SceneHelpers().SetupScene("HG Inventory Transfer", UUID.Random(), 1000, 1000, config);
+            SceneHelpers.SetupSceneModules(scene, config, modules.ToArray());
+            UserAccount sender = UserAccountHelpers.CreateUserWithInventory(scene, TestHelpers.ParseTail(1003));
+            UserAccount receiver = UserAccountHelpers.CreateUserWithInventory(scene, TestHelpers.ParseTail(1004));
+            InventoryItemBase sourceItem = UserInventoryHelpers.CreateInventoryItem(scene, "exportable", sender.PrincipalID);
+            sourceItem.CurrentPermissions |= (uint)OpenMetaverse.PermissionMask.Export;
+            scene.InventoryService.UpdateItem(sourceItem);
+
+            string message;
+            InventoryItemBase receivedItem = scene.GiveInventoryItem(receiver.PrincipalID, sender.PrincipalID, sourceItem.ID, out message);
+
+            Assert.NotNull(receivedItem);
+            Assert.NotNull(inventoryAccess.TransferredItem);
+            Assert.Equal(sourceItem.ID, inventoryAccess.TransferredItem.ID);
+            Assert.NotEqual(sourceItem.ID, receivedItem.ID);
+            Assert.NotEqual(0u, inventoryAccess.TransferredItem.CurrentPermissions & (uint)OpenMetaverse.PermissionMask.Export);
         }
 
         [Fact]

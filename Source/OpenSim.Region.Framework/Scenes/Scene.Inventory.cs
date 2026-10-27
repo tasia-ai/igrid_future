@@ -932,7 +932,10 @@ public partial class Scene
         itemCopy.SaleType = 0; //item.SaleType;
 
         IInventoryAccessModule invAccess = RequestModuleInterface<IInventoryAccessModule>();
-        invAccess?.TransferInventoryAssets(itemCopy, senderId, recipient);
+        // Asset export policy must be evaluated against the sender's original
+        // permissions. The recipient copy is intentionally masked by NextPermissions
+        // above, which can clear Export even when the source item is exportable.
+        invAccess?.TransferInventoryAssets(item, senderId, recipient);
         AddInventoryItem(itemCopy, false);
 
         if (!Permissions.BypassPermissions())
