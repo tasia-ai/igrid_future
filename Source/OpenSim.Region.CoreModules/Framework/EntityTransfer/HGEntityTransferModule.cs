@@ -216,13 +216,44 @@ public class HGEntityTransferModule : EntityTransferModule, IUserAgentVerificati
             m_log.LogDebug("[HG ENTITY TRANSFER MODULE]: Destination region is hyperlink");
             GridRegion real_destination = m_GatekeeperConnector.GetHyperlinkRegion(region, region.RegionID, agentID, agentHomeURI, out message);
             if (real_destination != null)
+            {
+                UpgradeLegacyLocalGatekeeperUri(real_destination);
                 m_log.LogDebug("[HG ENTITY TRANSFER MODULE]: GetFinalDestination: ServerURI={0}", real_destination.ServerURI);
+            }
             else
                 m_log.LogWarning("[HG ENTITY TRANSFER MODULE]: GetHyperlinkRegion of region {0} from Gatekeeper {1} failed: {2}", region.RegionID, region.ServerURI, message);
             return real_destination;
         }
 
         return region;
+    }
+
+    /// <summary>
+    /// Older Hypergrid records may advertise this grid's HTTPS gatekeeper as HTTP.
+    /// Upgrade only an exact local host/port match; leave all other grids' URLs alone.
+    /// </summary>
+    private void UpgradeLegacyLocalGatekeeperUri(GridRegion region)
+    {
+        string localGatekeeper = m_scene.SceneGridInfo?.GateKeeperURL;
+        if (string.IsNullOrWhiteSpace(localGatekeeper)
+            || !Uri.TryCreate(localGatekeeper, UriKind.Absolute, out Uri localUri)
+            || !Uri.TryCreate(region.ServerURI, UriKind.Absolute, out Uri advertisedUri))
+            return;
+
+        if (!localUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || !advertisedUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || !localUri.Host.Equals(advertisedUri.Host, StringComparison.OrdinalIgnoreCase)
+            || localUri.Port != advertisedUri.Port)
+            return;
+
+        UriBuilder upgradedUri = new(advertisedUri)
+        {
+            Scheme = localUri.Scheme,
+            Port = localUri.Port
+        };
+        string previousUri = region.ServerURI;
+        region.ServerURI = upgradedUri.Uri.AbsoluteUri;
+        m_log.LogWarning("[HG ENTITY TRANSFER MODULE]: Upgraded legacy local gatekeeper URL from {0} to {1}", previousUri, region.ServerURI);
     }
 
     protected override bool NeedsClosing(GridRegion reg, bool OutViewRange)
