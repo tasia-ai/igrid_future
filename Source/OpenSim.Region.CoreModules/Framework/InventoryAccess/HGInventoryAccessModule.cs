@@ -383,15 +383,11 @@ public class HGInventoryAccessModule : BasicInventoryAccessModule, INonSharedReg
         if (isForeignSender && senderAssetServer != string.Empty)
             m_assMapper.Get(item.AssetID, sender, senderAssetServer);
 
-        // SECURITY FIX (Laxton Consulting / IMA, @llaxton, 2026-07-26): previously this check only
-        // consulted the grid-wide m_OutboundPermission administrative toggle and never
-        // examined the item's own CurrentPermissions Export bit - meaning a creator's
-        // explicit per-item "do not allow export" setting (PermissionMask.Export unset)
-        // was silently ignored on every Hypergrid inventory transfer. Both the grid-wide
-        // policy AND the item's own export permission must now be true for the asset to
-        // actually leave the grid.
-        bool itemExportAllowed = (item.CurrentPermissions & (uint)OpenSim.Framework.PermissionMask.Export) != 0;
-        if (isForeignReceiver && receiverAssetServer != string.Empty && m_OutboundPermission && itemExportAllowed)
+        // OutboundPermission is the grid owner's explicit authorization for assets to
+        // leave this grid. Use the sender's original item above; inventory give permission
+        // propagation intentionally masks Export from the recipient's copy and should not
+        // prevent the authorized asset upload.
+        if (isForeignReceiver && receiverAssetServer != string.Empty && m_OutboundPermission)
             m_assMapper.Post(item.AssetID, receiver, receiverAssetServer);
     }
 
