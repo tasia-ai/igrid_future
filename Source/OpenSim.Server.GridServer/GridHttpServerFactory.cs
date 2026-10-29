@@ -51,6 +51,12 @@ public sealed class GridHttpServerFactory : IGridHttpServerFactory
         bool ssl_main = networkConfig.GetBoolean("https_main", false);
         bool ssl_listener = networkConfig.GetBoolean("https_listener", false);
         bool ssl_external = networkConfig.GetBoolean("https_external", false);
+        // With a native TLS listener this opt-in setting permits old HTTP HG links
+        // and new HTTPS links on the same public port and handler registry.
+        bool httpsAllowHttp = networkConfig.GetBoolean("https_allow_http", false);
+        if (httpsAllowHttp && !ssl_main && (!ssl_listener || ssl_external))
+            throw new InvalidOperationException(
+                "[Network] https_allow_http requires a native TLS listener (https_main=true or https_listener=true with https_external=false).");
         IConfig rpcConfig = config.Configs["InternalScriptRpc"];
         bool rpcEnabled = rpcConfig?.GetBoolean("Enabled", false) == true;
         bool rpcLoopbackOnly = rpcEnabled && rpcConfig.GetBoolean("LoopbackOnly", false);
@@ -77,7 +83,10 @@ public sealed class GridHttpServerFactory : IGridHttpServerFactory
             if (cert_pass.Length == 0)
                 throw new InvalidOperationException("Password for X509 certificate is missing, server can't start.");
 
-            httpServer = new BaseHttpServer(port, ssl_main, cert_path, cert_pass);
+            httpServer = new BaseHttpServer(port, ssl_main, cert_path, cert_pass)
+            {
+                AllowPlainHttp = httpsAllowHttp
+            };
         }
 
         MainServer.Instance.AddHttpServer(httpServer);
@@ -85,7 +94,13 @@ public sealed class GridHttpServerFactory : IGridHttpServerFactory
         // If https_listener = true, then add an ssl listener on the https_port...
         if (ssl_listener == true)
         {
-            uint https_port = (uint)networkConfig.GetInt("https_port", 0);
+            int configuredHttpsPort = networkConfig.GetInt("https_port", 0);
+            if (configuredHttpsPort is < 1 or > 65535)
+                throw new InvalidOperationException("[Network] https_port must be a valid TCP port.");
+            uint https_port = (uint)configuredHttpsPort;
+            if (https_port == port)
+                throw new InvalidOperationException(
+                    "[Network] https_port must differ from port. For same-port HTTP/HTTPS use https_main=true, https_listener=false, and https_allow_http=true.");
 
             _logger.LogWarning("[SSL]: External flag is {SslExternal}", ssl_external);
             if (!ssl_external)
@@ -98,7 +113,10 @@ public sealed class GridHttpServerFactory : IGridHttpServerFactory
                 if (cert_pass.Length == 0)
                     _logger.LogError("[SSL]: Password for X509 certificate is missing, server can't start.");
 
-                BaseHttpServer httpsServer = new(https_port, ssl_listener, cert_path, cert_pass);
+                BaseHttpServer httpsServer = new(https_port, ssl_listener, cert_path, cert_pass)
+                {
+                    AllowPlainHttp = httpsAllowHttp
+                };
                 MainServer.Instance.AddHttpServer(httpsServer);
             }
             else
