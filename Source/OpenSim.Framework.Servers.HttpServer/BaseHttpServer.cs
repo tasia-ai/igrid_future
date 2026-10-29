@@ -146,6 +146,13 @@ public class BaseHttpServer : IHttpServer
         get { return m_ssl; }
     }
 
+    /// <summary>
+    /// Opt-in for legacy Hypergrid interoperability: let this native TLS listener
+    /// also accept plain HTTP on its port. This does not affect other ports.
+    /// Only meaningful when UseSSL is true.
+    /// </summary>
+    public bool AllowPlainHttp { get; set; }
+
     public IPAddress ListenIPAddress
     {
         get { return m_listenIPAddress; }
@@ -2004,7 +2011,8 @@ public class BaseHttpServer : IHttpServer
             }
             else
             {
-                m_httpListener = tinyHTTPListener.Create(IPAddress.Any, (int)m_port, m_cert);
+                m_httpListener = tinyHTTPListener.Create(m_listenIPAddress, (int)m_port, m_cert);
+                m_httpListener.AllowPlainHttp = AllowPlainHttp;
                 if(m_certificateValidationCallback is not null)
                     m_httpListener.CertificateValidationCallback = m_certificateValidationCallback;
                 m_httpListener.ExceptionThrown += httpServerException;
