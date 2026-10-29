@@ -188,6 +188,25 @@
     ; Password for cert
     ; cert_pass = "password"
 
+    ;; Optional legacy Hypergrid compatibility: accept HTTP and HTTPS on one
+    ;; *native TLS* public listener, using the same link_region/get_region and
+    ;; /foreignagent handlers. Requires a certificate. Plain HTTP is NOT
+    ;; encrypted, so never enable this on a port that requires TLS security.
+    ;; The usual grid layout keeps [Network] port on the PRIVATE port and
+    ;; creates the mixed-protocol PUBLIC port via https_listener:
+    ;;
+    ; https_main = false
+    ; https_listener = true
+    ; https_port = ${Const|PublicPort}
+    ; https_external = false
+    ; https_allow_http = true
+    ; cert_path = "/path/to/certificate.p12"
+    ; cert_pass = "password"
+    ;;
+    ;; If your public HTTPS is terminated by Pangolin instead, leave
+    ;; https_allow_http disabled and configure both public schemes in Pangolin.
+    ;; HTTPS should remain the canonical advertised GatekeeperURI / HomeURI.
+
     ;; The follow 3 variables are for HTTP Basic Authentication for the Robust services.
     ;; Use this if your central services in port ${Const|PrivatePort} need to be accessible on the Internet
     ;; but you want to protect them from unauthorized access.
