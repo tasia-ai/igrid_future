@@ -29,6 +29,10 @@ public class OSHttpListener : IDisposable
     /// </summary>
     public bool AllowPlainHttp { get; set; }
 
+    // Limit concurrent sniff/handshake tasks so idle clients cannot monopolize
+    // the accept loop or queue an unlimited number of pending connections.
+    private readonly SemaphoreSlim m_mixedProtocolSlots = new(64, 64);
+
     private async Task<bool?> IsTlsConnectionAsync(Socket socket)
     {
         // Peek without consuming the first byte: SslStream and the HTTP parser
@@ -214,25 +218,52 @@ public class OSHttpListener : IDisposable
                 {
                     m_logWriter.Write(this, LogPrio.Debug, $"Accepted connection from: {socket.RemoteEndPoint}");
 
-                    if (m_certificate is not null)
+                    if (m_certificate is not null && AllowPlainHttp)
                     {
-                        bool useTls = true;
-                        if (AllowPlainHttp)
+                        if (!m_mixedProtocolSlots.Wait(0))
                         {
-                            bool? clientUsesTls = await IsTlsConnectionAsync(socket).ConfigureAwait(false);
-                            if (!clientUsesTls.HasValue)
-                            {
-                                socket.Dispose();
-                                continue;
-                            }
-                            useTls = clientUsesTls.Value;
+                            // Saturated by slow clients: fail the new connection
+                            // without delaying the rest of the accept loop.
+                            socket.Dispose();
+                            continue;
                         }
 
-                        if (useTls)
-                            m_contextFactory.CreateSecureContext(socket, m_certificate, m_sslProtocols, m_clientCertValCallback);
-                        else
-                            m_contextFactory.CreateContext(socket);
+                        Socket acceptedSocket = socket;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                bool? useTls = await IsTlsConnectionAsync(acceptedSocket).ConfigureAwait(false);
+                                if (!useTls.HasValue)
+                                {
+                                    acceptedSocket.Dispose();
+                                    return;
+                                }
+
+                                if (useTls.Value)
+                                    m_contextFactory.CreateSecureContext(acceptedSocket, m_certificate, m_sslProtocols, m_clientCertValCallback);
+                                else
+                                    m_contextFactory.CreateContext(acceptedSocket);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                acceptedSocket.Dispose();
+                            }
+                            catch (Exception error)
+                            {
+                                m_logWriter.Write(this, LogPrio.Debug, "Mixed HTTP/HTTPS connection failed: " + error.Message);
+                                acceptedSocket.Dispose();
+                            }
+                            finally
+                            {
+                                m_mixedProtocolSlots.Release();
+                            }
+                        });
+                        continue;
                     }
+
+                    if (m_certificate is not null)
+                        m_contextFactory.CreateSecureContext(socket, m_certificate, m_sslProtocols, m_clientCertValCallback);
                     else
                         m_contextFactory.CreateContext(socket);
                 }
