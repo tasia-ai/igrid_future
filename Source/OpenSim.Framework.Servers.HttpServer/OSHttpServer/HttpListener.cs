@@ -22,6 +22,43 @@ public class OSHttpListener : IDisposable
     public readonly CancellationTokenSource m_CancellationSource = new();
     protected RemoteCertificateValidationCallback m_clientCertValCallback = null;
 
+    /// <summary>
+    /// Opt-in compatibility mode for HTTPS listeners: accept plain HTTP requests on
+    /// the same TCP port as TLS. Both protocols use the same request handlers.
+    /// Keep this false on listeners that must enforce transport encryption.
+    /// </summary>
+    public bool AllowPlainHttp { get; set; }
+
+    // Limit concurrent sniff/handshake tasks so idle clients cannot monopolize
+    // the accept loop or queue an unlimited number of pending connections.
+    private readonly SemaphoreSlim m_mixedProtocolSlots = new(64, 64);
+
+    private async Task<bool?> IsTlsConnectionAsync(Socket socket)
+    {
+        // Peek without consuming the first byte: SslStream and the HTTP parser
+        // must each receive the complete original request.
+        byte[] firstByte = new byte[1];
+        using CancellationTokenSource timeout =
+            CancellationTokenSource.CreateLinkedTokenSource(m_CancellationSource.Token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+
+        try
+        {
+            int received = await socket.ReceiveAsync(firstByte.AsMemory(),
+                SocketFlags.Peek, timeout.Token).ConfigureAwait(false);
+            if (received == 0)
+                return null; // disconnected before sending any data
+
+            // TLS 1.2/1.3 client hellos start with handshake record type 0x16.
+            // Plain HTTP request methods start with ASCII letters.
+            return firstByte[0] == 0x16;
+        }
+        catch (OperationCanceledException) when (!m_CancellationSource.IsCancellationRequested)
+        {
+            return null; // timed-out/idle socket, not a reason to stall the listener
+        }
+    }
+
     public event EventHandler<ClientAcceptedEventArgs> Accepted;
     public event ExceptionHandler ExceptionThrown;
     public event EventHandler<RequestEventArgs> RequestReceived;
@@ -180,6 +217,50 @@ public class OSHttpListener : IDisposable
                 if (socket.Connected)
                 {
                     m_logWriter.Write(this, LogPrio.Debug, $"Accepted connection from: {socket.RemoteEndPoint}");
+
+                    if (m_certificate is not null && AllowPlainHttp)
+                    {
+                        if (!m_mixedProtocolSlots.Wait(0))
+                        {
+                            // Saturated by slow clients: fail the new connection
+                            // without delaying the rest of the accept loop.
+                            socket.Dispose();
+                            continue;
+                        }
+
+                        Socket acceptedSocket = socket;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                bool? useTls = await IsTlsConnectionAsync(acceptedSocket).ConfigureAwait(false);
+                                if (!useTls.HasValue)
+                                {
+                                    acceptedSocket.Dispose();
+                                    return;
+                                }
+
+                                if (useTls.Value)
+                                    m_contextFactory.CreateSecureContext(acceptedSocket, m_certificate, m_sslProtocols, m_clientCertValCallback);
+                                else
+                                    m_contextFactory.CreateContext(acceptedSocket);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                acceptedSocket.Dispose();
+                            }
+                            catch (Exception error)
+                            {
+                                m_logWriter.Write(this, LogPrio.Debug, "Mixed HTTP/HTTPS connection failed: " + error.Message);
+                                acceptedSocket.Dispose();
+                            }
+                            finally
+                            {
+                                m_mixedProtocolSlots.Release();
+                            }
+                        });
+                        continue;
+                    }
 
                     if (m_certificate is not null)
                         m_contextFactory.CreateSecureContext(socket, m_certificate, m_sslProtocols, m_clientCertValCallback);
