@@ -4595,7 +4595,7 @@ public partial class Scene : SceneBase
         // The simulator has now authorized and installed this circuit. Notify
         // transport modules BEFORE the viewer sends UseCircuitCode: otherwise
         // an upstream QUIC proxy cannot know where to forward that first packet.
-        EventManager.TriggerOnAuthorizedAgentCircuit(acd);
+        EventManager.TriggerOnAuthorizedAgentCircuit(acd, teleportFlags);
 
         return true;
     }
