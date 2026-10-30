@@ -136,6 +136,14 @@ public class EventManager
     public Action<IClientAPI> OnClientLogin;
 
     /// <summary>
+    /// Fired only after Scene.NewUserConnection has accepted and installed an
+    /// agent circuit, before the viewer's first UseCircuitCode packet arrives.
+    /// Login and teleport transports can use this to pre-register a route.
+    /// Handlers must not block the scene: schedule remote I/O asynchronously.
+    /// </summary>
+    public event Action<AgentCircuitData> OnAuthorizedAgentCircuit;
+
+    /// <summary>
     /// Triggered when a new presence is added to the scene
     /// </summary>
     /// <remarks>
@@ -1303,6 +1311,26 @@ public class EventManager
                         "[EVENT MANAGER]: Delegate for TriggerOnFrame failed - continuing.  {0} {1}",
                         e.Message, e.StackTrace);
                 }
+            }
+        }
+    }
+
+    public void TriggerOnAuthorizedAgentCircuit(AgentCircuitData circuit)
+    {
+        Action<AgentCircuitData> handlers = OnAuthorizedAgentCircuit;
+        if (handlers == null)
+            return;
+
+        foreach (Action<AgentCircuitData> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(circuit);
+            }
+            catch (Exception ex)
+            {
+                m_log.LogError("[EVENT MANAGER]: Authorized circuit handler failed for {0}: {1}",
+                    circuit?.circuitcode, ex);
             }
         }
     }
