@@ -1318,6 +1318,17 @@ public class EventManager
         }
     }
 
+    /// <summary>
+    /// An incoming teleport initially has circuit.child=true, just like a
+    /// neighbour. Non-default teleport flags identify the actual destination,
+    /// which must replace the old proxy route before UseCircuitCode arrives.
+    /// Neighbour-only child circuits use the Default (zero) flag.
+    /// </summary>
+    public static bool IsActiveDestinationCircuit(AgentCircuitData circuit, uint teleportFlags)
+    {
+        return circuit != null && (!circuit.child || teleportFlags != 0);
+    }
+
     public void TriggerOnAuthorizedAgentCircuit(AgentCircuitData circuit, uint teleportFlags)
     {
         Action<AgentCircuitData, uint> handlers = OnAuthorizedAgentCircuit;
