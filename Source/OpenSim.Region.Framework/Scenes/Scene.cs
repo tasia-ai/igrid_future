@@ -4592,6 +4592,11 @@ public partial class Scene : SceneBase
 
         m_capsModule?.ActivateCaps(acd.circuitcode);
 
+        // The simulator has now authorized and installed this circuit. Notify
+        // transport modules BEFORE the viewer sends UseCircuitCode: otherwise
+        // an upstream QUIC proxy cannot know where to forward that first packet.
+        EventManager.TriggerOnAuthorizedAgentCircuit(acd);
+
         return true;
     }
 
