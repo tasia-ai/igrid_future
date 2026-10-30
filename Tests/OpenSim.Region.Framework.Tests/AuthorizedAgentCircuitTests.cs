@@ -7,6 +7,17 @@ namespace OpenSim.Region.Framework.Tests;
 
 public class AuthorizedAgentCircuitTests
 {
+    [Theory]
+    [InlineData(false, 0, true)]  // Login root
+    [InlineData(true, 0, false)]  // Automatic child neighbour
+    [InlineData(true, 16, true)]  // Teleport destination, still a child at CreateAgent
+    [InlineData(false, 16, true)] // Root with teleport flags
+    public void RouteRoleDistinguishesTeleportsFromNeighbours(bool child, uint flags, bool expectedDestination)
+    {
+        AgentCircuitData circuit = new() { circuitcode = 12348, child = child };
+        Assert.Equal(expectedDestination, EventManager.IsActiveDestinationCircuit(circuit, flags));
+    }
+
     [Fact]
     public void TeleportFlagsAreDeliveredToTransportModules()
     {
