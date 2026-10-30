@@ -139,9 +139,12 @@ public class EventManager
     /// Fired only after Scene.NewUserConnection has accepted and installed an
     /// agent circuit, before the viewer's first UseCircuitCode packet arrives.
     /// Login and teleport transports can use this to pre-register a route.
+    /// The teleportFlags distinguish an actual teleport destination from an
+    /// automatically established neighbouring child circuit. Both have
+    /// circuit.child=true until the viewer moves.
     /// Handlers must not block the scene: schedule remote I/O asynchronously.
     /// </summary>
-    public event Action<AgentCircuitData> OnAuthorizedAgentCircuit;
+    public event Action<AgentCircuitData, uint> OnAuthorizedAgentCircuit;
 
     /// <summary>
     /// Triggered when a new presence is added to the scene
@@ -1315,17 +1318,17 @@ public class EventManager
         }
     }
 
-    public void TriggerOnAuthorizedAgentCircuit(AgentCircuitData circuit)
+    public void TriggerOnAuthorizedAgentCircuit(AgentCircuitData circuit, uint teleportFlags)
     {
-        Action<AgentCircuitData> handlers = OnAuthorizedAgentCircuit;
+        Action<AgentCircuitData, uint> handlers = OnAuthorizedAgentCircuit;
         if (handlers == null)
             return;
 
-        foreach (Action<AgentCircuitData> handler in handlers.GetInvocationList())
+        foreach (Action<AgentCircuitData, uint> handler in handlers.GetInvocationList())
         {
             try
             {
-                handler(circuit);
+                handler(circuit, teleportFlags);
             }
             catch (Exception ex)
             {
