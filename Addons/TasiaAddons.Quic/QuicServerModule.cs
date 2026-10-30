@@ -360,6 +360,11 @@ namespace TasiaAddons.Quic
                 return;
             }
 
+            // The first UseCircuitCode must be routed by ROBUST before it can
+            // reach this module. Subscribe only when our native listener is up.
+            scene.EventManager.OnAuthorizedAgentCircuit -= OnAuthorizedAgentCircuit;
+            scene.EventManager.OnAuthorizedAgentCircuit += OnAuthorizedAgentCircuit;
+
             m_log.LogInformation($"[QuicServer] Region loaded, sim={m_simHost}:{m_simPort}, quic={m_config.Port}, proxy={m_proxyRegistrationUrl}");
         }
 
@@ -368,6 +373,7 @@ namespace TasiaAddons.Quic
             // Stop the background waiter first, otherwise it can attach and
             // start a listener for a scene that is going away.
             m_watchingForUdp = false;
+            scene?.EventManager.OnAuthorizedAgentCircuit -= OnAuthorizedAgentCircuit;
 
             if (!m_enabled && m_listener == null)
                 return;
@@ -387,6 +393,8 @@ namespace TasiaAddons.Quic
             // Stop the background waiter as well, otherwise it can hold this
             // scene alive and bring QUIC up for up to two minutes after Close.
             m_watchingForUdp = false;
+            if (m_scene != null)
+                m_scene.EventManager.OnAuthorizedAgentCircuit -= OnAuthorizedAgentCircuit;
             StopListener();
         }
 
@@ -421,6 +429,26 @@ namespace TasiaAddons.Quic
         /// Registers the circuit with the centralized QUIC proxy so it
         /// knows to route this viewer's packets to this sim.
         /// </summary>
+        /// <summary>
+        /// Scene has accepted the root or child circuit, but the viewer has not
+        /// yet sent UseCircuitCode. Tell ROBUST about the simulator's actual
+        /// private QUIC listener now, avoiding the routing chicken-and-egg.
+        /// Child registrations retain their child role so the proxy protects
+        /// an existing root route during neighbour handoffs.
+        /// </summary>
+        private void OnAuthorizedAgentCircuit(AgentCircuitData circuit)
+        {
+            if (circuit == null || !m_enabled || m_listener == null || circuit.circuitcode == 0)
+                return;
+
+            m_log.LogInformation(
+                "[QuicServer] Pre-registering authorized {0} circuit {1} with proxy at {2}",
+                circuit.child ? "child" : "root", circuit.circuitcode, m_proxyRegistrationUrl);
+
+            _ = RegisterCircuitWithProxyAsync(circuit.circuitcode, circuit.AgentID,
+                circuit.child ? "child" : "root");
+        }
+
         private void OnQuicCircuitCreated(uint circuitCode, UUID agentId, IViewerTransport transport)
         {
             if (transport is QuicViewerTransport quicTransport)
@@ -511,21 +539,24 @@ namespace TasiaAddons.Quic
         /// automatic neighbour setups, so bridges can tell a teleport route
         /// flip (accept) from a neighbour child-agent flip (ignore).
         /// </summary>
-        private async Task RegisterCircuitWithProxyAsync(uint circuitCode, UUID agentId)
+        private async Task RegisterCircuitWithProxyAsync(uint circuitCode, UUID agentId, string agentTypeOverride = null)
         {
             try
             {
-                string agentType = "unknown";
-                try
+                string agentType = agentTypeOverride ?? "unknown";
+                if (agentTypeOverride == null)
                 {
-                    if (m_scene != null)
+                    try
                     {
-                        ScenePresence presence = m_scene.GetScenePresence(agentId);
-                        if (presence != null)
-                            agentType = presence.IsChildAgent ? "child" : "root";
+                        if (m_scene != null)
+                        {
+                            ScenePresence presence = m_scene.GetScenePresence(agentId);
+                            if (presence != null)
+                                agentType = presence.IsChildAgent ? "child" : "root";
+                        }
                     }
+                    catch { agentType = "unknown"; }
                 }
-                catch { agentType = "unknown"; }
 
                 string url = m_proxyRegistrationUrl + "/register";
                 var payload = new OSDMap
