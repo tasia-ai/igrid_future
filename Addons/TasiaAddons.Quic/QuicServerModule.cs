@@ -434,20 +434,29 @@ namespace TasiaAddons.Quic
         /// Scene has accepted the root or child circuit, but the viewer has not
         /// yet sent UseCircuitCode. Tell ROBUST about the simulator's actual
         /// private QUIC listener now, avoiding the routing chicken-and-egg.
-        /// Child registrations retain their child role so the proxy protects
-        /// an existing root route during neighbour handoffs.
+        /// Neighbour registrations retain the child role. Teleport destinations
+        /// are classified as root-route candidates even while circuit.child
+        /// is true, so the destination replaces the old simulator route.
         /// </summary>
-        private void OnAuthorizedAgentCircuit(AgentCircuitData circuit)
+        private void OnAuthorizedAgentCircuit(AgentCircuitData circuit, uint teleportFlags)
         {
             if (circuit == null || !m_enabled || m_listener == null || circuit.circuitcode == 0)
                 return;
 
-            m_log.LogInformation(
-                "[QuicServer] Pre-registering authorized {0} circuit {1} with proxy at {2}",
-                circuit.child ? "child" : "root", circuit.circuitcode, m_proxyRegistrationUrl);
+            // Teleport destinations begin life as child circuits. Unlike ordinary
+            // neighbouring children (TeleportFlags.Default), a teleport destination
+            // MUST take over the proxy's route from the source root simulator.
+            // Otherwise ROBUST's child-route-flip guard rejects the destination
+            // and the first viewer UseCircuitCode is sent to the wrong region.
+            bool destination = !circuit.child || teleportFlags != (uint)TeleportFlags.Default;
+            string agentType = destination ? "root" : "child";
 
-            _ = RegisterCircuitWithProxyAsync(circuit.circuitcode, circuit.AgentID,
-                circuit.child ? "child" : "root");
+            m_log.LogInformation(
+                "[QuicServer] Pre-registering authorized {0} circuit {1} with proxy at {2} (child={3}, teleportFlags={4})",
+                agentType, circuit.circuitcode, m_proxyRegistrationUrl,
+                circuit.child, teleportFlags);
+
+            _ = RegisterCircuitWithProxyAsync(circuit.circuitcode, circuit.AgentID, agentType);
         }
 
         private void OnQuicCircuitCreated(uint circuitCode, UUID agentId, IViewerTransport transport)
