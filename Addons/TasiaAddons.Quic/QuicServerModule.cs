@@ -448,7 +448,7 @@ namespace TasiaAddons.Quic
             // MUST take over the proxy's route from the source root simulator.
             // Otherwise ROBUST's child-route-flip guard rejects the destination
             // and the first viewer UseCircuitCode is sent to the wrong region.
-            bool destination = !circuit.child || teleportFlags != (uint)TeleportFlags.Default;
+            bool destination = EventManager.IsActiveDestinationCircuit(circuit, teleportFlags);
             string agentType = destination ? "root" : "child";
 
             m_log.LogInformation(
