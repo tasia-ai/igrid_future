@@ -373,7 +373,8 @@ namespace TasiaAddons.Quic
             // Stop the background waiter first, otherwise it can attach and
             // start a listener for a scene that is going away.
             m_watchingForUdp = false;
-            scene?.EventManager.OnAuthorizedAgentCircuit -= OnAuthorizedAgentCircuit;
+            if (scene != null)
+                scene.EventManager.OnAuthorizedAgentCircuit -= OnAuthorizedAgentCircuit;
 
             if (!m_enabled && m_listener == null)
                 return;
