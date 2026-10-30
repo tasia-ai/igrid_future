@@ -17,7 +17,15 @@ arrives. The proxy cannot forward that first packet without a route.
   circuit installation, before returning to the caller.
 - QuicServerModule subscribes once its native listener is active and
   POSTs its actual simulator QUIC port (and LLUDP fallback) to ROBUST
-  at the new event, preserving root/child classification.
+  at the new event.
+- **Teleport handoff:** `AgentCircuitData.child` is true at the destination
+  during `CreateAgent`, just like a neighbouring child. Instead of treating
+  every `child=true` registration as a neighbour, forward the scene's
+  `teleportFlags`. A destination with non-default teleport flags is
+  registered as the new `root` route candidate. Ordinary neighbours with
+  Default flags remain `child` and cannot overwrite the active route.
+  Without this distinction ROBUST's child-route-flip guard silently keeps
+  the **source** simulator route and QUIC can fail during teleport.
 - LLLoginService pre-registers a local login circuit's LLUDP route
   directly in ROBUST's in-process registry after LaunchAgentAtGrid
   succeeds, but only if [QuicProxy] Enabled and the local destination
@@ -43,6 +51,7 @@ At a successful login, look for:
     [QuicServer] Pre-registering authorized root circuit
     [QuicServer] Circuit ... registered with proxy
     [QuicProxy] Circuit ... registered -> QUIC
+    [QuicServer] Pre-registering authorized root circuit ... (child=True, teleportFlags=nonzero)
     [QuicProxy] Bridging circuit ... to sim QUIC
     [LLUDPSERVER] Sent quicready on native QUIC circuit ...
 
@@ -63,3 +72,21 @@ resolvable and reachable by ROBUST on the native simulator QUIC/UDP port.
 
 The changes are unverified until compiled and tested with a live
 viewer. Do not publish the internal admin HTTP endpoint to the Internet.
+
+## Teleport regression checks
+
+1. Log in via QUIC to region A. Verify the A route is registered as root.
+2. Create a neighbour child in region B with Default teleport flags: B
+   must not steal A's registered QUIC route.
+3. Teleport A -> B: B initially receives circuit.child=true, but the
+   teleport flags are non-default. Its pre-registration **must** be
+   root and overwrite the A endpoint before viewer UseCircuitCode.
+4. The new connection must reach the B native QUIC endpoint and
+   complete its quicready handshake. Old A bridge cleanup must not
+   unregister B's route.
+5. Repeat B -> A, non-neighbour teleport, a failed/cancelled teleport,
+   and cross-region movement. Check for stale routes after cancellation.
+
+The observed post-teleport LLUDP fallback is not itself a fix.
+Do not alter the viewer transport preference or force LLUDP to mask
+a stale route. Use destination and ROBUST logs to verify the handoff.
