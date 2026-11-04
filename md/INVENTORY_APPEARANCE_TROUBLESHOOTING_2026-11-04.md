@@ -91,3 +91,12 @@
 ## Change log
 
 - **2026-11-04** — Viewer policy clarified: Tasia Viewer is the only supported production viewer; Firestorm remains a diagnostic comparator.\n- **2026-11-04** — Initial incident documentation created from configuration review, Firestorm log findings, reported server-source audits, upstream SSB/AIS documentation, and user-reported live tests. Issue **OPEN**.
+
+## Aurora client log, 2026-11-04 20:39-20:40
+
+- 20:39:32: Inventory bridge timeout/failure. Specific request not supplied.
+- 20:39:32 and 20:39:40: own appearance COF 338 after 338 dropped as stale; review equal-version handling when bake IDs or visual params change.
+- 20:39:34: appearance request for COF 881 failed despite HTTP 200; inspect semantic response and compare active COF ID/version with server 338. HTTP 200 does not imply acceptance.
+- 20:40:32: fallback avatar display after 60 seconds, 69/72 parts, three missing bake-undefined appearance parts. Worn textures 35/35.
+- Critical checks: Inventory bridge operation and timeout; effective region SSB flag; request/response payload schema; server and client COF IDs; bake IDs; equal-version message handling.
+- No root cause or successful persistence failure proven by this excerpt. Keep database and inventory unchanged until traced.
