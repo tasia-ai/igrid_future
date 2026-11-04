@@ -6,6 +6,16 @@
 
 > This is a living incident record, not proof that any proposed fix resolves the issue. Entries below distinguish observed behavior, source audit, and proposed tests. Do not add credentials, capability URLs/tokens, private avatar data, or raw database connection strings.
 
+## Supported viewer policy — updated 2026-11-04
+
+**Product decision: this I-Grid deployment is intended for Tasia Viewer only.** Firestorm was used to isolate server-versus-viewer symptoms and is **not** a supported production client or release acceptance target.
+
+- **Release gate:** Tasia Viewer must load the correct shape/height, preserve clothing layers after relog, and successfully create/edit/move inventory items with durable PostgreSQL persistence.
+- **Diagnostic reference only:** Firestorm's behavior can still reveal a server-side protocol or persistence defect. Do not spend work on Firestorm-specific UI/compatibility without a demonstrated impact on Tasia Viewer or shared backend correctness.
+- **Still required:** standard OpenSim server-side UDP appearance pathways, AvatarFactoryModule, proper AIS handlers, valid CAPS negotiation, and correctness checks unless replaced with a tested end-to-end implementation. Viewer exclusivity alone is **not** a reason to remove them.
+- **Deployment control:** any planned server-side restriction of other viewers is a separate security/compatibility change, not part of the inventory/appearance incident; test it without breaking legitimate Tasia Viewer sessions or Hypergrid.
+- **Second server:** do not assume it has the same supported-viewer policy. Verify its requirements independently before reusing this restriction.
+
 ## User-visible symptoms
 
 - Firestorm: original avatar shape loads correctly; inventory modifications reportedly fail.
@@ -64,7 +74,7 @@
 
 ### Acceptance criteria
 
-- Firestorm can create/rename/move a test inventory entry; writes persist after relog, and failed writes are not acknowledged.
+- Tasia Viewer can create/rename/move a test inventory entry; writes persist after relog, and failed writes are not acknowledged. Firestorm may be used only for diagnostic comparison.
 - Tasia Viewer restores the intended clothing layers and shape/height outside Edit Appearance after relog.
 - Server and viewer agree on the active-root COF ID/version; no unsupported forced acceptance.
 - No duplicate appearance CAPS registration or harmful UDP/CAPS ordering.
@@ -80,4 +90,4 @@
 
 ## Change log
 
-- **2026-11-04** — Initial incident documentation created from configuration review, Firestorm log findings, reported server-source audits, upstream SSB/AIS documentation, and user-reported live tests. Issue **OPEN**.
+- **2026-11-04** — Viewer policy clarified: Tasia Viewer is the only supported production viewer; Firestorm remains a diagnostic comparator.\n- **2026-11-04** — Initial incident documentation created from configuration review, Firestorm log findings, reported server-source audits, upstream SSB/AIS documentation, and user-reported live tests. Issue **OPEN**.
