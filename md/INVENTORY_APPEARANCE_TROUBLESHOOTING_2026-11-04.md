@@ -100,3 +100,13 @@
 - 20:40:32: fallback avatar display after 60 seconds, 69/72 parts, three missing bake-undefined appearance parts. Worn textures 35/35.
 - Critical checks: Inventory bridge operation and timeout; effective region SSB flag; request/response payload schema; server and client COF IDs; bake IDs; equal-version message handling.
 - No root cause or successful persistence failure proven by this excerpt. Keep database and inventory unchanged until traced.
+
+## Viewer-source investigation follow-up — 2026-11-04
+
+**Source-review report, not deployed:** The SSB `UpdateAvatarAppearance` cap can return HTTP 200 with LLSD `success: false` and an `expected` COF version. Therefore `HTTP 200 OK` in Aurora's log does **not** establish whether the requested COF 881 was accepted. Correlate INFO-level lines for `Requesting COF version`, `Server expected`, and `Bake retry`, or log sanitized response fields.
+
+The investigated viewer source reportedly discards incoming own-avatar appearance updates where `cof_version` equals the last seen version. The server can legitimately send a second `AvatarAppearance` at the same COF version after bake completion with different baked texture IDs. **Candidate viewer defect:** dropping the equal-version update may leave bake channels undefined despite successful baking. Proposed behavior: reject older versions and exact duplicate appearance payloads; allow same-version updates when baked texture IDs or other meaningful appearance state changes, with regression tests for both cases. Verify against the *actual running viewer commit* before changing code.
+
+The running Aurora label included commit `8189ba9c8`, which the investigator did not find in their local checkout. **Do not patch the local checkout as if it were the exact running binary.** An unrelated texture fallback edit was reported reverted; no viewer fix was deployed. Server logs reportedly showed successful AIS category reads and one unresolved COF link, but did not yet explain the separate Aurora Inventory bridge timeout. Audio callback warnings are not implicated in appearance failure.
+
+**Next evidence:** matching running source revision, INFO log around appearance request/retry, sanitized SSB LLSD `success`/`expected`, received appearance version plus bake texture IDs, and a test proving that legitimate same-version post-bake updates are applied without accepting stale or exact-duplicate messages.
