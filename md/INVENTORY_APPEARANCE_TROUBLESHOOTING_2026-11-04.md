@@ -110,3 +110,11 @@ The investigated viewer source reportedly discards incoming own-avatar appearanc
 The running Aurora label included commit `8189ba9c8`, which the investigator did not find in their local checkout. **Do not patch the local checkout as if it were the exact running binary.** An unrelated texture fallback edit was reported reverted; no viewer fix was deployed. Server logs reportedly showed successful AIS category reads and one unresolved COF link, but did not yet explain the separate Aurora Inventory bridge timeout. Audio callback warnings are not implicated in appearance failure.
 
 **Next evidence:** matching running source revision, INFO log around appearance request/retry, sanitized SSB LLSD `success`/`expected`, received appearance version plus bake texture IDs, and a test proving that legitimate same-version post-bake updates are applied without accepting stale or exact-duplicate messages.
+
+## Aurora upstream releases reviewed — November 4, 2026
+
+- Upstream [Aurora 0.9.0](https://github.com/Aurora-Viewer/Aurora-Viewer/releases/tag/v0.9.0) ships OpenSim-oriented improvements including UDP inventory mutations without AIS (#1982), client-side avatar baking on grids without SSB (#1985), bake reuse (#1988), editing wearable assets without AIS (#2066), My Suitcase sorting (#2076), and RLVa outfit synchronization (#2108).
+- Upstream [0.9.1 beta (November 4)](https://github.com/Aurora-Viewer/Aurora-Viewer/releases/tag/v0.9.1-beta.20261104.1) has documentation-only release notes; no new appearance fix identified from those notes.
+- These upstream releases are **not proof** that the custom Tasia Viewer branch includes the changes, or that the Amber grid failures are fixed.
+- **Action:** compare Tasia Viewer source against the specific upstream PRs/commits; cherry-pick only missing changes, preserving local QUIC, dual-grid, and appearance adaptations. Verify effective SSB flag and validate client-side bake fallback on the SSB-off region. Keep separate tests for inventory mutations, shape save/relog, equal-COF-version bake refresh, and COF ownership.
+- Don't blindly merge upstream or deploy simultaneous server changes; run controlled A/B on the same grid with a known viewer build.
