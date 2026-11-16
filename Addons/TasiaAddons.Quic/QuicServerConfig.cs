@@ -31,7 +31,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Nini.Config;
-
+
 using OpenSim.Region.ClientStack.LindenUDP;
 namespace TasiaAddons.Quic
 {
@@ -134,9 +134,9 @@ namespace TasiaAddons.Quic
         }
 
         /// <summary>
-        /// Load or generate a TLS certificate for QUIC.
+        /// Load the configured TLS certificate for QUIC.
         /// If CertificatePath is set, loads from file.
-        /// Otherwise generates a self-signed cert for localhost.
+        /// Otherwise searches portable shared certificate directories.
         /// The returned certificate carries an exportable key. Windows imports
         /// persist it because Schannel-backed QUIC cannot use ephemeral keys;
         /// other platforms retain ephemeral imports.
@@ -148,6 +148,7 @@ namespace TasiaAddons.Quic
             string effCert = EffectiveCertPath();
             string effKey = EffectiveKeyPath();
             string effP12 = EffectiveP12Path();
+            ValidateCertificateFiles(effCert, effKey);
             if (!string.IsNullOrEmpty(effCert) && File.Exists(effCert))
             {
                 if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey))
@@ -162,8 +163,8 @@ namespace TasiaAddons.Quic
                 return new X509Certificate2(effCert, CertificatePassword, importFlags);
             }
 
-            // Generate a self-signed certificate for development
-            return GenerateSelfSignedCertificate();
+            // No implicit self-signed fallback.
+            throw new InvalidOperationException("QUIC certificate is required");
         }
 
         private SslStreamCertificateContext m_cachedContext;
@@ -171,36 +172,67 @@ namespace TasiaAddons.Quic
         private DateTime m_keyLastWriteUtc = DateTime.MinValue;
         private readonly object m_certLock = new();
 
-        // Centralized cert fallback — allows all 30 sims + Robust to share one file in bin/SSL/quic
-        // Renewal then writes once and every handshake picks it up via mtime check. No restart.
-        private static readonly string s_centralCert = @"H:\grid\igrid-package\bin\SSL\quic\quic-cert.pem";
-        private static readonly string s_centralKey = @"H:\grid\igrid-package\bin\SSL\quic\quic-key.pem";
-        private static readonly string s_centralP12 = @"H:\grid\igrid-package\bin\SSL\quic\quic-cert.p12";
+        // Explicit configuration wins; portable shared directory is optional.
+        private static string ResolveConfiguredPath(string path)
+        {
+            if (Path.IsPathRooted(path) || File.Exists(path))
+                return Path.GetFullPath(path);
+            return Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path));
+        }
+
+        private static bool IsPkcs12(string path)
+        {
+            return path.EndsWith(".p12", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".pfx", StringComparison.OrdinalIgnoreCase);
+        }
 
         private string EffectiveCertPath()
         {
-            // Prefer central bin/SSL/quic — single renewal writes once for all 31 processes
-            if (File.Exists(s_centralCert)) return s_centralCert;
-            try { string alt3 = Path.Combine(@"H:\grid\igrid-package\bin", "SSL", "quic", "quic-cert.pem"); if (File.Exists(alt3)) return alt3; } catch { }
-            if (!string.IsNullOrEmpty(CertificatePath) && File.Exists(CertificatePath)) return CertificatePath;
-            try { string alt = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SSL", "quic", "quic-cert.pem"); if (File.Exists(alt)) return alt; } catch { }
-            try { string alt2 = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "bin", "SSL", "quic", "quic-cert.pem")); if (File.Exists(alt2)) return Path.GetFullPath(alt2); } catch { }
-            return CertificatePath;
+            if (!string.IsNullOrWhiteSpace(CertificatePath))
+                return ResolveConfiguredPath(CertificatePath);
+            string shared = Environment.GetEnvironmentVariable("OPENSIM_QUIC_CENTRAL_DIR");
+            string root = AppDomain.CurrentDomain.BaseDirectory;
+            foreach (string dir in new[] { shared, Path.Combine(root, "SSL", "quic"),
+                Path.GetFullPath(Path.Combine(root, "..", "..", "bin", "SSL", "quic")) })
+            {
+                if (string.IsNullOrWhiteSpace(dir)) continue;
+                foreach (string name in new[] { "quic-cert.pem", "quic-cert.p12", "quic-cert.pfx" })
+                {
+                    string candidate = Path.GetFullPath(Path.Combine(dir, name));
+                    if (File.Exists(candidate)) return candidate;
+                }
+            }
+            return "";
         }
+
         private string EffectiveKeyPath()
         {
-            if (File.Exists(s_centralKey)) return s_centralKey;
-            try { string alt3 = Path.Combine(@"H:\grid\igrid-package\bin", "SSL", "quic", "quic-key.pem"); if (File.Exists(alt3)) return alt3; } catch { }
-            if (!string.IsNullOrEmpty(PrivateKeyPath) && File.Exists(PrivateKeyPath)) return PrivateKeyPath;
-            try { string alt = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SSL", "quic", "quic-key.pem"); if (File.Exists(alt)) return alt; } catch { }
-            try { string alt2 = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "bin", "SSL", "quic", "quic-key.pem")); if (File.Exists(alt2)) return Path.GetFullPath(alt2); } catch { }
-            return PrivateKeyPath;
+            string cert = EffectiveCertPath();
+            if (IsPkcs12(cert)) return "";
+            if (!string.IsNullOrWhiteSpace(PrivateKeyPath))
+                return ResolveConfiguredPath(PrivateKeyPath);
+            if (string.IsNullOrEmpty(cert)) return "";
+            string dir = Path.GetDirectoryName(cert);
+            foreach (string name in new[] { "quic-key.pem", "quic-privkey.pem", "privkey.pem" })
+            {
+                string candidate = Path.Combine(dir, name);
+                if (File.Exists(candidate)) return candidate;
+            }
+            return "";
         }
+
         private string EffectiveP12Path()
         {
-            if (!string.IsNullOrEmpty(CertificatePath) && File.Exists(CertificatePath) && CertificatePath.EndsWith(".p12", StringComparison.OrdinalIgnoreCase)) return CertificatePath;
-            if (File.Exists(s_centralP12)) return s_centralP12;
-            return CertificatePath;
+            string cert = EffectiveCertPath();
+            return IsPkcs12(cert) ? cert : "";
+        }
+
+        private void ValidateCertificateFiles(string cert, string key)
+        {
+            if (string.IsNullOrEmpty(cert) || !File.Exists(cert))
+                throw new FileNotFoundException("QUIC certificate missing; configure CertificatePath or OPENSIM_QUIC_CENTRAL_DIR", cert);
+            if (!IsPkcs12(cert) && (string.IsNullOrEmpty(key) || !File.Exists(key)))
+                throw new FileNotFoundException("QUIC PEM private key missing; configure PrivateKeyPath", key);
         }
 
         /// <summary>
@@ -237,7 +269,8 @@ namespace TasiaAddons.Quic
                     try
                     {
                         X509Certificate2Collection pemCertificates = new X509Certificate2Collection();
-                        pemCertificates.ImportFromPemFile(effForChain);
+                        if (IsPkcs12(effForChain)) pemCertificates.Import(effForChain, CertificatePassword, X509KeyStorageFlags.EphemeralKeySet);
+                        else pemCertificates.ImportFromPemFile(effForChain);
                         foreach (X509Certificate2 cert in pemCertificates)
                             if (!string.Equals(cert.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase))
                                 intermediates.Add(cert);
@@ -256,6 +289,7 @@ namespace TasiaAddons.Quic
             }
 
             var ctx = SslStreamCertificateContext.Create(certificate, intermediates, false);
+            Console.WriteLine($"[QuicServer] Certificate path={effCert}, subject={certificate.Subject}, fingerprint={certificate.Thumbprint}, SAN={certificate.Extensions["2.5.29.17"]?.Format(false)}");
             lock (m_certLock)
             {
                 // Another thread may have already refreshed while we were building — keep newest.
