@@ -128,24 +128,66 @@ namespace TasiaAddons.Quic
                 return null;
             }
         }
+        private static string ResolveConfiguredPath(string path)
+        {
+            if (Path.IsPathRooted(path) || File.Exists(path))
+                return Path.GetFullPath(path);
+            return Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path));
+        }
+
+        private static bool IsPkcs12(string path)
+        {
+            return path.EndsWith(".p12", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".pfx", StringComparison.OrdinalIgnoreCase);
+        }
+
         private string EffectiveCertPathRO()
         {
-            if (!string.IsNullOrEmpty(m_certPath) && File.Exists(m_certPath)) return m_certPath;
-            try { string a = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SSL", "quic", "quic-cert.pem"); if (File.Exists(a)) return a; } catch { }
-            try { string a2 = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "bin", "SSL", "quic", "quic-cert.pem")); if (File.Exists(a2)) return Path.GetFullPath(a2); } catch { }
-            return m_certPath;
+            if (!string.IsNullOrWhiteSpace(m_certPath))
+                return ResolveConfiguredPath(m_certPath);
+            string shared = Environment.GetEnvironmentVariable("OPENSIM_QUIC_CENTRAL_DIR");
+            string root = AppDomain.CurrentDomain.BaseDirectory;
+            foreach (string dir in new[] { shared, Path.Combine(root, "SSL", "quic"),
+                Path.GetFullPath(Path.Combine(root, "..", "..", "bin", "SSL", "quic")) })
+            {
+                if (string.IsNullOrWhiteSpace(dir)) continue;
+                foreach (string name in new[] { "quic-cert.pem", "quic-cert.p12", "quic-cert.pfx" })
+                {
+                    string candidate = Path.GetFullPath(Path.Combine(dir, name));
+                    if (File.Exists(candidate)) return candidate;
+                }
+            }
+            return "";
         }
+
         private string EffectiveKeyPathRO()
         {
-            if (!string.IsNullOrEmpty(m_keyPath) && File.Exists(m_keyPath)) return m_keyPath;
-            try { string a = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SSL", "quic", "quic-key.pem"); if (File.Exists(a)) return a; } catch { }
-            try { string a2 = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "bin", "SSL", "quic", "quic-key.pem")); if (File.Exists(a2)) return Path.GetFullPath(a2); } catch { }
-            return m_keyPath;
+            string cert = EffectiveCertPathRO();
+            if (IsPkcs12(cert)) return "";
+            if (!string.IsNullOrWhiteSpace(m_keyPath))
+                return ResolveConfiguredPath(m_keyPath);
+            if (string.IsNullOrEmpty(cert)) return "";
+            string dir = Path.GetDirectoryName(cert);
+            foreach (string name in new[] { "quic-key.pem", "quic-privkey.pem", "privkey.pem" })
+            {
+                string candidate = Path.Combine(dir, name);
+                if (File.Exists(candidate)) return candidate;
+            }
+            return "";
         }
+
         private string EffectiveP12PathRO()
         {
-            if (!string.IsNullOrEmpty(m_certPath) && File.Exists(m_certPath) && m_certPath.EndsWith(".p12", StringComparison.OrdinalIgnoreCase)) return m_certPath;
-            return m_certPath;
+            string cert = EffectiveCertPathRO();
+            return IsPkcs12(cert) ? cert : "";
+        }
+
+        private void ValidateCertificateFiles(string cert, string key)
+        {
+            if (string.IsNullOrEmpty(cert) || !File.Exists(cert))
+                throw new FileNotFoundException("QUIC certificate missing; configure CertificatePath or OPENSIM_QUIC_CENTRAL_DIR", cert);
+            if (!IsPkcs12(cert) && (string.IsNullOrEmpty(key) || !File.Exists(key)))
+                throw new FileNotFoundException("QUIC PEM private key missing; configure PrivateKeyPath", key);
         }
 
         private QuicListener m_listener;
@@ -1289,6 +1331,7 @@ namespace TasiaAddons.Quic
             string eff = EffectiveCertPathRO();
             string effKey = EffectiveKeyPathRO();
             string effP12 = EffectiveP12PathRO();
+            ValidateCertificateFiles(eff, effKey);
 
             if (!string.IsNullOrEmpty(eff) && File.Exists(eff))
             {
@@ -1305,7 +1348,8 @@ namespace TasiaAddons.Quic
                 try
                 {
                     X509Certificate2Collection pemCertificates = new();
-                    pemCertificates.ImportFromPemFile(eff);
+                    if (IsPkcs12(eff)) pemCertificates.Import(eff, m_certPassword, X509KeyStorageFlags.EphemeralKeySet);
+                        else pemCertificates.ImportFromPemFile(eff);
                     foreach (X509Certificate2 c in pemCertificates)
                         if (!string.Equals(c.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase))
                             intermediates.Add(c);
@@ -1314,19 +1358,13 @@ namespace TasiaAddons.Quic
             }
             else
             {
-                certificate = GenerateSelfSignedCertificate();
+                throw new InvalidOperationException("QUIC certificate is required");
             }
 
             var ctx = SslStreamCertificateContext.Create(certificate, intermediates.Count > 0 ? intermediates : null, false);
             DateTime cw = DateTime.MinValue, kw = DateTime.MinValue;
             try { if (!string.IsNullOrEmpty(eff) && File.Exists(eff)) cw = File.GetLastWriteTimeUtc(eff); } catch { }
             try { if (!string.IsNullOrEmpty(effKey) && File.Exists(effKey)) kw = File.GetLastWriteTimeUtc(effKey); } catch { }
-            // If we fell back to central, use central mtimes for cache comparison
-            if (File.Exists(s_centralCert) && (eff == s_centralCert || string.IsNullOrEmpty(m_certPath) || !File.Exists(m_certPath)))
-            {
-                try { cw = File.GetLastWriteTimeUtc(s_centralCert); } catch { }
-                try { kw = File.GetLastWriteTimeUtc(s_centralKey); } catch { }
-            }
             return (ctx, cw, kw, intermediates.Count);
         }
 
@@ -1380,6 +1418,7 @@ namespace TasiaAddons.Quic
                 string effLC = EffectiveCertPathRO();
                 string effLK = EffectiveKeyPathRO();
                 string effLP12 = EffectiveP12PathRO();
+                ValidateCertificateFiles(effLC, effLK);
                 if (!string.IsNullOrEmpty(effLC) && System.IO.File.Exists(effLC))
                 {
                     if (!string.IsNullOrEmpty(effLK) && System.IO.File.Exists(effLK))
@@ -1396,7 +1435,8 @@ namespace TasiaAddons.Quic
                     try
                     {
                         X509Certificate2Collection pemCertificates = new();
-                        pemCertificates.ImportFromPemFile(effLC);
+                        if (IsPkcs12(effLC)) pemCertificates.Import(effLC, m_certPassword, X509KeyStorageFlags.EphemeralKeySet);
+                        else pemCertificates.ImportFromPemFile(effLC);
                         foreach (X509Certificate2 c in pemCertificates)
                         {
                             if (!string.Equals(c.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase))
@@ -1412,14 +1452,14 @@ namespace TasiaAddons.Quic
                 else
                 {
                     // No certificate configured or not found - generate self-signed for development
-                    m_log.Warn("[QuicProxy] No certificate found, generating self-signed");
-                    certificate = GenerateSelfSignedCertificate();
+                    m_log.Error("[QuicProxy] No certificate found");
+                    throw new InvalidOperationException("QUIC certificate is required");
                 }
 
                 m_cachedCertContext = SslStreamCertificateContext.Create(
                     certificate, intermediates.Count > 0 ? intermediates : null, false);
 
-                m_log.Info($"[QuicProxy] Certificate context created (leaf={certificate.Subject}, intermediates={intermediates.Count})");
+                m_log.Info($"[QuicProxy] Certificate context created (path={effLC}, leaf={certificate.Subject}, fingerprint={certificate.Thumbprint}, SAN={certificate.Extensions["2.5.29.17"]?.Format(false)}, intermediates={intermediates.Count})");
                 return m_cachedCertContext;
             }
         }
