@@ -159,6 +159,7 @@ namespace OpenSim.Data.SQLite
             es.EstateManagers = LoadUUIDList(es.EstateID, "estate_managers");
             es.EstateAccess = LoadUUIDList(es.EstateID, "estate_users");
             es.EstateGroups = LoadUUIDList(es.EstateID, "estate_groups");
+            es.EstateManagerRoles = LoadUUIDList(es.EstateID, "estate_manager_roles");
             return es;
         }
 
@@ -176,6 +177,7 @@ namespace OpenSim.Data.SQLite
             es.EstateManagers = LoadUUIDList(es.EstateID, "estate_managers");
             es.EstateAccess = LoadUUIDList(es.EstateID, "estate_users");
             es.EstateGroups = LoadUUIDList(es.EstateID, "estate_groups");
+            es.EstateManagerRoles = LoadUUIDList(es.EstateID, "estate_manager_roles");
 
             return es;
         }
@@ -261,6 +263,7 @@ namespace OpenSim.Data.SQLite
             SaveUUIDList(es.EstateID, "estate_managers", es.EstateManagers);
             SaveUUIDList(es.EstateID, "estate_users", es.EstateAccess);
             SaveUUIDList(es.EstateID, "estate_groups", es.EstateGroups);
+            SaveUUIDList(es.EstateID, "estate_manager_roles", es.EstateManagerRoles);
         }
 
         private void LoadBanList(EstateSettings es)

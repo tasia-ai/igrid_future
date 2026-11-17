@@ -60,6 +60,8 @@ namespace OpenSim.Region.CoreModules.World.Estate
         protected EstateManagementCommands m_commands;
 
         private HashSet<UUID> m_estateManagersAllowed = new();
+        private readonly ConcurrentDictionary<(UUID Agent, UUID Group, UUID Role), (DateTime Expires, bool IsMember)> m_groupEstateRoleCache = new();
+        private static readonly TimeSpan GroupEstateRoleCacheDuration = TimeSpan.FromSeconds(30);
 
         /// <summary>
         /// If false, region restart requests from the client are blocked even if they are otherwise legitimate.
@@ -137,6 +139,29 @@ namespace OpenSim.Region.CoreModules.World.Estate
 
             scene.RegionInfo.EstateSettings.DoDenyMinors = !m_ignoreEstateMinorAccessControl;
             scene.RegionInfo.EstateSettings.DoDenyAnonymous = !m_ignoreEstatePaymentAccessControl;
+            scene.RegionInfo.EstateSettings.SetGroupRoleMemberCheck(IsGroupEstateRoleMember);
+        }
+
+        private bool IsGroupEstateRoleMember(UUID agentID, UUID groupID, UUID roleID)
+        {
+            if (agentID.IsZero() || groupID.IsZero())
+                return false;
+            var key = (agentID, groupID, roleID);
+            DateTime now = DateTime.UtcNow;
+            if (m_groupEstateRoleCache.TryGetValue(key, out var cached) && cached.Expires > now)
+                return cached.IsMember;
+            bool isMember = false;
+            try
+            {
+                isMember = Scene?.RequestModuleInterface<IGroupsModule>()?
+                    .IsGroupRoleMember(agentID, groupID, roleID) ?? false;
+            }
+            catch (Exception e)
+            {
+                m_log.WarnFormat("[ESTATE]: Failed to resolve group role membership for {0} in {1}: {2}", agentID, groupID, e.Message);
+            }
+            m_groupEstateRoleCache[key] = (now + GroupEstateRoleCacheDuration, isMember);
+            return isMember;
         }
 
         public void Close()
@@ -147,6 +172,40 @@ namespace OpenSim.Region.CoreModules.World.Estate
         #endregion
 
         #region IEstateModule Functions
+        public string SetEstateGroupAuthority(UUID groupID, UUID[] managerRoleIDs)
+        {
+            EstateSettings estateSettings = Scene.RegionInfo.EstateSettings;
+            IGroupsModule groupsModule = Scene.RequestModuleInterface<IGroupsModule>();
+            managerRoleIDs ??= Array.Empty<UUID>();
+            if (!groupID.IsZero())
+            {
+                if (groupsModule == null)
+                    return "Group service unavailable";
+                GroupRecord group = groupsModule.GetGroupRecord(groupID);
+                if (group == null)
+                    return "Group not found";
+                List<GroupRolesData> roles = groupsModule.GroupRoleDataRequest(UUID.Zero, groupID);
+                if (roles == null)
+                    return "Unable to load group roles";
+                HashSet<UUID> validRoleIDs = new HashSet<UUID>(roles.Select(role => role.RoleID));
+                if (managerRoleIDs.Any(roleID => roleID.IsZero() || !validRoleIDs.Contains(roleID)))
+                    return "One or more selected manager roles do not belong to the group";
+                managerRoleIDs = managerRoleIDs.Where(roleID => roleID != group.OwnerRoleID).Distinct().ToArray();
+            }
+            else if (managerRoleIDs.Length != 0)
+                return "Choose a group before assigning manager roles";
+
+            estateSettings.EstateOwnerGroup = groupID;
+            estateSettings.EstateManagerRoles = managerRoleIDs;
+            m_groupEstateRoleCache.Clear();
+            estateSettings.Save();
+            TriggerEstateInfoChange();
+            sendRegionHandshakeToAll();
+            m_log.InfoFormat("[ESTATE]: Group authority updated for estate {0}; owner group {1}, manager roles {2}",
+                estateSettings.EstateID, groupID, managerRoleIDs.Length);
+            return string.Empty;
+        }
+
         public uint GetRegionFlags()
         {
             RegionFlags flags = RegionFlags.None;
@@ -2322,4 +2381,3 @@ namespace OpenSim.Region.CoreModules.World.Estate
         }
     }
 }
-

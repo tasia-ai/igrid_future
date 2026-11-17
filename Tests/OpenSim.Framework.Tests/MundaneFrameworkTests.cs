@@ -228,6 +228,38 @@ namespace OpenSim.Framework.Tests
         }
 
         [Test]
+        public void EstateSettingsGroupAuthorityTests()
+        {
+            EstateSettings settings = new EstateSettings();
+            UUID groupID = UUID.Random();
+            UUID owner = UUID.Random();
+            UUID manager = UUID.Random();
+            UUID unrelated = UUID.Random();
+            UUID ownerRole = UUID.Random();
+            UUID managerRole = UUID.Random();
+
+            settings.EstateOwner = unrelated;
+            settings.EstateOwnerGroup = groupID;
+            settings.EstateManagerRoles = new[] { managerRole };
+            settings.SetGroupRoleMemberCheck((agentID, checkedGroupID, roleID) =>
+                checkedGroupID == groupID &&
+                ((agentID == owner && roleID == UUID.Zero) ||
+                 (agentID == manager && roleID == managerRole) ||
+                 (agentID == unrelated && roleID == ownerRole)));
+
+            Assert.That(settings.HasEstateOwnerGroup, Is.True);
+            Assert.That(settings.IsEstateOwner(owner), Is.True);
+            Assert.That(settings.IsEstateManagerOrOwner(owner), Is.True);
+            Assert.That(settings.IsEstateManagerOrOwner(manager), Is.True);
+            Assert.That(settings.IsEstateOwner(unrelated), Is.False,
+                "The individual owner should not override the configured owner group.");
+
+            settings.EstateOwnerGroup = UUID.Zero;
+            Assert.That(settings.HasEstateOwnerGroup, Is.False);
+            Assert.That(settings.IsEstateOwner(unrelated), Is.True);
+        }
+
+        [Test]
         public void InventoryFolderBaseConstructorTest01()
         {
             UUID uuid1 = UUID.Random();

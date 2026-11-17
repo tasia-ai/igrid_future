@@ -80,4 +80,13 @@ ALTER TABLE `estate_settings`
     ADD COLUMN `AllowEnviromentOverride` tinyint not null default 0;
 COMMIT;
 
+:VERSION 13
+BEGIN;
+ALTER TABLE estate_settings ADD COLUMN EstateOwnerGroup char(36) NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+CREATE TABLE IF NOT EXISTS estate_manager_roles (
+  EstateID int(10) NOT NULL,
+  uuid char(36) NOT NULL
+);
+CREATE INDEX estate_manager_roles_estate_id on estate_manager_roles(EstateID);
+COMMIT;
 

@@ -133,3 +133,14 @@ BEGIN TRANSACTION;
 ALTER TABLE "public"."estate_settings"
     ADD COLUMN "AllowEnviromentOverride" bool NOT NULL;
 COMMIT;
+
+:VERSION 16
+BEGIN TRANSACTION;
+ALTER TABLE "public"."estate_settings"
+    ADD COLUMN "EstateOwnerGroup" uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+CREATE TABLE IF NOT EXISTS "public"."estate_manager_roles" (
+    "EstateID" int4 NOT NULL,
+    "uuid" uuid NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "ix_estate_manager_roles" ON "public"."estate_manager_roles" USING btree("EstateID");
+COMMIT;

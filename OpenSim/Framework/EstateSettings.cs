@@ -28,6 +28,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Linq;
 using OpenMetaverse;
 
 namespace OpenSim.Framework
@@ -232,6 +233,28 @@ namespace OpenSim.Framework
             set { m_EstateOwner = value; }
         }
 
+        private UUID m_EstateOwnerGroup = UUID.Zero;
+        public UUID EstateOwnerGroup
+        {
+            get { return m_EstateOwnerGroup; }
+            set { m_EstateOwnerGroup = value; }
+        }
+
+        private List<UUID> l_EstateManagerRoles = new();
+        public UUID[] EstateManagerRoles
+        {
+            get { return l_EstateManagerRoles.ToArray(); }
+            set { l_EstateManagerRoles = new List<UUID>(value ?? Array.Empty<UUID>()); }
+        }
+
+        private Func<UUID, UUID, UUID, bool> groupRoleMemberCheck;
+        public bool HasEstateOwnerGroup => !m_EstateOwnerGroup.IsZero();
+
+        public void SetGroupRoleMemberCheck(Func<UUID, UUID, UUID, bool> checker)
+        {
+            groupRoleMemberCheck = checker;
+        }
+
         private bool m_DenyMinors = false;
         public bool DenyMinors
         {
@@ -365,11 +388,21 @@ namespace OpenSim.Framework
 
         public bool IsEstateManagerOrOwner(UUID avatarID)
         {
-             return m_EstateOwner.Equals(avatarID) || l_EstateManagers.Contains(avatarID);
+            if (IsEstateOwner(avatarID) || l_EstateManagers.Contains(avatarID))
+                return true;
+            if (groupRoleMemberCheck == null || m_EstateOwnerGroup.IsZero())
+                return false;
+            foreach (UUID roleID in l_EstateManagerRoles)
+                if (!roleID.IsZero() && groupRoleMemberCheck(avatarID, m_EstateOwnerGroup, roleID))
+                    return true;
+            return false;
         }
 
         public bool IsEstateOwner(UUID avatarID)
         {
+            if (!m_EstateOwnerGroup.IsZero())
+                return groupRoleMemberCheck != null &&
+                    groupRoleMemberCheck(avatarID, m_EstateOwnerGroup, UUID.Zero);
             return m_EstateOwner.Equals(avatarID);
         }
 

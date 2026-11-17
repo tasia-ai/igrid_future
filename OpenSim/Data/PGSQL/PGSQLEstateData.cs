@@ -171,6 +171,7 @@ namespace OpenSim.Data.PGSQL
             es.EstateManagers = LoadUUIDList(es.EstateID, "estate_managers");
             es.EstateAccess = LoadUUIDList(es.EstateID, "estate_users");
             es.EstateGroups = LoadUUIDList(es.EstateID, "estate_groups");
+            es.EstateManagerRoles = LoadUUIDList(es.EstateID, "estate_manager_roles");
 
             //Set event
             es.OnSave += StoreEstateSettings;
@@ -191,6 +192,7 @@ namespace OpenSim.Data.PGSQL
             es.EstateManagers = LoadUUIDList(es.EstateID, "estate_managers");
             es.EstateAccess = LoadUUIDList(es.EstateID, "estate_users");
             es.EstateGroups = LoadUUIDList(es.EstateID, "estate_groups");
+            es.EstateManagerRoles = LoadUUIDList(es.EstateID, "estate_manager_roles");
 
             return es;
         }
@@ -274,6 +276,7 @@ namespace OpenSim.Data.PGSQL
             SaveUUIDList(es.EstateID, "estate_managers", es.EstateManagers);
             SaveUUIDList(es.EstateID, "estate_users", es.EstateAccess);
             SaveUUIDList(es.EstateID, "estate_groups", es.EstateGroups);
+            SaveUUIDList(es.EstateID, "estate_manager_roles", es.EstateManagerRoles);
         }
 
         #endregion
@@ -439,6 +442,7 @@ namespace OpenSim.Data.PGSQL
             es.EstateManagers = LoadUUIDList(es.EstateID, "estate_managers");
             es.EstateAccess = LoadUUIDList(es.EstateID, "estate_users");
             es.EstateGroups = LoadUUIDList(es.EstateID, "estate_groups");
+            es.EstateManagerRoles = LoadUUIDList(es.EstateID, "estate_manager_roles");
 
             //Set event
             es.OnSave += StoreEstateSettings;
