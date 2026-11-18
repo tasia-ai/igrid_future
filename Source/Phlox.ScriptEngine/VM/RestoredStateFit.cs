@@ -88,6 +88,19 @@ namespace InWorldz.Phlox.VM
             string badEvent = CheckQueue(st, script, states);
             if (badEvent != null) return badEvent;
 
+            if (SizeOf(st.Operands) > MemoryInfo.MAX_MEMORY)
+                return $"its operand stack exceeds the memory limit of {MemoryInfo.MAX_MEMORY} bytes";
+            if (st.RunningEvent != null && SizeOf(st.RunningEvent.Args) > MemoryInfo.MAX_MEMORY)
+                return $"its running event arguments exceed the memory limit of {MemoryInfo.MAX_MEMORY} bytes";
+            if (st.EventQueue != null)
+            {
+                foreach (PostedEvent e in st.EventQueue)
+                {
+                    if (SizeOf(e.Args) > MemoryInfo.MAX_MEMORY)
+                        return $"a queued event's arguments exceed the memory limit of {MemoryInfo.MAX_MEMORY} bytes";
+                }
+            }
+
             // Every value the script can reach: functions it can call must be in its code, nesting is bounded.
             var walk = new ValueWalk(codeLength);
             walk.All(st.Globals);
@@ -147,12 +160,12 @@ namespace InWorldz.Phlox.VM
             return null;
         }
 
-        private static int SizeOf(object[] values)
+        private static int SizeOf(IEnumerable<object> values)
         {
             if (values == null) return 0;
-            int sz = 0;
+            long sz = 0;
             foreach (object v in values) sz += v is LSLTable t ? t.MemorySize : MemoryCalc.CalcSizeOf(v);
-            return sz;
+            return sz > int.MaxValue ? int.MaxValue : (int)sz;
         }
 
         /// <summary>Walks reachable values: every closure's function must lie in the code, and nesting is bounded.</summary>
