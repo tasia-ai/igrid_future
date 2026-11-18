@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><AssemblyName>TasiaAddons.WebScripts</AssemblyName><RootNamespace>TasiaAddons.WebScripts</RootNamespace></PropertyGroup>
   <ItemGroup>
+    <!-- The portable project owns all sources under its subtree, including
+         generated files in its nested obj directory. -->
+    <Compile Remove="portable/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../Source/OpenSim.Framework/OpenSim.Framework.csproj" Private="false" />
     <ProjectReference Include="../../Source/OpenSim.Region.Framework/OpenSim.Region.Framework.csproj" Private="false" />
   </ItemGroup>

@@ -14,12 +14,12 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
     /// </summary>
     public class LSL_ApiNotecardTests : OpenSimTestCase
     {
-        private Scene m_scene;
-        private MockScriptEngine m_engine;
+        private Scene m_scene = null!;
+        private MockScriptEngine m_engine = null!;
 
-        private SceneObjectGroup m_so;
-        private TaskInventoryItem m_scriptItem;
-        private LSL_Api m_lslApi;
+        private SceneObjectGroup m_so = null!;
+        private TaskInventoryItem m_scriptItem = null!;
+        private LSL_Api m_lslApi = null!;
 
         public LSL_ApiNotecardTests()
         {
@@ -27,7 +27,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             TestFixtureSetUp();
         }
 
-        public void TestFixtureSetUp()
+        private void TestFixtureSetUp()
         {
             // Don't allow tests to be bamboozled by asynchronous events.  Execute everything on the same thread.
             Util.FireAndForgetMethod = FireAndForgetMethod.RegressionTest;
@@ -39,7 +39,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             base.Dispose();
         }
 
-        public void TestFixureTearDown()
+        private void TestFixureTearDown()
         {
             // We must set this back afterwards, otherwise later tests will fail since they're expecting multiple
             // threads.  Possibly, later tests should be rewritten so none of them require async stuff (which regression
@@ -108,11 +108,11 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             string key = m_lslApi.llGetNotecardLine(ncName, lineNumber);
             Assert.NotEqual(UUID.Zero.ToString(), key);
 
-            Assert.Equal(1, m_engine.PostedEvents.Count);
+            Assert.Single(m_engine.PostedEvents);
             Assert.True(m_engine.PostedEvents.ContainsKey(m_scriptItem.ItemID));
 
             List<EventParams> events = m_engine.PostedEvents[m_scriptItem.ItemID];
-            Assert.Equal(1, events.Count);
+            Assert.Single(events);
             EventParams eventParams = events[0];
 
             Assert.Equal("dataserver", eventParams.EventName);
@@ -127,7 +127,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             string key = m_lslApi.llGetNotecardLine(ncName, lineNumber);
             Assert.Equal(UUID.Zero.ToString(), key);
 
-            Assert.Equal(0, m_engine.PostedEvents.Count);
+            Assert.Empty(m_engine.PostedEvents);
         }
 
 //        [Fact]

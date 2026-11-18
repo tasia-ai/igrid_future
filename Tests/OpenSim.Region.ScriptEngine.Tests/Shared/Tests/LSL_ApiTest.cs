@@ -46,14 +46,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
     {
         private const double VECTOR_COMPONENT_ACCURACY = 0.0000005d;
         private const double ANGLE_ACCURACY_IN_RADIANS = 1E-6;
-        private LSL_Api m_lslApi;
+        private readonly LSL_Api m_lslApi;
 
         public LSL_ApiTest()
         {
-            SetUp();
+            m_lslApi = CreateApi();
         }
 
-        public void SetUp()
+        private static LSL_Api CreateApi()
         {
             IConfigSource initConfigSource = new IniConfigSource();
             IConfig config = initConfigSource.AddConfig("XEngine");
@@ -66,8 +66,9 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             engine.Initialise(initConfigSource);
             engine.AddRegion(scene);
 
-            m_lslApi = new LSL_Api();
-            m_lslApi.Initialize(engine, part, null);
+            var api = new LSL_Api();
+            api.Initialize(engine, part, null);
+            return api;
         }
 
         [Fact]
@@ -268,7 +269,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             CheckllVecNorm(new LSL_Types.Vector3(255.0d, 255.0d, 255.0d), new LSL_Types.Vector3(0.577350d, 0.577350d, 0.577350d));
         }
 
-        public void CheckllVecNorm(LSL_Types.Vector3 vec, LSL_Types.Vector3 vecNormCheck)
+        private void CheckllVecNorm(LSL_Types.Vector3 vec, LSL_Types.Vector3 vecNormCheck)
         {
             // Call LSL function to normalize the vector.
             LSL_Types.Vector3 vecNorm = m_lslApi.llVecNorm(vec);

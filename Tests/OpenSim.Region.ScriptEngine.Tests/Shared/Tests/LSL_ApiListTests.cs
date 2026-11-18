@@ -46,7 +46,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
 {
     public class LSL_ApiListTests : OpenSimTestCase
     {
-        private LSL_Api m_lslApi;
+        private LSL_Api m_lslApi = null!;
 
         public override void SetUp()
         {

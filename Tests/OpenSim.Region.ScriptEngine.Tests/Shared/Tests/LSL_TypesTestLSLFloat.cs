@@ -37,14 +37,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
         // Used for testing equality of two floats.
         private double _lowPrecisionTolerance = 0.000001;
 
-        private Dictionary<int, double> m_intDoubleSet;
-        private Dictionary<double, double> m_doubleDoubleSet;
-        private Dictionary<double, int> m_doubleIntSet;
-        private Dictionary<double, int> m_doubleUintSet;
-        private Dictionary<string, double> m_stringDoubleSet;
-        private Dictionary<double, string> m_doubleStringSet;
-        private List<int> m_intList;
-        private List<double> m_doubleList;
+        private Dictionary<int, double> m_intDoubleSet = new();
+        private Dictionary<double, double> m_doubleDoubleSet = new();
+        private Dictionary<double, int> m_doubleIntSet = new();
+        private Dictionary<double, int> m_doubleUintSet = new();
+        private Dictionary<string, double> m_stringDoubleSet = new();
+        private Dictionary<double, string> m_doubleStringSet = new();
+        private List<int> m_intList = new();
+        private List<double> m_doubleList = new();
 
         /// <summary>
         /// Sets up dictionaries and arrays used in the tests.
@@ -55,7 +55,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             SetUpDataSets();
         }
 
-        public void SetUpDataSets()
+        private void SetUpDataSets()
         {
             m_intDoubleSet = new Dictionary<int, double>();
             m_intDoubleSet.Add(2, 2.0);

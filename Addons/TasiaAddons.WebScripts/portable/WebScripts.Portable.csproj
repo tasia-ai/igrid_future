@@ -15,6 +15,16 @@
     <DefineConstants Condition="'$(LegacyDiscovery)' == 'true'">$(DefineConstants);LEGACY_DISCOVERY</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <!-- This assembly consumes OpenSim and OpenMetaverse from OpenSimHome.
+         Do not inherit the repository's runtime package references here:
+         their SkiaSharp and Nini versions may differ from that installation. -->
+    <PackageReference Remove="MessagePack" />
+    <PackageReference Remove="nini-core" />
+    <PackageReference Remove="UtopiaSkye.OpenMetaverse" />
+    <PackageReference Remove="UtopiaSkye.OpenMetaverse.StructuredData" />
+    <PackageReference Remove="UtopiaSkye.OpenMetaverse.Types" />
+    <PackageReference Remove="UtopiaSkye.OpenMetaverse.Rendering.Meshmerizer" />
+    <PackageReference Remove="UtopiaSkye.OpenMetaverse.Rendering.Simple" />
     <Compile Include="../WebScriptSecurity.cs;../WebScriptDownloader.cs;../WebScriptsModule.cs" />
     <Compile Include="../PluginRegistration.cs" Condition="'$(LegacyDiscovery)' != 'true'" />
     <Compile Include="LegacyRegistration.cs" Condition="'$(LegacyDiscovery)' == 'true'" />

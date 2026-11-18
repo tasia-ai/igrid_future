@@ -2963,8 +2963,57 @@ public partial class LSL_Types
 
         public LSLFloat(ReadOnlySpan<char> s)
         {
-            if (!double.TryParse(s, NumberStyles.Float, Culture.NumberFormatInfo, out value))
-                value = 0;
+            value = 0;
+
+            int start = 0;
+            while (start < s.Length && char.IsWhiteSpace(s[start]))
+                start++;
+
+            int end = start;
+            if (end < s.Length && s[end] is '+' or '-')
+                end++;
+
+            int digits = 0;
+            while (end < s.Length && s[end] is >= '0' and <= '9')
+            {
+                end++;
+                digits++;
+            }
+
+            if (end < s.Length && s[end] == '.')
+            {
+                end++;
+                while (end < s.Length && s[end] is >= '0' and <= '9')
+                {
+                    end++;
+                    digits++;
+                }
+            }
+
+            if (digits == 0)
+                return;
+
+            int mantissaEnd = end;
+            if (end < s.Length && s[end] is 'e' or 'E')
+            {
+                int exponentEnd = end + 1;
+                if (exponentEnd < s.Length && s[exponentEnd] is '+' or '-')
+                    exponentEnd++;
+
+                int exponentDigits = 0;
+                while (exponentEnd < s.Length && s[exponentEnd] is >= '0' and <= '9')
+                {
+                    exponentEnd++;
+                    exponentDigits++;
+                }
+
+                if (exponentDigits > 0)
+                    end = exponentEnd;
+                else
+                    end = mantissaEnd;
+            }
+
+            double.TryParse(s[start..end], NumberStyles.Float, Culture.NumberFormatInfo, out value);
         }
 
         #endregion

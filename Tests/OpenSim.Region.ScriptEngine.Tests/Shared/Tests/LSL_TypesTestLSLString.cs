@@ -34,7 +34,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
 {
     public class LSL_TypesTestLSLString : OpenSimTestCase
     {
-        private Dictionary<double, string> m_doubleStringSet;
+        private Dictionary<double, string> m_doubleStringSet = new();
 
         /// <summary>
         /// Sets up dictionaries and arrays used in the tests.
@@ -45,7 +45,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             SetUpDataSets();
         }
 
-        public void SetUpDataSets()
+        private void SetUpDataSets()
         {
             m_doubleStringSet = new Dictionary<double, string>();
             m_doubleStringSet.Add(2, "2.000000");

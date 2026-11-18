@@ -24,6 +24,10 @@ A Windows-hosted `linux-x64` cross-build was also attempted; the offline NuGet
 cache lacks the .NET 10 Linux runtime and host packs, so restore cannot produce
 Linux RID assets without fetching new packages.
 
+The user confirmed preserving both exact public CLR names and accepting these
+two CS8981 warnings rather than breaking compiled-script and serialized-state
+compatibility. No warning suppression or `NoWarn` entry is used.
+
 The earlier zero-warning closeout below records a different revision and used
 three declaration-scoped warning suppressions. It is historical, not the
 current integration-branch verification result. This inventory covers
@@ -34,6 +38,16 @@ excluded-project backlog below.
 
 - Full non-incremental Windows x64 Release build on .NET SDK 10.0.402:
   **succeeded, 0 errors, 2 CS8981 compatibility warnings**.
+- Full non-incremental `Addons.slnx` Release build: **succeeded, 0 errors, the
+  same two CS8981 warnings**.
+- The standalone script-engine test project builds without project-owned
+  warnings; it inherits only the two shared-type CS8981 diagnostics. The
+  database-free float and user-data regression filters pass **25/25**.
+- `TasiaAddons.WebScripts` portable `net10.0` build against local `OpenSimHome`:
+  **0 warnings, 0 errors**. Its portable package graph no longer imports
+  repository runtime packages that conflict with the target installation.
+- HTTP fixture tests were not run because fixture setup starts a local HTTP
+  server, which is outside the approved validation scope.
 - Framework tests: **202/202 passed**; migration resource audit: **8/8 passed**.
 - Focused Phlox regressions after the current fixes: **270/270 passed** across
   estate/partner/arrival/user-key/notecard (73), blocked-owner/give/error-pause
@@ -205,19 +219,16 @@ DOTNET_CLI_USE_MSBUILD_SERVER=0 dotnet build Tranquillity.sln \
 
 An additional compatibility check built
 `Tests/OpenSim.Region.ScriptEngine.Tests/OpenSim.Region.ScriptEngine.Tests.csproj`,
-which is not included in `Tranquillity.sln`. Its separate build reported
-**74 warnings**: CS8600 (11), CS8604 (5), CS8618 (29), SYSLIB0014 (2),
-xUnit1013 (10), xUnit2013 (17). These are outside the tracked 661-occurrence
-solution inventory; the user chose to document this separate backlog rather
-than expand the closeout scope.
+which is not included in `Tranquillity.sln`, initially reported **74 warnings**:
+CS8600 (11), CS8604 (5), CS8618 (29), SYSLIB0014 (2), xUnit1013 (10),
+xUnit2013 (17). These project-owned diagnostics have since been fixed, with
+the corresponding fixtures and assertions updated. Its current clean build has
+only the two transitive CS8981 compatibility warnings from `LSL_Types`.
 
-Selected LSL type/list and OSSL API tests in that project produced **51 passed,
-2 failed**. Both failures are in unchanged float-conversion tests:
-`LSL_TypesTestLSLFloat.TestExplicitCastStringToLSLFloat` and
-`TestExplicitCastLSLStringToLSLFloat` expect `-100000` but receive `0`.
-Neither the float converter nor those tests was changed by this cleanup.
-These failures are not counted as successful verification and remain outside
-this batch.
+The selected float and user-data regression filters now pass **25/25**. The
+float-conversion failures from the earlier run were fixed by parsing the LSL
+numeric prefix (including optional sign, decimal and exponent) before
+conversion; the focused float suite passes **24/24**.
 
 `Tests/OpenSim.Framework.Serialization.Tests` is also outside the solution. An
 offline build attempt found stale test-package references and pre-existing

@@ -27,6 +27,7 @@
 
 using Nini.Config;
 using System.Net;
+using System.Net.Http;
 
 using OpenMetaverse;
 
@@ -51,12 +52,12 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
     /// </summary>
     public class LSL_ApiHttpTests : OpenSimTestCase
     {
-        private Scene m_scene;
-        private MockScriptEngine m_engine;
-        private UrlModule m_urlModule;
+        private Scene m_scene = null!;
+        private MockScriptEngine m_engine = null!;
+        private UrlModule m_urlModule = null!;
 
-        private TaskInventoryItem m_scriptItem;
-        private LSL_Api m_lslApi;
+        private TaskInventoryItem m_scriptItem = null!;
+        private LSL_Api m_lslApi = null!;
 
         public LSL_ApiHttpTests()
         {
@@ -64,7 +65,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             TestFixtureSetUp();
         }
 
-        public void TestFixtureSetUp()
+        private void TestFixtureSetUp()
         {
             // Don't allow tests to be bamboozled by asynchronous events.  Execute everything on the same thread.
             Util.FireAndForgetMethod = FireAndForgetMethod.RegressionTest;
@@ -77,7 +78,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             base.Dispose();
         }
 
-        public void TestFixureTearDown()
+        private void TestFixureTearDown()
         {
             // We must set this back afterwards, otherwise later tests will fail since they're expecting multiple
             // threads.  Possibly, later tests should be rewritten so none of them require async stuff (which regression
@@ -120,7 +121,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             m_lslApi.Initialize(m_engine, so.RootPart, m_scriptItem);
         }
 
-        public void TearDown()
+        private void TearDown()
         {
             MainServer.Instance.Stop();
         }
@@ -131,7 +132,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             TestHelpers.InMethod();
 
             m_lslApi.llRequestURL();
-            string returnedUri = m_engine.PostedEvents[m_scriptItem.ItemID][0].Params[2].ToString();
+            string returnedUri = m_engine.PostedEvents[m_scriptItem.ItemID][0].Params[2]?.ToString() ?? string.Empty;
 
             {
                 // Check that the initial number of URLs is correct
@@ -155,23 +156,10 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
                 m_lslApi.llReleaseURL(returnedUri);
                 Assert.Equal(m_urlModule.TotalUrls, m_lslApi.llGetFreeURLs().value);
 
-                HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(returnedUri);
-
-                bool gotExpectedException = false;
-
-                try
-                {
-                    using (HttpWebResponse webResponse = (HttpWebResponse)webRequest.GetResponse())
-                    {}
-                }
-                catch (WebException)
-                {
-//                    using (HttpWebResponse response = (HttpWebResponse)e.Response)
-//                        gotExpectedException = response.StatusCode == HttpStatusCode.NotFound;
-                    gotExpectedException = true;
-                }
-
-                Assert.True(gotExpectedException);
+                using var client = new HttpClient();
+                using var request = new HttpRequestMessage(HttpMethod.Get, returnedUri);
+                using HttpResponseMessage response = client.Send(request);
+                Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
             }
 
             {
@@ -197,14 +185,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
                 Assert.True(m_engine.PostedEvents.ContainsKey(m_scriptItem.ItemID));
 
                 List<EventParams> events = m_engine.PostedEvents[m_scriptItem.ItemID];
-                Assert.Equal(1, events.Count);
+                Assert.Single(events);
                 EventParams eventParams = events[0];
                 Assert.Equal("http_request", eventParams.EventName);
 
                 UUID returnKey;
-                string rawReturnKey = eventParams.Params[0].ToString();
-                string method = eventParams.Params[1].ToString();
-                returnedUri = eventParams.Params[2].ToString();
+                string rawReturnKey = eventParams.Params[0]?.ToString() ?? string.Empty;
+                string method = eventParams.Params[1]?.ToString() ?? string.Empty;
+                returnedUri = eventParams.Params[2]?.ToString() ?? string.Empty;
 
                 Assert.True(UUID.TryParse(rawReturnKey, out returnKey));
                 Assert.Equal(ScriptBaseClass.URL_REQUEST_GRANTED, method);
@@ -217,7 +205,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
 
                 m_engine.ClearPostedEvents();
                 m_engine.PostEventHook
-                    += (itemId, evp) => m_lslApi.llHTTPResponse(evp.Params[0].ToString(), 200, testResponse);
+                    += (itemId, evp) => m_lslApi.llHTTPResponse(evp.Params[0]?.ToString() ?? string.Empty, 200, testResponse);
 
 //                Console.WriteLine("Trying {0}", returnedUri);
 
@@ -226,14 +214,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
                 Assert.True(m_engine.PostedEvents.ContainsKey(m_scriptItem.ItemID));
 
                 List<EventParams> events = m_engine.PostedEvents[m_scriptItem.ItemID];
-                Assert.Equal(1, events.Count);
+                Assert.Single(events);
                 EventParams eventParams = events[0];
                 Assert.Equal("http_request", eventParams.EventName);
 
                 UUID returnKey;
-                string rawReturnKey = eventParams.Params[0].ToString();
-                string method = eventParams.Params[1].ToString();
-                string body = eventParams.Params[2].ToString();
+                string rawReturnKey = eventParams.Params[0]?.ToString() ?? string.Empty;
+                string method = eventParams.Params[1]?.ToString() ?? string.Empty;
+                string body = eventParams.Params[2]?.ToString() ?? string.Empty;
 
                 Assert.True(UUID.TryParse(rawReturnKey, out returnKey));
                 Assert.Equal("GET", method);
@@ -243,18 +231,13 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
 
         private void AssertHttpResponse(string uri, string expectedResponse)
         {
-            HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(uri);
-
-            using (HttpWebResponse webResponse = (HttpWebResponse)webRequest.GetResponse())
-            {
-                using (Stream stream = webResponse.GetResponseStream())
-                {
-                    using (StreamReader reader = new StreamReader(stream))
-                    {
-                        Assert.Equal(expectedResponse, reader.ReadToEnd());
-                    }
-                }
-            }
+            using var client = new HttpClient();
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            using HttpResponseMessage response = client.Send(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using Stream stream = response.Content.ReadAsStream();
+            using var reader = new StreamReader(stream);
+            Assert.Equal(expectedResponse, reader.ReadToEnd());
         }
     }
 }

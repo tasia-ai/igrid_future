@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
@@ -38,6 +38,7 @@ jobs:
         run: |
           dotnet restore ./Tests/OpenSim.Framework.Tests/OpenSim.Framework.Tests.csproj
           dotnet restore ./Tests/OpenSim.Region.OptionalModules.ServerSideBaking.Tests/OpenSim.Region.OptionalModules.ServerSideBaking.Tests.csproj
+          dotnet restore ./Tests/OpenSim.Region.ScriptEngine.Tests/OpenSim.Region.ScriptEngine.Tests.csproj
 
       - name: Build solution
         run: dotnet build ./Tranquillity.sln --configuration Release --no-restore -p:PlatformTarget=x64
@@ -47,3 +48,9 @@ jobs:
 
       - name: Run ServerSideBaking unit tests
         run: dotnet test ./Tests/OpenSim.Region.OptionalModules.ServerSideBaking.Tests/OpenSim.Region.OptionalModules.ServerSideBaking.Tests.csproj --configuration Release --no-restore -p:PlatformTarget=x64
+
+      - name: Build standalone script-engine tests
+        run: dotnet build ./Tests/OpenSim.Region.ScriptEngine.Tests/OpenSim.Region.ScriptEngine.Tests.csproj --configuration Release --no-restore -p:PlatformTarget=x64
+
+      - name: Run database-free script-engine regressions
+        run: dotnet test ./Tests/OpenSim.Region.ScriptEngine.Tests/OpenSim.Region.ScriptEngine.Tests.csproj --configuration Release --no-build --no-restore --filter "FullyQualifiedName~LSL_TypesTestLSLFloat|FullyQualifiedName~LSL_ApiUserTests" -p:PlatformTarget=x64

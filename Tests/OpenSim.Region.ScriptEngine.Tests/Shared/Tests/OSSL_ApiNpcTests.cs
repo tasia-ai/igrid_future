@@ -43,8 +43,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
     /// </summary>
     public class OSSL_NpcApiAppearanceTest : OpenSimTestCase
     {
-        protected Scene m_scene;
-        protected MockScriptEngine m_engine;
+        protected Scene m_scene = null!;
+        protected MockScriptEngine m_engine = null!;
 
         public override void SetUp()
         {

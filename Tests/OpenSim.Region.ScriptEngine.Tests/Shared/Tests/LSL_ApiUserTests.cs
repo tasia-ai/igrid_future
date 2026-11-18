@@ -27,10 +27,11 @@
 
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using Nini.Config;
 using Xunit;
 using OpenMetaverse;
 using OpenSim.Framework;
+using OpenSim.Region.CoreModules.Framework.UserManagement;
 using OpenSim.Region.Framework.Scenes;
 using OpenSim.Region.ScriptEngine.Shared.Api;
 using OpenSim.Region.ScriptEngine.Shared.ScriptBase;
@@ -41,8 +42,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
 {
     public class LSL_ApiUserTests : OpenSimTestCase
     {
-        private Scene m_scene;
-        private MockScriptEngine m_engine;
+        private Scene m_scene = null!;
+        private MockScriptEngine m_engine = null!;
 
         public override void SetUp()
         {
@@ -50,12 +51,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
 
             m_engine = new MockScriptEngine();
 
+            IConfigSource config = new IniConfigSource();
+            config.AddConfig("Modules").Set("UserManagementModule", "BasicUserManagementModule");
             m_scene = new SceneHelpers().SetupScene();
-            SceneHelpers.SetupSceneModules(m_scene, m_engine);
+            SceneHelpers.SetupSceneModules(m_scene, config, m_engine, new UserManagementModule());
         }
 
         [Fact]
-        public void TestLlRequestAgentDataOnline()
+        public async Task TestLlRequestAgentDataOnline()
         {
             TestHelpers.InMethod();
 //            TestHelpers.EnableLogging();
@@ -70,22 +73,42 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             LSL_Api apiGrp1 = new LSL_Api();
             apiGrp1.Initialize(m_engine, part, scriptItem);
 
+            async Task<EventParams> RequestOnline()
+            {
+                var completion = new TaskCompletionSource<EventParams>(TaskCreationOptions.RunContinuationsAsynchronously);
+                void OnPostEvent(UUID itemId, EventParams eventParams)
+                {
+                    if (itemId == scriptItem.ItemID && eventParams.EventName == "dataserver")
+                        completion.TrySetResult(eventParams);
+                }
+
+                m_engine.PostEventHook += OnPostEvent;
+                try
+                {
+                    apiGrp1.llRequestAgentData(userId.ToString(), ScriptBaseClass.DATA_ONLINE);
+                    return await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                finally
+                {
+                    m_engine.PostEventHook -= OnPostEvent;
+                }
+            }
+
             // Initially long timeout to test cache
             apiGrp1.LlRequestAgentDataCacheTimeoutMs = 20000;
 
             // Offline test
             {
-                apiGrp1.llRequestAgentData(userId.ToString(), ScriptBaseClass.DATA_ONLINE);
+                EventParams eventParams = await RequestOnline();
 
                 Assert.True(m_engine.PostedEvents.ContainsKey(scriptItem.ItemID));
 
                 List<EventParams> events = m_engine.PostedEvents[scriptItem.ItemID];
-                Assert.Equal(1, events.Count);
-                EventParams eventParams = events[0];
+                Assert.Single(events);
                 Assert.Equal("dataserver", eventParams.EventName);
 
-                string data = eventParams.Params[1].ToString();
-                Assert.Equal(0, int.Parse(data));
+                Assert.True(int.TryParse(eventParams.Params[1]?.ToString(), out int online));
+                Assert.Equal(0, online);
 
                 m_engine.PostedEvents.Clear();
             }
@@ -94,17 +117,16 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             ScenePresence sp = SceneHelpers.AddScenePresence(m_scene, ua1);
 
             {
-                apiGrp1.llRequestAgentData(userId.ToString(), ScriptBaseClass.DATA_ONLINE);
+                EventParams eventParams = await RequestOnline();
 
                 Assert.True(m_engine.PostedEvents.ContainsKey(scriptItem.ItemID));
 
                 List<EventParams> events = m_engine.PostedEvents[scriptItem.ItemID];
-                Assert.Equal(1, events.Count);
-                EventParams eventParams = events[0];
+                Assert.Single(events);
                 Assert.Equal("dataserver", eventParams.EventName);
 
-                string data = eventParams.Params[1].ToString();
-                Assert.Equal(0, int.Parse(data));
+                Assert.True(int.TryParse(eventParams.Params[1]?.ToString(), out int online));
+                Assert.Equal(1, online);
 
                 m_engine.PostedEvents.Clear();
             }
@@ -112,40 +134,38 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             apiGrp1.LlRequestAgentDataCacheTimeoutMs = 20;
 
             // Make absolutely sure that we should trigger cache timeout.
-            Thread.Sleep(apiGrp1.LlRequestAgentDataCacheTimeoutMs + 50);
+            await Task.Delay(apiGrp1.LlRequestAgentDataCacheTimeoutMs + 50);
 
             {
-                apiGrp1.llRequestAgentData(userId.ToString(), ScriptBaseClass.DATA_ONLINE);
+                EventParams eventParams = await RequestOnline();
 
                 Assert.True(m_engine.PostedEvents.ContainsKey(scriptItem.ItemID));
 
                 List<EventParams> events = m_engine.PostedEvents[scriptItem.ItemID];
-                Assert.Equal(1, events.Count);
-                EventParams eventParams = events[0];
+                Assert.Single(events);
                 Assert.Equal("dataserver", eventParams.EventName);
 
-                string data = eventParams.Params[1].ToString();
-                Assert.Equal(1, int.Parse(data));
+                Assert.True(int.TryParse(eventParams.Params[1]?.ToString(), out int online));
+                Assert.Equal(1, online);
 
                 m_engine.PostedEvents.Clear();
             }
 
             m_scene.CloseAgent(userId, false);
 
-            Thread.Sleep(apiGrp1.LlRequestAgentDataCacheTimeoutMs + 50);
+            await Task.Delay(apiGrp1.LlRequestAgentDataCacheTimeoutMs + 50);
 
             {
-                apiGrp1.llRequestAgentData(userId.ToString(), ScriptBaseClass.DATA_ONLINE);
+                EventParams eventParams = await RequestOnline();
 
                 Assert.True(m_engine.PostedEvents.ContainsKey(scriptItem.ItemID));
 
                 List<EventParams> events = m_engine.PostedEvents[scriptItem.ItemID];
-                Assert.Equal(1, events.Count);
-                EventParams eventParams = events[0];
+                Assert.Single(events);
                 Assert.Equal("dataserver", eventParams.EventName);
 
-                string data = eventParams.Params[1].ToString();
-                Assert.Equal(0, int.Parse(data));
+                Assert.True(int.TryParse(eventParams.Params[1]?.ToString(), out int online));
+                Assert.Equal(0, online);
 
                 m_engine.PostedEvents.Clear();
             }

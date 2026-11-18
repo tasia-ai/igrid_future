@@ -145,7 +145,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
 
             Cast(Options(ScriptBaseClass.RC_DETECT_PHANTOM, value));
 
-            Assert.Equal(asked, (m_physics.AskedFilter.Value & RayFilterFlags.LSLPhantom) == RayFilterFlags.LSLPhantom);
+            Assert.Equal(asked, ((m_physics.AskedFilter ?? throw new InvalidOperationException("Ray filter was not recorded"))
+                & RayFilterFlags.LSLPhantom) == RayFilterFlags.LSLPhantom);
         }
 
         [Fact]

@@ -31,7 +31,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
     {
         private sealed class Recorder : NullPhysicsActor
         {
-            public Vector3 Force, Torque;
+            public Vector3 RecordedForce, RecordedTorque;
             public bool ForceLocal, TorqueLocal;
             public int ForceCalls, TorqueCalls;
             public override bool IsPhysical { get => true; set { } }
@@ -40,14 +40,14 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
 
             public override void SetScriptForce(Vector3 force, bool local)
             {
-                Force = force;
+                RecordedForce = force;
                 ForceLocal = local;
                 ForceCalls++;
             }
 
             public override void SetScriptTorque(Vector3 torque, bool local)
             {
-                Torque = torque;
+                RecordedTorque = torque;
                 TorqueLocal = local;
                 TorqueCalls++;
             }
@@ -87,7 +87,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             m_api.llSetForce(new LSL_Vector(10.0, 0.0, 0.0), 1);
 
             // The object's x axis points along the region's y axis.
-            AssertVector(new Vector3(0f, 10f, 0f), m_actor.Force);
+            AssertVector(new Vector3(0f, 10f, 0f), m_actor.RecordedForce);
             Assert.True(m_actor.ForceLocal);
             Assert.Equal(1, m_actor.ForceCalls);
         }
@@ -97,7 +97,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
         {
             m_api.llSetForce(new LSL_Vector(10.0, 0.0, 0.0), 0);
 
-            AssertVector(new Vector3(10f, 0f, 0f), m_actor.Force);
+            AssertVector(new Vector3(10f, 0f, 0f), m_actor.RecordedForce);
             Assert.False(m_actor.ForceLocal);
             Assert.Equal(1, m_actor.ForceCalls);
         }
@@ -108,7 +108,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
             m_api.llSetTorque(new LSL_Vector(0.0, 5.0, 0.0), 1);
 
             // The object's y axis points along the region's negative x axis.
-            AssertVector(new Vector3(-5f, 0f, 0f), m_actor.Torque);
+            AssertVector(new Vector3(-5f, 0f, 0f), m_actor.RecordedTorque);
             Assert.True(m_actor.TorqueLocal);
             Assert.Equal(1, m_actor.TorqueCalls);
         }
@@ -118,7 +118,7 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
         {
             m_api.llSetTorque(new LSL_Vector(0.0, 5.0, 0.0), 0);
 
-            AssertVector(new Vector3(0f, 5f, 0f), m_actor.Torque);
+            AssertVector(new Vector3(0f, 5f, 0f), m_actor.RecordedTorque);
             Assert.False(m_actor.TorqueLocal);
             Assert.Equal(1, m_actor.TorqueCalls);
         }
@@ -128,8 +128,8 @@ namespace OpenSim.Region.ScriptEngine.Shared.Tests
         {
             m_api.llSetForceAndTorque(new LSL_Vector(1.0, 0.0, 0.0), new LSL_Vector(0.0, 1.0, 0.0), 1);
 
-            AssertVector(new Vector3(0f, 1f, 0f), m_actor.Force);
-            AssertVector(new Vector3(-1f, 0f, 0f), m_actor.Torque);
+            AssertVector(new Vector3(0f, 1f, 0f), m_actor.RecordedForce);
+            AssertVector(new Vector3(-1f, 0f, 0f), m_actor.RecordedTorque);
             Assert.True(m_actor.ForceLocal);
             Assert.True(m_actor.TorqueLocal);
         }
