@@ -39,13 +39,16 @@ excluded-project backlog below.
   **36/36 passed**.
 - Focused Phlox carried-state, restored-frame and Experience regressions:
   **37/37 passed**.
+- Focused Phlox shutdown-capture and grant-restore regressions:
+  **24/24 passed**.
 - Phlox list-hash/table-key regressions: **7/7 passed**.
 - Full CoreModules serial run: **854 passed, 2 failed**. Both failures are the
   local Windows TLS 1.3 handshake cases (`no common algorithm`); both pass when
   run individually. The selected offline CoreModules regressions passed 291/291.
-- Full Phlox serial run: **5,169 passed, 129 failed, 2 skipped**. Failures span
-  physics/status, shutdown, inventory-churn, arrival, and script API tests; this
-  full-suite run is not counted as passing.
+- Full Phlox serial run: **5,182 passed, 116 failed, 2 skipped**. Failures remain
+  in physics-dependent, estate, arrival, notecard-churn and script API tests;
+  this full-suite run is not counted as passing. Shutdown-capture and grant-
+  restore failures from the prior run now pass.
 - Linux x64 build remains unverified: the offline cache lacks the .NET 10 Linux
   runtime/host packs. No database, simulator server or grid was started.
 

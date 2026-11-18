@@ -2931,6 +2931,8 @@ namespace Phlox.ScriptEngine
             if (sp != null && sp.HasScriptControls(m_itemID)) return;                            // taken again since
             EndPermissions(SlConst.PERMISSION_TAKE_CONTROLS | SlConst.PERMISSION_CONTROL_CAMERA,
                            releaseControls: true, forgetControls: true);
+            // The core may have reduced the item mask before this callback. Persist the resulting grant either way.
+            GrantChanged();
         }
 
         /// <summary>

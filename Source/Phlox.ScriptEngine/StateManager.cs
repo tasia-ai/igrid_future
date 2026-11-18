@@ -163,10 +163,16 @@ namespace Phlox.ScriptEngine
         /// scripts are captured here, on this thread. Then every queued write is done.
         /// </summary>
         public void Stop()
+            => StopExcept(UUID.Zero);
+
+        /// <summary>Leave the running script's last complete row untouched while saving other dirty scripts.</summary>
+        public void StopExcept(UUID stillRunning)
         {
             m_Stop = true;
             m_WakeEvent.Set();
             m_Thread?.Join(5000);
+            if (stillRunning != UUID.Zero)
+                lock (m_Lock) m_Dirty.Remove(stillRunning);
             CaptureDirty(self: true);
             DrainWrites();
         }

@@ -42,11 +42,12 @@ namespace Phlox.ScriptEngine
             m_Thread.Start();
         }
 
-        public void Stop()
+        public bool Stop()
         {
-            StopThread();
+            bool stopped = StopThread();
             m_ScriptLoader.Stop();
             m_ExeScheduler.Stop();
+            return stopped;
         }
 
         /// <summary>

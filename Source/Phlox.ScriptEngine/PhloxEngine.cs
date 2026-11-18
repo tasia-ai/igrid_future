@@ -600,12 +600,12 @@ namespace Phlox.ScriptEngine
             m_Scene.EventManager.OnRemovePresence            -= OnRemovePresenceForControls;
             m_Scene.EventManager.OnMakeRootAgent             -= OnMakeRootAgentForControls;
             LSLSystemAPI.ClearRegionCharacters(scene.RegionInfo.RegionID);
-            m_MasterScheduler?.Stop();
+            bool stopped = m_MasterScheduler == null || m_MasterScheduler.Stop();
             AsyncCommands?.Shutdown();
             m_Scene = null;
-			
-			StateManager?.Stop();
-			StateManager = null;
+
+            SaveStateAtStop(stopped);
+            StateManager = null;
         }
 
         public void Close() { }
@@ -681,10 +681,27 @@ namespace Phlox.ScriptEngine
             m_log.LogInformation("[PhloxEngine]: Shutdown event, flushing script state");
             // The scheduler stops first, so the final save is of scripts that are no longer running (Halcyon
             // MasterScheduler.Stop joins the execution thread before the state manager's backup).
-            if (m_MasterScheduler != null && !m_MasterScheduler.StopThread())
-                m_log.LogWarning("[PhloxEngine]: The script scheduler did not stop within 5 s; saving script state anyway");
-            StateManager?.Stop();
+            SaveStateAtStop(m_MasterScheduler == null || m_MasterScheduler.StopThread());
             StateManager = null;
+        }
+
+        /// <summary>
+        /// Save after asking the scheduler to stop. If its thread did not stop in time, halt it from starting any further
+        /// timeslices and leave the currently running script's last complete row untouched.
+        /// </summary>
+        internal void SaveStateAtStop(bool schedulerStopped)
+        {
+            UUID stillRunning = UUID.Zero;
+            if (!schedulerStopped)
+            {
+                stillRunning = m_ExeScheduler?.Halt()?.ItemId ?? UUID.Zero;
+                if (stillRunning == UUID.Zero)
+                    m_log.LogWarning("[PhloxEngine]: The script scheduler did not stop within 5 s; it starts no further script, and script state is being saved");
+                else
+                    m_log.LogWarning("[PhloxEngine]: The script scheduler did not stop within 5 s; its running script {0} keeps its last saved state while all others are saved",
+                        stillRunning);
+            }
+            StateManager?.StopExcept(stillRunning);
         }
 
         private void OnObjectBeingRemovedFromScene(SceneObjectGroup obj)
