@@ -35,6 +35,10 @@ excluded-project backlog below.
 - Full non-incremental Windows x64 Release build on .NET SDK 10.0.402:
   **succeeded, 0 errors, 2 CS8981 compatibility warnings**.
 - Framework tests: **202/202 passed**; migration resource audit: **8/8 passed**.
+- Focused Phlox regressions after the current fixes: **270/270 passed** across
+  estate/partner/arrival/user-key/notecard (73), blocked-owner/give/error-pause
+  (189), compile-idle/bot-profile/animation/inventory/flush/permission (7), and
+  the corrected loopback outbound-filter regression (1).
 - ServerSideBaking tests: **164 passed, 3 skipped**; HypergridService tests:
   **36/36 passed**.
 - Focused Phlox carried-state, restored-frame and Experience regressions:
@@ -45,12 +49,17 @@ excluded-project backlog below.
 - Full CoreModules serial run: **854 passed, 2 failed**. Both failures are the
   local Windows TLS 1.3 handshake cases (`no common algorithm`); both pass when
   run individually. The selected offline CoreModules regressions passed 291/291.
-- Full Phlox serial run: **5,182 passed, 116 failed, 2 skipped**. Failures remain
-  in physics-dependent, estate, arrival, notecard-churn and script API tests;
-  this full-suite run is not counted as passing. Shutdown-capture and grant-
-  restore failures from the prior run now pass.
-- Linux x64 build remains unverified: the offline cache lacks the .NET 10 Linux
-  runtime/host packs. No database, simulator server or grid was started.
+- Full Phlox serial run after the latest focused fixes: **5,258 passed,
+  38 failed, 2 skipped**. All 38 remaining failures are in physics-dependent
+  LocalForceFlag, HoverWaterFlag, PushObject and PhysicsStatusAndReadout tests;
+  physics work remains out of scope. The non-physics failures from the prior run
+  now pass their focused regressions. The outbound-filter fixture drains request
+  headers before replying, avoiding the prior spurious 499.
+- PostgreSQL schema validation and version-18 migration changes were statically
+  audited; runtime migration/database tests were not run.
+- Linux x64 CI verification is pending the current push. The offline local cache
+  lacks the .NET 10 Linux runtime/host packs. No database connection, simulator
+  server or grid was started.
 
 ## Ranked task list
 

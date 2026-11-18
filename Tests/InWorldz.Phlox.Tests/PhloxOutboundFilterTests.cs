@@ -55,7 +55,14 @@ public class PhloxOutboundFilterTests
                     {
                         c.ReceiveTimeout = 2000;
                         var s = c.GetStream();
-                        _ = s.ReadByte(); // The request is not parsed; one byte confirms the client connected.
+                        // Drain the headers before replying. Answering after one byte can close the socket while
+                        // HttpClient is still writing its request and turn an allowed request into a 499.
+                        using (var reader = new StreamReader(s, Encoding.ASCII, false, 1024, leaveOpen: true))
+                        {
+                            string line;
+                            do { line = reader.ReadLine(); }
+                            while (!string.IsNullOrEmpty(line));
+                        }
                         byte[] resp = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok");
                         s.Write(resp, 0, resp.Length);
                     }

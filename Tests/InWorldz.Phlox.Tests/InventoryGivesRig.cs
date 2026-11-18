@@ -134,7 +134,9 @@ internal sealed class RecordingMoney : IMoneyModule
     public bool MoveMoney(UUID fromUser, UUID toUser, int amount, MoneyTransactionType type, string text) => true;
     public int UploadCharge => 0;
     public int GroupCreationCharge => 0;
-#pragma warning disable CS0067
-    public event ObjectPaid OnObjectPaid;
-#pragma warning restore CS0067
+    public event ObjectPaid OnObjectPaid
+    {
+        add { }
+        remove { }
+    }
 }

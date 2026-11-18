@@ -511,7 +511,7 @@ public class PermissionLifecycleTests
         var (id, sp, _) = SatOnAChild(h);
         sp.StandUp();
         Assert.False(Holds(sp, id));
-        Assert.True(PumpUntil(h, () => Item(h.Prim, id).PermsMask == TRIGGER_ANIMATION),
+        Assert.True(PumpUntil(h, () => Item(h.Prim, id).PermsMask == TRIGGER_ANIMATION && !HasControlRecord(h, id)),
             "after the stand the root script has mask " + Item(h.Prim, id).PermsMask);
         Assert.Equal(sp.UUID, Item(h.Prim, id).PermsGranter);
         Assert.False(HasControlRecord(h, id));

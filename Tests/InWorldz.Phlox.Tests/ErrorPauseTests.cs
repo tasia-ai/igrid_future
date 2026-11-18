@@ -160,7 +160,6 @@ public class ErrorPauseTests
 
     private static readonly Dictionary<string, Case> Paused = new Case[]
     {
-        new("ThrottleScriptResets", Reset, Later: 5000),
         new("llRegionSay channel 0", a => { a.llRegionSay(0, "x"); return null; }),
         new("llRegionSayTo DEBUG_CHANNEL", a => { a.llRegionSayTo(UUID.Random().ToString(), DEBUG_CHANNEL, "x"); return null; }),
         new("llGetCameraPos", a => a.llGetCameraPos(), Setup: r => { r.Self.PermsGranter = UUID.Random(); r.Self.PermsMask = 0; }),
@@ -224,6 +223,17 @@ public class ErrorPauseTests
 
     public static IEnumerable<object[]> PausedNames() => Paused.Keys.Select(k => new object[] { k });
     public static IEnumerable<object[]> UnpausedNames() => Unpaused.Keys.Select(k => new object[] { k });
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ResetThrottleKeepsItsOwnFiveSecondPause(bool chatThrottle)
+    {
+        using var r = new Rig(chatThrottle);
+        var (ms, _) = r.Accounted(Reset);
+        Assert.Equal(5000, ms);
+        Assert.Empty(r.Errors); // reset throttling logs server-side; it is not ScriptShoutError on DEBUG_CHANNEL
+    }
 
     private static (int Ms, object Ret, List<string> Errors) Run(Case c, bool chatThrottle)
     {

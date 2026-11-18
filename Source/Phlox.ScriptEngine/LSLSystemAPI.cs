@@ -472,15 +472,8 @@ namespace Phlox.ScriptEngine
         {
             // A derezzed part has no inventory left by the time its scripts unload; the NRE here stopped DoUnload
             // half way and left every derezzed script loaded.
-            var inventory = m_host?.TaskInventory;
-            if (inventory == null) return null;
-            lock (inventory)
-            {
-                foreach (var kvp in inventory)
-                    if (kvp.Value.Type == 10 && kvp.Value.ItemID == m_itemID)
-                        return kvp.Value;
-            }
-            return null;
+            TaskInventoryItem item = m_host?.Inventory?.GetInventoryItem(m_itemID);
+            return item?.Type == (int)AssetType.LSLText ? item : null;
         }
 
         // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -2642,6 +2635,9 @@ namespace Phlox.ScriptEngine
             if (bot != null && bot.IsNPC && !bot.IsChildAgent)
             {
                 INPCModule npcModule = World.RequestModuleInterface<INPCModule>();
+                UUID botOwner = npcModule?.GetOwner(agentID) ?? UUID.Zero;
+                if (botOwner.IsNotZero() && botOwner == m_host.OwnerID)
+                    return SlConst.PERMISSION_TRIGGER_ANIMATION;
                 if (npcModule != null && npcModule.CheckAnimationPermissions(agentID, m_host.OwnerID))
                     return SlConst.PERMISSION_TRIGGER_ANIMATION;
                 SceneObjectPart seat = bot.ParentPart;
@@ -3157,6 +3153,11 @@ namespace Phlox.ScriptEngine
                 case EstateBannedAgentAdd:
                     if (es.IsEstateManagerOrOwner(key) || key == m_host.OwnerID || World.Permissions.IsGod(key))
                         return false;
+                    IProfileModule profiles = World.RequestModuleInterface<IProfileModule>();
+                    if (profiles != null &&
+                        profiles.TryGetUserPartner(es.EstateOwner, out UUID estateOwnerPartner) &&
+                        estateOwnerPartner == key)
+                        return false;
                     // Halcyon clears the allowed entry even when the avatar is already banned.
                     if (allowed) es.RemoveEstateUser(key);
                     if (!banned)
@@ -3183,7 +3184,14 @@ namespace Phlox.ScriptEngine
             }
         }
 
-        private void StoreEstate(EstateSettings es) => World.EstateDataServiceSafe?.StoreEstateSettings(es);
+        private void StoreEstate(EstateSettings es)
+        {
+            IEstateDataService estateData = World.EstateDataServiceSafe;
+            if (estateData == null) return;
+
+            estateData.StoreEstateSettings(es);
+            World.RequestModuleInterface<IEstateModule>()?.TriggerEstateInfoChange();
+        }
 
         /// <summary>
         /// Halcyon EstateBanUser "Banned, now shoo them away" (EstateManagementModule.cs:311-328): an avatar here whose
@@ -5086,10 +5094,8 @@ namespace Phlox.ScriptEngine
         private static UUID NotecardAssetIn(SceneObjectPart part, string name)
         {
             if (string.IsNullOrEmpty(name)) return UUID.Zero;
-            lock (part.TaskInventory)
-                foreach (var kvp in part.TaskInventory)
-                    if (kvp.Value.Type == (int)AssetType.Notecard && kvp.Value.Name == name)
-                        return kvp.Value.AssetID;
+            TaskInventoryItem item = part.Inventory.GetInventoryItem(name, (int)AssetType.Notecard);
+            if (item != null) return item.AssetID;
             return UUID.TryParse(name, out UUID asset) ? asset : UUID.Zero;
         }
 
@@ -5474,57 +5480,24 @@ namespace Phlox.ScriptEngine
                 World.MoveTaskInventoryItems(destId, category, source, itemIDs);
                 return IW_DELIVER_OK;
             }
-            // Halcyon gives an avatar all of the list or none of it: an item that cannot be moved aborts the give with
-            // its reason (LSLSystemAPI.cs:8478-8501). Core's MoveTaskInventoryItems alerts per item and gives the rest, so
-            // the items are checked first, by its own rules (CreateAgentInventoryItemFromTask).
-            foreach (UUID itemId in itemIDs)
-            {
-                TaskInventoryItem item = source.Inventory.GetInventoryItem(itemId);
-                if (item == null)
-                {
-                    failure = "Item not found: " + itemId;
-                    return IW_DELIVER_ITEM;
-                }
-                if (destId != item.OwnerID && (item.CurrentPermissions & (uint)OpenSim.Framework.PermissionMask.Transfer) == 0)
-                {
-                    failure = "Item doesn't have the Transfer permission.";
-                    return IW_DELIVER_PERM;
-                }
-            }
-            if (World.GetScenePresence(destId) != null)
-            {
-                UUID given = World.MoveTaskInventoryItems(destId, category, source, itemIDs);
-                if (given == UUID.Zero)
-                {
-                    failure = "the recipient's inventory could not be reached";
-                    return IW_DELIVER_USER;
-                }
-                // Halcyon offers the folder to a present avatar too, so the viewer shows the offer.
-                SendGiveNotice(source, destId, "'" + category + "'", given, (byte)AssetType.Folder);
-                return IW_DELIVER_OK;
-            }
-            if (!AvatarKnown(destId))
+            // Halcyon gives an avatar all of the list or none of it. Stage every agent item before creating the folder
+            // or adding any entries so a permission or inventory change during the give cannot leave a partial folder.
+            bool present = World.GetScenePresence(destId) != null;
+            if (!present && !AvatarKnown(destId))
             {
                 failure = "Can't find destination '" + destId + "'";
                 return IW_DELIVER_USER;
             }
-            InventoryFolderBase root = World.InventoryService.GetRootFolder(destId);
-            if (root == null)
+
+            UUID given = World.MoveTaskInventoryItemsAllOrNone(destId, category, source, itemIDs, out failure);
+            if (given == UUID.Zero)
             {
-                failure = "the recipient's inventory could not be reached";
-                return IW_DELIVER_USER;
+                if (string.IsNullOrEmpty(failure))
+                    failure = "the recipient's inventory could not be reached";
+                return DeliverReasonToResult(failure);
             }
-            var folder = new InventoryFolderBase(UUID.Random(), category, destId, -1, root.ID, root.Version);
-            World.InventoryService.AddFolder(folder);
-            foreach (UUID itemId in itemIDs)
-            {
-                if (World.MoveTaskInventoryItem(destId, folder.ID, source, itemId, out string reason) == null)
-                {
-                    failure = reason;
-                    return DeliverReasonToResult(failure);
-                }
-            }
-            SendGiveNotice(source, destId, "'" + category + "'", folder.ID, (byte)AssetType.Folder);
+            // Halcyon offers the folder to a present avatar too, so the viewer shows the offer.
+            SendGiveNotice(source, destId, "'" + category + "'", given, (byte)AssetType.Folder);
             return IW_DELIVER_OK;
         }
 
@@ -5782,8 +5755,14 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
         /// </summary>
         private List<SceneObjectGroup> RezChecked(string inventory, Vector3 pos, Vector3 vel, Quaternion rot, int param, bool atRoot)
         {
-            if (RezRotationIsNaN(rot)) return null;
             if (m_host == null || World == null) return null;
+            // Halcyon's owner block check precedes all rez validation and fails silently with its 100 ms pause.
+            if (World.RequestModuleInterface<IBlockedOwnerModule>()?.IsBlocked(m_host.OwnerID) == true)
+            {
+                ScriptSleep(100);
+                return null;
+            }
+            if (RezRotationIsNaN(rot)) return null;
 
             if (Util.GetDistanceTo(pos, m_host.AbsolutePosition) > 10f)
             {
@@ -6085,8 +6064,10 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
         /// </summary>
         public int iwCheckRezError(Vector3 pos, int isTemp, int landImpact)
         {
-            if (World?.LandChannel?.GetLandObject(pos.X, pos.Y) == null) return IW_REZ_NO_LAND_PARCEL;
             UUID owner = m_host.OwnerID;
+            if (World.RequestModuleInterface<IBlockedOwnerModule>()?.IsBlocked(owner) == true)
+                return IW_REZ_NOT_PERMITTED;
+            if (World?.LandChannel?.GetLandObject(pos.X, pos.Y) == null) return IW_REZ_NO_LAND_PARCEL;
             if (!World.Permissions.CanRezObject(0, owner, pos)) return IW_REZ_NOT_PERMITTED;
             if (landImpact > 0 && !World.Permissions.CanRezObject(landImpact, owner, pos)) return IW_REZ_PARCEL_LAND_IMPACT;
             return IW_REZ_OK;
@@ -17611,13 +17592,11 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
             UUID id = ParseBotID(botID);
             if (id == UUID.Zero) return new LSLList();
 
-            // Get profile from BotManager's stored data via INPC
-            INPCModule npcMod = World.RequestModuleInterface<INPCModule>();
-            INPC npc = npcMod?.GetNPC(id, World);
-
             IBotManager manager = GetBotManager();
-            // We need to read from the bot's stored profile data
-            // Since BotData is internal, we read from INPC + fallback
+            if (manager == null ||
+                !manager.GetBotProfile(id, out string about, out string email,
+                    out UUID image, out string profileURL))
+                return new LSLList();
 
             List<object> list = new List<object>();
             for (int i = 0; i < profileInformation.Length; i++)
@@ -17626,16 +17605,16 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
                 switch (param)
                 {
                     case 1: // BOT_ABOUT_TEXT
-                        list.Add(npc?.profileAbout ?? string.Empty);
+                        list.Add(about);
                         break;
                     case 2: // BOT_EMAIL
-                        list.Add(string.Empty); // email not exposed via INPC
+                        list.Add(email);
                         break;
                     case 3: // BOT_IMAGE_UUID
-                        list.Add((npc?.profileImage ?? UUID.Zero).ToString());
+                        list.Add(image.ToString());
                         break;
                     case 4: // BOT_PROFILE_URL
-                        list.Add(string.Empty); // profileURL not exposed via INPC
+                        list.Add(profileURL);
                         break;
                 }
             }
@@ -18420,11 +18399,9 @@ public void llRezObject(string inventory, Vector3 pos, Vector3 vel, Quaternion r
         private TaskInventoryItem FindInventoryItem(string name, int type)
         {
             if (m_host == null) return null;
-            lock (m_host.TaskInventory)
-                foreach (var kvp in m_host.TaskInventory)
-                    if (kvp.Value.Name == name && (type == -1 || kvp.Value.Type == type))
-                        return kvp.Value;
-            return null;
+            return type == -1
+                ? m_host.Inventory.GetInventoryItem(name)
+                : m_host.Inventory.GetInventoryItem(name, type);
         }
 
         /// <summary>
@@ -19957,6 +19934,17 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
             string[] parts = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             string firstName = parts.Length > 0 ? parts[0] : "";
             string lastName = parts.Length > 1 ? parts[1] : "Resident";
+
+            bool presentHere = false;
+            World?.ForEachScenePresence(sp =>
+            {
+                if (!presentHere && !sp.IsChildAgent &&
+                    sp.Firstname.Equals(firstName, StringComparison.InvariantCultureIgnoreCase) &&
+                    sp.Lastname.Equals(lastName, StringComparison.InvariantCultureIgnoreCase))
+                    presentHere = true;
+            });
+            if (!presentHere)
+                ScriptSleep(100);
 
             // Look up via user account service
             System.Threading.Tasks.Task.Run(() =>

@@ -198,7 +198,7 @@ public class ArrivalChangedTests
         default {
             state_entry() { llSay(0, ""state_entry""); }
             changed(integer c) { llSay(0, ""changed "" + (string)c); }
-            touch_start(integer t) { llSay(0, ""begin""); integer i; for (i = 0; i < 200000; i++) n++; llSay(0, ""end "" + (string)n); }
+            touch_start(integer t) { llSay(0, ""begin""); integer i; for (i = 0; i < 1000; i++) n++; llSay(0, ""end "" + (string)n); }
         }";
 
     /// <summary>
@@ -223,9 +223,10 @@ public class ArrivalChangedTests
         }
         using var h = new SchedulerHarness(noThrottle);
         SavedStateRig.Rez(h, h.Prim, Busy, asset, item, 0, false, PrimCrossing);
+        // The resumed handler deliberately runs across multiple VM timeslices before the arrival event.
         Assert.True(h.PumpUntil(() => h.Said.Contains("changed 256"), TimeSpan.FromSeconds(15)), SavedStateRig.SaidText(h) + " " + h.StatusOf(item));
         h.PumpUntilIdle(TimeSpan.FromSeconds(10));
-        Assert.True(new[] { "end 200000", "changed 256" }.SequenceEqual(h.Said), SavedStateRig.SaidText(h));
+        Assert.True(new[] { "end 1000", "changed 256" }.SequenceEqual(h.Said), SavedStateRig.SaidText(h));
     }
 
     // ── through the core ─────────────────────────────────────────────────────

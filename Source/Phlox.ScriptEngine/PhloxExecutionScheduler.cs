@@ -35,6 +35,8 @@ namespace Phlox.ScriptEngine
         private const int SCRIPT_TIMESLICE = 8;
         // Slow timeslice warning threshold ms
         private const int SLOW_THRESH_MS = 250;
+        private const int CHANGED_REGION = 0x100;
+        private const int CHANGED_TELEPORT = 0x200;
         // Touch repeat interval ms
         private const ulong TOUCH_INTERVAL = 100;
         // Maximum number of queued events per script — prevents listen/timer floods
@@ -487,6 +489,25 @@ namespace Phlox.ScriptEngine
                 {
                     EventType = SupportedEventList.Events.ATTACH,
                     Args = new object[] { req.Prim.ParentGroup.AttachedAvatar.ToString() }
+                });
+            }
+
+            // SL reports a region arrival only to the root prim. A teleport also sets CHANGED_TELEPORT for an
+            // attachment, not for an ordinary object that the core happens to start as Teleporting.
+            if (req.Prim?.IsRoot == true &&
+                (req.StateSource == (int)StateSource.PrimCrossing ||
+                 req.StateSource == (int)StateSource.Teleporting) &&
+                interp.Script.FindEvent(interp.ScriptState.LSLState,
+                    (int)SupportedEventList.Events.CHANGED) != null)
+            {
+                int changed = CHANGED_REGION;
+                if (req.StateSource == (int)StateSource.Teleporting &&
+                    req.Prim.ParentGroup?.IsAttachment == true)
+                    changed |= CHANGED_TELEPORT;
+                PostEvent(req.ItemID, new PostedEvent
+                {
+                    EventType = SupportedEventList.Events.CHANGED,
+                    Args = new object[] { changed }
                 });
             }
 

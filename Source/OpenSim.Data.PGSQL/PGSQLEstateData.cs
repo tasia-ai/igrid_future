@@ -117,6 +117,46 @@ public class PGSQLEstateStore : IEstateDataStore
             cmd.CommandText = "CREATE INDEX IF NOT EXISTS \"ix_estate_manager_roles\" " +
                 "ON \"public\".\"estate_manager_roles\" (\"EstateID\")";
             cmd.ExecuteNonQuery();
+
+            cmd.CommandText = "SELECT data_type, is_nullable FROM information_schema.columns " +
+                "WHERE table_schema = 'public' AND table_name = 'estate_settings' " +
+                "AND column_name = 'EstateOwnerGroup'";
+            using (NpgsqlDataReader reader = cmd.ExecuteReader())
+            {
+                if (!reader.Read() || reader.GetString(0) != "uuid" || reader.GetString(1) != "NO")
+                    throw new InvalidOperationException(
+                        "public.estate_settings.EstateOwnerGroup must be a non-null uuid column");
+            }
+
+            cmd.CommandText = "SELECT column_name, data_type, is_nullable " +
+                "FROM information_schema.columns WHERE table_schema = 'public' " +
+                "AND table_name = 'estate_manager_roles'";
+            var columns = new Dictionary<string, (string Type, string Nullable)>(StringComparer.Ordinal);
+            using (NpgsqlDataReader reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                    columns[reader.GetString(0)] = (reader.GetString(1), reader.GetString(2));
+            }
+            if (!columns.TryGetValue("EstateID", out var estateId) ||
+                estateId != ("integer", "NO") ||
+                !columns.TryGetValue("uuid", out var managerId) ||
+                managerId != ("uuid", "NO"))
+                throw new InvalidOperationException(
+                    "public.estate_manager_roles must contain non-null integer EstateID and uuid uuid columns");
+
+            cmd.CommandText = "SELECT i.indisvalid AND i.indisready AND NOT i.indisunique " +
+                "AND i.indnatts = 1 AND a.attname = 'EstateID' " +
+                "FROM pg_class AS t " +
+                "JOIN pg_namespace AS tn ON tn.oid = t.relnamespace " +
+                "JOIN pg_index AS i ON i.indrelid = t.oid " +
+                "JOIN pg_class AS ix ON ix.oid = i.indexrelid " +
+                "JOIN pg_namespace AS ixn ON ixn.oid = ix.relnamespace " +
+                "JOIN pg_attribute AS a ON a.attrelid = t.oid AND a.attnum = i.indkey[0] " +
+                "WHERE tn.nspname = 'public' AND t.relname = 'estate_manager_roles' " +
+                "AND ixn.nspname = 'public' AND ix.relname = 'ix_estate_manager_roles'";
+            if (!Convert.ToBoolean(cmd.ExecuteScalar()))
+                throw new InvalidOperationException(
+                    "public.ix_estate_manager_roles must be a valid non-unique index on EstateID");
         }
     }
 

@@ -43,6 +43,13 @@ public class MigrationResourceAuditTests
         Assert.Contains("estate_manager_roles", repair, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("DROP TABLE", repair, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("TRUNCATE", repair, StringComparison.OrdinalIgnoreCase);
+        if (resource == "MigrationAudit.PGSQL.EstateStore.migrations")
+        {
+            Assert.Contains("ADD COLUMN IF NOT EXISTS \"EstateOwnerGroup\" uuid NOT NULL", repair,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("DEFAULT '00000000-0000-0000-0000-000000000000'::uuid", repair,
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Theory]

@@ -99,6 +99,7 @@ namespace Phlox.ScriptEngine
         private readonly System.Collections.Concurrent.BlockingCollection<CompileJob> m_CompileQueue = new();
         private readonly System.Collections.Concurrent.ConcurrentQueue<CompileJob> m_FinishedCompiles = new();
         private readonly System.Threading.Thread m_CompileThread;
+        private int m_ActiveCompiles;
         private volatile bool m_Stopped;
         // The text-compile job in flight per asset: a second load of the same asset joins it instead of compiling again.
         private readonly Dictionary<UUID, CompileJob> m_InFlight = new();
@@ -328,7 +329,7 @@ namespace Phlox.ScriptEngine
             lock (m_AssetLock)
                 if (m_WaitingForCompile.Count > 0) return true;
             if (!m_FinishedCompiles.IsEmpty) return true;
-            return false;
+            return System.Threading.Volatile.Read(ref m_ActiveCompiles) > 0;
         }
 
         private bool ProcessNextLoadOrUnload()
@@ -691,10 +692,18 @@ namespace Phlox.ScriptEngine
                 foreach (CompileJob job in m_CompileQueue.GetConsumingEnumerable())
                 {
                     if (m_Stopped) break;
-                    RunCompile(job);
-                    if (m_Stopped) break;
-                    m_FinishedCompiles.Enqueue(job);
-                    m_WorkArrived();
+                    System.Threading.Interlocked.Increment(ref m_ActiveCompiles);
+                    try
+                    {
+                        RunCompile(job);
+                        if (m_Stopped) break;
+                        m_FinishedCompiles.Enqueue(job);
+                        m_WorkArrived();
+                    }
+                    finally
+                    {
+                        System.Threading.Interlocked.Decrement(ref m_ActiveCompiles);
+                    }
                 }
             }
             catch (Exception e) { m_log.LogError(e, "[PhloxLoader]: compile thread stopped by an exception"); }

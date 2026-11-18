@@ -169,6 +169,9 @@ CREATE TABLE IF NOT EXISTS "public"."estate_manager_roles" (
     "uuid" uuid NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "ix_estate_manager_roles" ON "public"."estate_manager_roles" USING btree("EstateID");
+ALTER TABLE "public"."estate_settings"
+    ADD COLUMN IF NOT EXISTS "EstateOwnerGroup" uuid NOT NULL
+    DEFAULT '00000000-0000-0000-0000-000000000000'::uuid;
 COMMIT;
 
 :VERSION 18
@@ -195,4 +198,7 @@ CREATE TABLE IF NOT EXISTS "public"."estate_manager_roles" (
     "uuid" uuid NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "ix_estate_manager_roles" ON "public"."estate_manager_roles" USING btree("EstateID");
+ALTER TABLE "public"."estate_settings"
+    ADD COLUMN IF NOT EXISTS "EstateOwnerGroup" uuid NOT NULL
+    DEFAULT '00000000-0000-0000-0000-000000000000'::uuid;
 COMMIT;

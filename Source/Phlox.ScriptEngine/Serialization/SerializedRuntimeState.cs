@@ -143,7 +143,7 @@ namespace InWorldz.Phlox.Serialization
             object[] globalsSnapshot = (object[])state.Globals.Clone();
 
             // The operand stack is snapshotted before FromPrimitiveStack enumerates it while the script may push or pop.
-            Stack<object> operandsSnapshot = new Stack<object>(new Stack<object>(state.Operands));
+            Stack<object> operandsSnapshot = SnapshotOperands(state.Operands);
 
             SerializedRuntimeState serState = new SerializedRuntimeState();
             serState.IP = state.IP;
@@ -199,6 +199,23 @@ namespace InWorldz.Phlox.Serialization
             //calculate total runtime
             serState.TotalRuntime = state.TotalRuntime;
             return serState;
+        }
+
+        private static Stack<object> SnapshotOperands(Stack<object> operands)
+        {
+            // Stack<T> has no reader lock: a scheduler normally captures between timeslices, but an object-state flush
+            // can race a script that is still unwinding. Retry only the version-change signal from its enumerator.
+            while (true)
+            {
+                try
+                {
+                    return new Stack<object>(new Stack<object>(operands));
+                }
+                catch (InvalidOperationException)
+                {
+                    System.Threading.Thread.Yield();
+                }
+            }
         }
 
         public VM.RuntimeState ToRuntimeState()
