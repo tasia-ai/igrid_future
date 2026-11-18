@@ -1,0 +1,50 @@
+name: Tranquillity integration validation
+
+on:
+  push:
+    branches:
+      - integration/tranquillity-v1.1.2-win11-pgsql
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Activate Nerdbank.GitVersioning
+        uses: dotnet/nbgv@v0.4.1
+
+      - name: Restore solution
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: dotnet restore ./Tranquillity.sln
+
+      - name: Restore offline test projects
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          dotnet restore ./Tests/OpenSim.Framework.Tests/OpenSim.Framework.Tests.csproj
+          dotnet restore ./Tests/OpenSim.Region.OptionalModules.ServerSideBaking.Tests/OpenSim.Region.OptionalModules.ServerSideBaking.Tests.csproj
+
+      - name: Build solution
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: dotnet build ./Tranquillity.sln --configuration Release --no-restore
+
+      - name: Run framework unit tests
+        run: dotnet test ./Tests/OpenSim.Framework.Tests/OpenSim.Framework.Tests.csproj --configuration Release --no-restore
+
+      - name: Run ServerSideBaking unit tests
+        run: dotnet test ./Tests/OpenSim.Region.OptionalModules.ServerSideBaking.Tests/OpenSim.Region.OptionalModules.ServerSideBaking.Tests.csproj --configuration Release --no-restore

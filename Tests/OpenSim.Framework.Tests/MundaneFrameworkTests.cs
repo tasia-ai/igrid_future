@@ -228,6 +228,52 @@ namespace OpenSim.Framework.Tests
         }
 
         [Fact]
+        public void EstateSettingsGroupAuthorityResolvesOwnerAndManagerRoles()
+        {
+            EstateSettings settings = new();
+            UUID ownerGroup = UUID.Random();
+            UUID owner = UUID.Random();
+            UUID manager = UUID.Random();
+            UUID oldIndividualOwner = UUID.Random();
+            UUID ownerRole = UUID.Random();
+            UUID managerRole = UUID.Random();
+            UUID unrelatedMemberRole = UUID.Random();
+            settings.EstateOwner = oldIndividualOwner;
+            settings.EstateOwnerGroup = ownerGroup;
+            settings.EstateManagerRoles = new[] { managerRole };
+            settings.SetGroupRoleMemberCheck((agentID, groupID, roleID) =>
+                groupID == ownerGroup &&
+                ((agentID == owner && (roleID.IsZero() || roleID == ownerRole)) ||
+                 (agentID == manager && roleID == managerRole) ||
+                 (agentID == oldIndividualOwner && roleID == unrelatedMemberRole)));
+
+            Assert.True(settings.HasEstateOwnerGroup);
+            Assert.True(settings.IsEstateOwner(owner));
+            Assert.True(settings.IsEstateManagerOrOwner(owner));
+            Assert.True(settings.IsEstateManagerOrOwner(manager));
+            Assert.False(settings.IsEstateManagerOrOwner(oldIndividualOwner),
+                "The old individual owner must not override the configured owner group.");
+
+            settings.EstateOwnerGroup = UUID.Zero;
+            Assert.False(settings.HasEstateOwnerGroup);
+            Assert.True(settings.IsEstateOwner(oldIndividualOwner));
+        }
+
+        [Fact]
+        public void EstateSettingsGroupAuthorityFailsClosedWithoutMembershipResolver()
+        {
+            EstateSettings settings = new()
+            {
+                EstateOwner = UUID.Random(),
+                EstateOwnerGroup = UUID.Random(),
+                EstateManagerRoles = new[] { UUID.Random() }
+            };
+
+            Assert.False(settings.IsEstateOwner(settings.EstateOwner));
+            Assert.False(settings.IsEstateManagerOrOwner(UUID.Random()));
+        }
+
+        [Fact]
         public void InventoryFolderBaseConstructorTest01()
         {
             UUID uuid1 = UUID.Random();

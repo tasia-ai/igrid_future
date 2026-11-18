@@ -112,6 +112,7 @@ public interface IGroupsModule
 
     ulong GetFullGroupPowers(UUID agentID, UUID groupID);
     List<GroupRolesData> GroupRoleDataRequest(UUID agentID, UUID groupID);
+    bool IsGroupRoleMember(UUID agentID, UUID groupID, UUID roleID);
 
     List<DirGroupsReplyData> FindGroups(IClientAPI remoteClient, string query);
 }

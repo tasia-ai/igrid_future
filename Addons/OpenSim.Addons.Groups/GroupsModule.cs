@@ -778,6 +778,21 @@ public class GroupsModule : ISharedRegionModule, IGroupsModule
         return data;
     }
 
+    public bool IsGroupRoleMember(UUID agentID, UUID groupID, UUID roleID)
+    {
+        if (agentID.IsZero() || groupID.IsZero())
+            return false;
+        if (roleID.IsZero())
+        {
+            GroupRecord group = m_groupData.GetGroupRecord(agentID.ToString(), groupID, null);
+            if (group == null || group.OwnerRoleID.IsZero())
+                return false;
+            roleID = group.OwnerRoleID;
+        }
+        List<GroupRolesData> roles = m_groupData.GetAgentGroupRoles(agentID.ToString(), agentID.ToString(), groupID);
+        return roles?.Any(role => role.RoleID == roleID) ?? false;
+    }
+
     public List<GroupRolesData> GroupRoleDataRequest(IClientAPI remoteClient, UUID groupID)
     {
         if (m_debugEnabled) m_log.LogDebug("[Groups]: {0} called", System.Reflection.MethodBase.GetCurrentMethod().Name);

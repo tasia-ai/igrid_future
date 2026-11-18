@@ -232,6 +232,29 @@ public class EstateSettings
         set { m_EstateOwner = value; }
     }
 
+    private UUID m_EstateOwnerGroup = UUID.Zero;
+    public UUID EstateOwnerGroup
+    {
+        get { return m_EstateOwnerGroup; }
+        set { m_EstateOwnerGroup = value; }
+    }
+
+    private List<UUID> l_EstateManagerRoles = new();
+    public UUID[] EstateManagerRoles
+    {
+        get { return l_EstateManagerRoles.ToArray(); }
+        set { l_EstateManagerRoles = new List<UUID>(value ?? Array.Empty<UUID>()); }
+    }
+
+    // Keep this transient resolver out of provider reflection maps (which persist m_* fields).
+    private Func<UUID, UUID, UUID, bool> _groupRoleMemberCheck;
+    public bool HasEstateOwnerGroup => m_EstateOwnerGroup.IsNotZero();
+
+    public void SetGroupRoleMemberCheck(Func<UUID, UUID, UUID, bool> checker)
+    {
+        _groupRoleMemberCheck = checker;
+    }
+
     private bool m_DenyMinors = false;
     public bool DenyMinors
     {
@@ -375,11 +398,21 @@ public class EstateSettings
 
     public bool IsEstateManagerOrOwner(UUID avatarID)
     {
-         return m_EstateOwner.Equals(avatarID) || l_EstateManagers.Contains(avatarID);
+        if (IsEstateOwner(avatarID) || l_EstateManagers.Contains(avatarID))
+            return true;
+        if (_groupRoleMemberCheck == null || m_EstateOwnerGroup.IsZero())
+            return false;
+        foreach (UUID roleID in l_EstateManagerRoles)
+            if (!roleID.IsZero() && _groupRoleMemberCheck(avatarID, m_EstateOwnerGroup, roleID))
+                return true;
+        return false;
     }
 
     public bool IsEstateOwner(UUID avatarID)
     {
+        if (m_EstateOwnerGroup.IsNotZero())
+            return _groupRoleMemberCheck != null &&
+                _groupRoleMemberCheck(avatarID, m_EstateOwnerGroup, UUID.Zero);
         return m_EstateOwner.Equals(avatarID);
     }
 

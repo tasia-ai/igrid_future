@@ -81,11 +81,51 @@ public class EstateManagementCommands
 
         m_module.Scene.AddCommand(
             "Estates", m_module, "estate show", "estate show", "Shows all estates on the simulator.", ShowEstatesCommand);
+        m_module.Scene.AddCommand("Estates", m_module, "estate group authority",
+            "estate group authority <group-uuid|none> [manager-role-uuid,...]",
+            "Sets group ownership and selected group roles with estate-manager authority. Group Owners are always estate owners.",
+            SetEstateGroupAuthorityCommand);
     }
 
     public void Close() {}
 
     #region CommandHandlers
+    private void SetEstateGroupAuthorityCommand(string module, string[] args)
+    {
+        if (args.Length < 4 || args.Length > 5)
+        {
+            MainConsole.Instance?.Output("Usage: estate group authority <group-uuid|none> [manager-role-uuid,...]");
+            return;
+        }
+        UUID groupID = UUID.Zero;
+        string groupText = args[3].Trim();
+        if (!groupText.Equals("none", StringComparison.OrdinalIgnoreCase) &&
+            (!UUID.TryParse(groupText, out groupID) || groupID.IsZero()))
+        {
+            MainConsole.Instance?.Output("Group must be a valid UUID or 'none'.");
+            return;
+        }
+        List<UUID> roles = new();
+        if (args.Length == 5 && !string.IsNullOrWhiteSpace(args[4]) &&
+            !args[4].Equals("none", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (string roleText in args[4].Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string trimmed = roleText.Trim();
+                if (!UUID.TryParse(trimmed, out UUID roleID) || roleID.IsZero())
+                {
+                    MainConsole.Instance?.Output("Invalid manager role UUID: " + trimmed);
+                    return;
+                }
+                roles.Add(roleID);
+            }
+        }
+        string result = m_module.SetEstateGroupAuthority(groupID, roles.ToArray());
+        MainConsole.Instance?.Output(result.Length == 0
+            ? "Estate group authority updated."
+            : "Estate group authority was not changed: " + result);
+    }
+
     protected void consoleSetTerrainTexture(string module, string[] args)
     {
         string num = args[3];

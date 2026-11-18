@@ -59,6 +59,8 @@ public class EstateManagementModule : IEstateModule, INonSharedRegionModule
     public bool AllowRegionRestartFromClient { get; set; }
     private bool m_ignoreEstateMinorAccessControl;
     private bool m_ignoreEstatePaymentAccessControl;
+    private readonly ConcurrentDictionary<(UUID Agent, UUID Group, UUID Role), (DateTime Expires, bool IsMember)> m_groupEstateRoleCache = new();
+    private static readonly TimeSpan GroupEstateRoleCacheDuration = TimeSpan.FromSeconds(30);
 
     private EstateTerrainXferHandler TerrainUploader;
     public TelehubManager m_Telehub;
@@ -116,6 +118,29 @@ public class EstateManagementModule : IEstateModule, INonSharedRegionModule
 
         scene.RegionInfo.EstateSettings.DoDenyMinors = !m_ignoreEstateMinorAccessControl;
         scene.RegionInfo.EstateSettings.DoDenyAnonymous = !m_ignoreEstatePaymentAccessControl;
+        scene.RegionInfo.EstateSettings.SetGroupRoleMemberCheck(IsGroupEstateRoleMember);
+    }
+
+    private bool IsGroupEstateRoleMember(UUID agentID, UUID groupID, UUID roleID)
+    {
+        if (agentID.IsZero() || groupID.IsZero())
+            return false;
+        var key = (agentID, groupID, roleID);
+        DateTime now = DateTime.UtcNow;
+        if (m_groupEstateRoleCache.TryGetValue(key, out var cached) && cached.Expires > now)
+            return cached.IsMember;
+        bool isMember = false;
+        try
+        {
+            isMember = Scene?.RequestModuleInterface<IGroupsModule>()?
+                .IsGroupRoleMember(agentID, groupID, roleID) ?? false;
+        }
+        catch (Exception e)
+        {
+            m_log.LogWarning(e, "[ESTATE]: Failed to resolve group role membership for {Agent} in {Group}", agentID, groupID);
+        }
+        m_groupEstateRoleCache[key] = (now + GroupEstateRoleCacheDuration, isMember);
+        return isMember;
     }
 
     public void Close()
@@ -126,6 +151,40 @@ public class EstateManagementModule : IEstateModule, INonSharedRegionModule
     #endregion
 
     #region IEstateModule Functions
+    public string SetEstateGroupAuthority(UUID groupID, UUID[] managerRoleIDs)
+    {
+        EstateSettings estateSettings = Scene.RegionInfo.EstateSettings;
+        IGroupsModule groupsModule = Scene.RequestModuleInterface<IGroupsModule>();
+        managerRoleIDs ??= Array.Empty<UUID>();
+        if (!groupID.IsZero())
+        {
+            if (groupsModule == null)
+                return "Group service unavailable";
+            GroupRecord group = groupsModule.GetGroupRecord(groupID);
+            if (group == null)
+                return "Group not found";
+            List<GroupRolesData> roles = groupsModule.GroupRoleDataRequest(UUID.Zero, groupID);
+            if (roles == null)
+                return "Unable to load group roles";
+            HashSet<UUID> validRoleIDs = new(roles.Select(role => role.RoleID));
+            if (managerRoleIDs.Any(roleID => roleID.IsZero() || !validRoleIDs.Contains(roleID)))
+                return "One or more selected manager roles do not belong to the group";
+            managerRoleIDs = managerRoleIDs.Where(roleID => roleID != group.OwnerRoleID).Distinct().ToArray();
+        }
+        else if (managerRoleIDs.Length != 0)
+            return "Choose a group before assigning manager roles";
+
+        estateSettings.EstateOwnerGroup = groupID;
+        estateSettings.EstateManagerRoles = managerRoleIDs;
+        m_groupEstateRoleCache.Clear();
+        estateSettings.Save();
+        TriggerEstateInfoChange();
+        sendRegionHandshakeToAll();
+        m_log.LogInformation("[ESTATE]: Group authority updated for estate {EstateID}; owner group {GroupID}, manager roles {RoleCount}",
+            estateSettings.EstateID, groupID, managerRoleIDs.Length);
+        return string.Empty;
+    }
+
     public uint GetRegionFlags()
     {
         RegionFlags flags = RegionFlags.None;
@@ -187,14 +246,7 @@ public class EstateManagementModule : IEstateModule, INonSharedRegionModule
 
     public bool IsManager(UUID avatarID)
     {
-        if (avatarID == Scene.RegionInfo.EstateSettings.EstateOwner)
-            return true;
-
-        List<UUID> ems = new List<UUID>(Scene.RegionInfo.EstateSettings.EstateManagers);
-        if (ems.Contains(avatarID))
-            return true;
-
-        return false;
+        return Scene.RegionInfo.EstateSettings.IsEstateManagerOrOwner(avatarID);
     }
 
     public void sendRegionHandshakeToAll()

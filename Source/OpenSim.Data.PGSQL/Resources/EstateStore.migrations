@@ -161,3 +161,14 @@ CREATE TABLE IF NOT EXISTS "public"."estate_blocked_experiences" (
 
 CREATE INDEX IF NOT EXISTS "ix_estate_blocked_experiences" ON "public"."estate_blocked_experiences" USING btree("EstateID" "pg_catalog"."int4_ops" ASC NULLS LAST);
 COMMIT;
+
+:VERSION 17
+BEGIN TRANSACTION;
+ALTER TABLE "public"."estate_settings"
+    ADD COLUMN "EstateOwnerGroup" uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+CREATE TABLE IF NOT EXISTS "public"."estate_manager_roles" (
+    "EstateID" int4 NOT NULL,
+    "uuid" uuid NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "ix_estate_manager_roles" ON "public"."estate_manager_roles" USING btree("EstateID");
+COMMIT;

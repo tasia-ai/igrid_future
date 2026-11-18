@@ -89,6 +89,7 @@ namespace osWebRtcVoice.Tests
             public void NotifyChange(UUID GroupID) { }
             public ulong GetFullGroupPowers(UUID agentID, UUID groupID) => 0UL;
             public List<GroupRolesData> GroupRoleDataRequest(UUID agentID, UUID groupID) => null;
+            public bool IsGroupRoleMember(UUID agentID, UUID groupID, UUID roleID) => false;
             public List<DirGroupsReplyData> FindGroups(IClientAPI remoteClient, string query) => null;
         }
 
