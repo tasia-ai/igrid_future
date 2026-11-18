@@ -57,9 +57,11 @@ excluded-project backlog below.
   headers before replying, avoiding the prior spurious 499.
 - PostgreSQL schema validation and version-18 migration changes were statically
   audited; runtime migration/database tests were not run.
-- Linux x64 CI verification is pending the current push. The offline local cache
-  lacks the .NET 10 Linux runtime/host packs. No database connection, simulator
-  server or grid was started.
+- GitHub Actions run [#8](https://github.com/tasia-ai/igrid_future/actions/runs/44385742596)
+  passed the complete Windows and Ubuntu build/offline-test matrix on commit
+  `de9b83f7eb`. The local offline cache still lacks the .NET 10 Linux
+  runtime/host packs. No database connection, simulator server or grid was
+  started.
 
 ## Ranked task list
 
