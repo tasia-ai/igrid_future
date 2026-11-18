@@ -65,3 +65,69 @@ ALTER TABLE UserAccounts ADD COLUMN IF NOT EXISTS "DisplayName" varchar(31) NOT 
 ALTER TABLE UserAccounts ADD COLUMN IF NOT EXISTS "NameChanged" integer NOT NULL DEFAULT 0;
 ALTER TABLE UserAccounts ADD COLUMN IF NOT EXISTS "UserCountry" varchar(64) NOT NULL DEFAULT '';
 COMMIT;
+
+:VERSION 7
+
+-- Repair UserAccount columns from the v1.1.2 / I-Grid v6 schema variants.
+-- PostgreSQL migration v6 exists in both the upstream PR #411 schema and
+-- older I-Grid schemas with different types/constraints. Repair from the
+-- actual table definition instead of assuming the migration version proves
+-- the columns are compatible. Each missing column is added independently.
+BEGIN;
+
+ALTER TABLE UserAccounts ADD COLUMN IF NOT EXISTS "DisplayName" varchar(31) NULL;
+ALTER TABLE UserAccounts ADD COLUMN IF NOT EXISTS "NameChanged" integer NULL DEFAULT 0;
+ALTER TABLE UserAccounts ADD COLUMN IF NOT EXISTS "UserCountry" varchar(64) NOT NULL DEFAULT '';
+
+DO $igrid_useraccount_v7$
+DECLARE
+    display_type text;
+    display_length integer;
+    changed_type text;
+    country_type text;
+    country_length integer;
+BEGIN
+    SELECT data_type, character_maximum_length INTO display_type, display_length
+      FROM information_schema.columns
+     WHERE table_schema = current_schema() AND table_name = 'useraccounts' AND column_name = 'DisplayName';
+    IF display_type IS DISTINCT FROM 'character varying' OR display_length IS DISTINCT FROM 31 THEN
+        IF EXISTS (SELECT 1 FROM UserAccounts WHERE "DisplayName" IS NOT NULL AND length("DisplayName"::text) > 31) THEN
+            RAISE EXCEPTION 'UserAccounts.DisplayName contains values longer than 31 characters; repair those values explicitly before migration 7';
+        END IF;
+        ALTER TABLE UserAccounts ALTER COLUMN "DisplayName" TYPE varchar(31) USING "DisplayName"::varchar(31);
+    END IF;
+    ALTER TABLE UserAccounts ALTER COLUMN "DisplayName" DROP NOT NULL;
+
+    SELECT data_type INTO changed_type
+      FROM information_schema.columns
+     WHERE table_schema = current_schema() AND table_name = 'useraccounts' AND column_name = 'NameChanged';
+    IF changed_type IS DISTINCT FROM 'integer' THEN
+        IF EXISTS (
+            SELECT 1 FROM UserAccounts
+             WHERE "NameChanged" IS NOT NULL
+               AND (btrim("NameChanged"::text) !~ '^[0-9]+$'
+                    OR length(btrim("NameChanged"::text)) > 10
+                    OR (length(btrim("NameChanged"::text)) = 10 AND btrim("NameChanged"::text) > '2147483647'))
+        ) THEN
+            RAISE EXCEPTION 'UserAccounts.NameChanged contains values that cannot be safely represented as a PostgreSQL integer; inspect and repair them before migration 7';
+        END IF;
+        ALTER TABLE UserAccounts ALTER COLUMN "NameChanged" TYPE integer USING NULLIF(btrim("NameChanged"::text), '')::integer;
+    END IF;
+    ALTER TABLE UserAccounts ALTER COLUMN "NameChanged" SET DEFAULT 0;
+
+    SELECT data_type, character_maximum_length INTO country_type, country_length
+      FROM information_schema.columns
+     WHERE table_schema = current_schema() AND table_name = 'useraccounts' AND column_name = 'UserCountry';
+    IF country_type IS DISTINCT FROM 'character varying' OR country_length IS DISTINCT FROM 64 THEN
+        IF EXISTS (SELECT 1 FROM UserAccounts WHERE "UserCountry" IS NOT NULL AND length("UserCountry"::text) > 64) THEN
+            RAISE EXCEPTION 'UserAccounts.UserCountry contains values longer than 64 characters; repair those values explicitly before migration 7';
+        END IF;
+        ALTER TABLE UserAccounts ALTER COLUMN "UserCountry" TYPE varchar(64) USING "UserCountry"::varchar(64);
+    END IF;
+    UPDATE UserAccounts SET "UserCountry" = '' WHERE "UserCountry" IS NULL;
+    ALTER TABLE UserAccounts ALTER COLUMN "UserCountry" SET DEFAULT '';
+    ALTER TABLE UserAccounts ALTER COLUMN "UserCountry" SET NOT NULL;
+END;
+$igrid_useraccount_v7$;
+
+COMMIT;
