@@ -80,6 +80,7 @@ public class PGSQLEstateStore : IEstateDataStore
             conn.Open();
             Migration m = new Migration(conn, GetType().Assembly, "EstateStore");
             m.Update();
+            EnsureEstateGroupAuthoritySchema(conn);
         }
 
         //Interesting way to get parameters! Maybe implement that also with other types
@@ -92,6 +93,30 @@ public class PGSQLEstateStore : IEstateDataStore
         {
             if (f.Name.Substring(0, 2) == "m_")
                 _FieldMap[f.Name.Substring(2)] = f;
+        }
+    }
+
+    private static void EnsureEstateGroupAuthoritySchema(NpgsqlConnection conn)
+    {
+        using (NpgsqlCommand cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT EXISTS (SELECT 1 FROM information_schema.columns " +
+                "WHERE table_schema = 'public' AND table_name = 'estate_settings' " +
+                "AND column_name = 'EstateOwnerGroup')";
+            if (!Convert.ToBoolean(cmd.ExecuteScalar()))
+            {
+                cmd.CommandText = "ALTER TABLE \"public\".\"estate_settings\" " +
+                    "ADD COLUMN \"EstateOwnerGroup\" uuid NOT NULL " +
+                    "DEFAULT '00000000-0000-0000-0000-000000000000'";
+                cmd.ExecuteNonQuery();
+            }
+
+            cmd.CommandText = "CREATE TABLE IF NOT EXISTS \"public\".\"estate_manager_roles\" " +
+                "(\"EstateID\" int4 NOT NULL, \"uuid\" uuid NOT NULL)";
+            cmd.ExecuteNonQuery();
+            cmd.CommandText = "CREATE INDEX IF NOT EXISTS \"ix_estate_manager_roles\" " +
+                "ON \"public\".\"estate_manager_roles\" (\"EstateID\")";
+            cmd.ExecuteNonQuery();
         }
     }
 

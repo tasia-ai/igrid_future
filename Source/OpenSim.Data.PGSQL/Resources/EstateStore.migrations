@@ -164,8 +164,32 @@ COMMIT;
 
 :VERSION 17
 BEGIN TRANSACTION;
-ALTER TABLE "public"."estate_settings"
-    ADD COLUMN "EstateOwnerGroup" uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+CREATE TABLE IF NOT EXISTS "public"."estate_manager_roles" (
+    "EstateID" int4 NOT NULL,
+    "uuid" uuid NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "ix_estate_manager_roles" ON "public"."estate_manager_roles" USING btree("EstateID");
+COMMIT;
+
+:VERSION 18
+BEGIN TRANSACTION;
+-- Repair both histories: upstream v16 created Experience tables, while an
+-- older I-Grid v16 used the same number for group-estate authority.
+CREATE TABLE IF NOT EXISTS "public"."estate_allowed_experiences" (
+    "EstateID" int4 NOT NULL,
+    "uuid" uuid NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "ix_estate_allowed_experiences" ON "public"."estate_allowed_experiences" USING btree("EstateID");
+CREATE TABLE IF NOT EXISTS "public"."estate_key_experiences" (
+    "EstateID" int4 NOT NULL,
+    "uuid" uuid NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "ix_estate_key_experiences" ON "public"."estate_key_experiences" USING btree("EstateID");
+CREATE TABLE IF NOT EXISTS "public"."estate_blocked_experiences" (
+    "EstateID" int4 NOT NULL,
+    "uuid" uuid NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "ix_estate_blocked_experiences" ON "public"."estate_blocked_experiences" USING btree("EstateID");
 CREATE TABLE IF NOT EXISTS "public"."estate_manager_roles" (
     "EstateID" int4 NOT NULL,
     "uuid" uuid NOT NULL

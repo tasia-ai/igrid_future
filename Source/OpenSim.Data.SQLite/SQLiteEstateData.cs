@@ -73,6 +73,7 @@ public class SQLiteEstateStore : IEstateDataStore
 
         Migration m = new Migration(m_connection, Assembly, "EstateStore");
         m.Update();
+        EnsureEstateGroupAuthoritySchema();
 
         //m_connection.Close();
        // m_connection.Open();
@@ -85,6 +86,38 @@ public class SQLiteEstateStore : IEstateDataStore
         foreach (FieldInfo f in m_Fields)
             if (f.Name.Substring(0, 2) == "m_")
                 m_FieldMap[f.Name.Substring(2)] = f;
+    }
+
+    private void EnsureEstateGroupAuthoritySchema()
+    {
+        bool hasOwnerGroupColumn = false;
+        using (SQLiteCommand cmd = (SQLiteCommand)m_connection.CreateCommand())
+        {
+            cmd.CommandText = "PRAGMA table_info(estate_settings)";
+            using (IDataReader reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                    if (string.Equals(reader["name"]?.ToString(), "EstateOwnerGroup", StringComparison.OrdinalIgnoreCase))
+                        hasOwnerGroupColumn = true;
+            }
+        }
+
+        using (SQLiteCommand cmd = (SQLiteCommand)m_connection.CreateCommand())
+        {
+            if (!hasOwnerGroupColumn)
+            {
+                cmd.CommandText = "ALTER TABLE estate_settings ADD COLUMN EstateOwnerGroup " +
+                    "char(36) NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'";
+                cmd.ExecuteNonQuery();
+            }
+
+            cmd.CommandText = "CREATE TABLE IF NOT EXISTS estate_manager_roles (" +
+                "EstateID int(10) NOT NULL, uuid char(36) NOT NULL)";
+            cmd.ExecuteNonQuery();
+            cmd.CommandText = "CREATE INDEX IF NOT EXISTS estate_manager_roles_estate_id " +
+                "ON estate_manager_roles(EstateID)";
+            cmd.ExecuteNonQuery();
+        }
     }
 
     private string[] FieldList

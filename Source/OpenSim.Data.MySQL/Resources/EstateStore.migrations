@@ -106,8 +106,32 @@ COMMIT;
 
 :VERSION 39
 BEGIN;
-ALTER TABLE `estate_settings`
-  ADD COLUMN `EstateOwnerGroup` char(36) NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+CREATE TABLE IF NOT EXISTS `estate_manager_roles` (
+  `EstateID` int(10) unsigned NOT NULL,
+  `uuid` char(36) NOT NULL,
+  KEY `EstateID` (`EstateID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+COMMIT;
+
+:VERSION 40
+BEGIN;
+-- Repair both histories: upstream v37-v38 created Experience tables, while an
+-- older I-Grid v38 used that number for group-estate authority.
+CREATE TABLE IF NOT EXISTS `estate_allowed_experiences` (
+  `EstateID` int(10) unsigned NOT NULL,
+  `uuid` char(36) NOT NULL,
+  KEY `EstateID` (`EstateID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `estate_key_experiences` (
+  `EstateID` int(10) unsigned NOT NULL,
+  `uuid` char(36) NOT NULL,
+  KEY `EstateID` (`EstateID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE IF NOT EXISTS `estate_blocked_experiences` (
+  `EstateID` int(10) unsigned NOT NULL,
+  `uuid` char(36) NOT NULL,
+  KEY `EstateID` (`EstateID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 CREATE TABLE IF NOT EXISTS `estate_manager_roles` (
   `EstateID` int(10) unsigned NOT NULL,
   `uuid` char(36) NOT NULL,

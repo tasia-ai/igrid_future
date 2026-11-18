@@ -96,7 +96,9 @@ BEGIN
         END IF;
         ALTER TABLE UserAccounts ALTER COLUMN "DisplayName" TYPE varchar(31) USING "DisplayName"::varchar(31);
     END IF;
-    ALTER TABLE UserAccounts ALTER COLUMN "DisplayName" DROP NOT NULL;
+    UPDATE UserAccounts SET "DisplayName" = '' WHERE "DisplayName" IS NULL;
+    ALTER TABLE UserAccounts ALTER COLUMN "DisplayName" SET DEFAULT '';
+    ALTER TABLE UserAccounts ALTER COLUMN "DisplayName" SET NOT NULL;
 
     SELECT data_type INTO changed_type
       FROM information_schema.columns
@@ -108,15 +110,24 @@ BEGIN
         IF EXISTS (
             SELECT 1 FROM UserAccounts
              WHERE "NameChanged" IS NOT NULL
-               AND (btrim("NameChanged"::text) !~ '^[0-9]+$'
-                    OR length(btrim("NameChanged"::text)) > 10
-                    OR (length(btrim("NameChanged"::text)) = 10 AND btrim("NameChanged"::text) > '2147483647'))
+               AND btrim("NameChanged"::text) <> ''
+               AND (btrim("NameChanged"::text) !~ '^[+]?[0-9]+([.]0+)?$'
+                    OR CASE WHEN btrim("NameChanged"::text) ~ '^[+]?[0-9]+([.]0+)?$'
+                            THEN btrim("NameChanged"::text)::numeric > 2147483647
+                            ELSE TRUE
+                       END)
         ) THEN
             RAISE EXCEPTION 'UserAccounts.NameChanged contains values that cannot be safely represented as a PostgreSQL integer; inspect and repair them before migration 7';
         END IF;
-        ALTER TABLE UserAccounts ALTER COLUMN "NameChanged" TYPE integer USING NULLIF(btrim("NameChanged"::text), '')::integer;
+        ALTER TABLE UserAccounts ALTER COLUMN "NameChanged" TYPE integer
+            USING CASE WHEN "NameChanged" IS NULL OR btrim("NameChanged"::text) = ''
+                       THEN 0
+                       ELSE btrim("NameChanged"::text)::numeric::integer
+                  END;
     END IF;
+    UPDATE UserAccounts SET "NameChanged" = 0 WHERE "NameChanged" IS NULL;
     ALTER TABLE UserAccounts ALTER COLUMN "NameChanged" SET DEFAULT 0;
+    ALTER TABLE UserAccounts ALTER COLUMN "NameChanged" SET NOT NULL;
 
     SELECT data_type, character_maximum_length INTO country_type, country_length
       FROM information_schema.columns
@@ -133,4 +144,27 @@ BEGIN
 END;
 $igrid_useraccount_v7$;
 
+COMMIT;
+
+:VERSION 8
+
+-- Canonicalize nullability/defaults for installations that already completed
+-- an earlier v7 run. This is idempotent and preserves all non-null values.
+BEGIN;
+DO $igrid_useraccount_v8$
+BEGIN
+    IF EXISTS (SELECT 1 FROM UserAccounts WHERE "NameChanged" < 0) THEN
+        RAISE EXCEPTION 'UserAccounts.NameChanged contains negative values; inspect and repair them before migration 8';
+    END IF;
+END;
+$igrid_useraccount_v8$;
+UPDATE UserAccounts SET "DisplayName" = '' WHERE "DisplayName" IS NULL;
+ALTER TABLE UserAccounts ALTER COLUMN "DisplayName" SET DEFAULT '';
+ALTER TABLE UserAccounts ALTER COLUMN "DisplayName" SET NOT NULL;
+UPDATE UserAccounts SET "NameChanged" = 0 WHERE "NameChanged" IS NULL;
+ALTER TABLE UserAccounts ALTER COLUMN "NameChanged" SET DEFAULT 0;
+ALTER TABLE UserAccounts ALTER COLUMN "NameChanged" SET NOT NULL;
+UPDATE UserAccounts SET "UserCountry" = '' WHERE "UserCountry" IS NULL;
+ALTER TABLE UserAccounts ALTER COLUMN "UserCountry" SET DEFAULT '';
+ALTER TABLE UserAccounts ALTER COLUMN "UserCountry" SET NOT NULL;
 COMMIT;

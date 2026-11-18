@@ -103,7 +103,47 @@ COMMIT;
 
 :VERSION 14
 BEGIN;
-ALTER TABLE estate_settings ADD COLUMN EstateOwnerGroup char(36) NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+-- Upstream v13 created Experience tables; older I-Grid v13 used that number
+-- for group-estate authority. Keep this migration safe for either history.
+CREATE TABLE IF NOT EXISTS estate_allowed_experiences (
+  EstateID int(10) NOT NULL,
+  uuid char(36) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS estate_allowed_experiences_estate_id on estate_allowed_experiences(EstateID);
+CREATE TABLE IF NOT EXISTS estate_key_experiences (
+  EstateID int(10) NOT NULL,
+  uuid char(36) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS estate_key_experiences_estate_id on estate_key_experiences(EstateID);
+CREATE TABLE IF NOT EXISTS estate_blocked_experiences (
+  EstateID int(10) NOT NULL,
+  uuid char(36) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS estate_blocked_experiences_estate_id on estate_blocked_experiences(EstateID);
+CREATE TABLE IF NOT EXISTS estate_manager_roles (
+  EstateID int(10) NOT NULL,
+  uuid char(36) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS estate_manager_roles_estate_id on estate_manager_roles(EstateID);
+COMMIT;
+
+:VERSION 15
+BEGIN;
+CREATE TABLE IF NOT EXISTS estate_allowed_experiences (
+  EstateID int(10) NOT NULL,
+  uuid char(36) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS estate_allowed_experiences_estate_id on estate_allowed_experiences(EstateID);
+CREATE TABLE IF NOT EXISTS estate_key_experiences (
+  EstateID int(10) NOT NULL,
+  uuid char(36) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS estate_key_experiences_estate_id on estate_key_experiences(EstateID);
+CREATE TABLE IF NOT EXISTS estate_blocked_experiences (
+  EstateID int(10) NOT NULL,
+  uuid char(36) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS estate_blocked_experiences_estate_id on estate_blocked_experiences(EstateID);
 CREATE TABLE IF NOT EXISTS estate_manager_roles (
   EstateID int(10) NOT NULL,
   uuid char(36) NOT NULL

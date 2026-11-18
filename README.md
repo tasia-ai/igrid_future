@@ -101,6 +101,20 @@ dotnet build Tranquillity.sln -c Release
 `Addons.slnx` builds just the addons without the ~90-project core, which is much
 faster when iterating on an addon.
 
+### Running published servers
+
+Framework-dependent RegionServer publishes need the **.NET 10 Runtime**.
+GridServer and MoneyServer also need the **ASP.NET Core 10 Runtime**. Configure
+the appropriate `.ini` files before starting a published server:
+
+```sh
+dotnet OpenSim.Server.RegionServer.dll
+dotnet OpenSim.Server.GridServer.dll
+dotnet OpenSim.Server.MoneyServer.dll
+```
+
+See [Docs/BUILDING.md](Docs/BUILDING.md) for build and publish instructions.
+
 ---
 
 ## Upstream Tranquillity

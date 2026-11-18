@@ -77,6 +77,7 @@ public class MySQLEstateStore : IEstateDataStore
 
             Migration m = new Migration(dbcon, Assembly, "EstateStore");
             m.Update();
+            EnsureEstateGroupAuthoritySchema(dbcon);
             dbcon.Close();
 
             Type t = typeof(EstateSettings);
@@ -88,6 +89,36 @@ public class MySQLEstateStore : IEstateDataStore
             {
                 if (f.Name.Substring(0, 2) == "m_")
                     m_FieldMap[f.Name.Substring(2)] = f;
+            }
+        }
+    }
+
+    private static void EnsureEstateGroupAuthoritySchema(MySqlConnection connection)
+    {
+        using (MySqlCommand cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(*) FROM information_schema.columns " +
+                "WHERE table_schema = DATABASE() AND table_name = 'estate_settings' " +
+                "AND column_name = 'EstateOwnerGroup'";
+            if (Convert.ToInt32(cmd.ExecuteScalar()) == 0)
+            {
+                cmd.CommandText = "ALTER TABLE `estate_settings` ADD COLUMN `EstateOwnerGroup` " +
+                    "char(36) NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'";
+                cmd.ExecuteNonQuery();
+            }
+
+            cmd.CommandText = "CREATE TABLE IF NOT EXISTS `estate_manager_roles` (" +
+                "`EstateID` int(10) unsigned NOT NULL, `uuid` char(36) NOT NULL, " +
+                "KEY `EstateID` (`EstateID`)) ENGINE=InnoDB DEFAULT CHARSET=utf8";
+            cmd.ExecuteNonQuery();
+
+            cmd.CommandText = "SELECT COUNT(*) FROM information_schema.statistics " +
+                "WHERE table_schema = DATABASE() AND table_name = 'estate_manager_roles' " +
+                "AND index_name = 'EstateID'";
+            if (Convert.ToInt32(cmd.ExecuteScalar()) == 0)
+            {
+                cmd.CommandText = "CREATE INDEX `EstateID` ON `estate_manager_roles` (`EstateID`)";
+                cmd.ExecuteNonQuery();
             }
         }
     }

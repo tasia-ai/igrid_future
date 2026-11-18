@@ -29,4 +29,10 @@
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\Source\OpenSim.Data.PGSQL\Resources\EstateStore.migrations" LogicalName="MigrationAudit.PGSQL.EstateStore.migrations" />
+    <EmbeddedResource Include="..\..\Source\OpenSim.Data.MySQL\Resources\EstateStore.migrations" LogicalName="MigrationAudit.MySQL.EstateStore.migrations" />
+    <EmbeddedResource Include="..\..\Source\OpenSim.Data.SQLite\Resources\EstateStore.migrations" LogicalName="MigrationAudit.SQLite.EstateStore.migrations" />
+    <EmbeddedResource Include="..\..\Source\OpenSim.Data.PGSQL\Resources\UserAccount.migrations" LogicalName="MigrationAudit.PGSQL.UserAccount.migrations" />
+  </ItemGroup>
 </Project>
