@@ -45,7 +45,7 @@ namespace OpenSim.Framework.Servers.Tests
         public void VersionStringUsesTasiaNGCBabyAnniProductName()
         {
             string version = VersionInfo.GetVersionString("1.2-alpha", "Release");
-            Assert.StartsWith("TasiaNGC - BabyAnni Release 1.2-alpha", version);
+            Xunit.Assert.StartsWith("TasiaNGC - BabyAnni Release 1.2-alpha", version);
         }
     }
 }
