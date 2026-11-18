@@ -52,10 +52,12 @@ public class WindModuleVolumeTests : OpenSimTestCase
     }
 
     private static IWindModelPlugin PluginOf(WindModule module)
-        => (IWindModelPlugin)typeof(WindModule).GetField("m_activeWindPlugin", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(module);
+        => (IWindModelPlugin)(typeof(WindModule).GetField("m_activeWindPlugin", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(module) ?? throw new InvalidOperationException("The wind model plugin was not set."));
 
-    private static void SetPlugin(WindModule module, IWindModelPlugin plugin)
-        => typeof(WindModule).GetField("m_activeWindPlugin", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(module, plugin);
+    private static void SetPlugin(WindModule module, IWindModelPlugin? plugin)
+        => typeof(WindModule).GetField("m_activeWindPlugin", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(module, plugin);
 
     private static WindVolumeSpec Sphere(Vector3 center, float radius, Vector3 velocity, float falloff = 1f)
         => new WindVolumeSpec
@@ -316,30 +318,47 @@ public class WindModuleVolumeTests : OpenSimTestCase
     }
 
     [Fact]
-    public void SamplingDoesNotWaitForAWriterHoldingTheStoresLock()
+    public async Task SamplingDoesNotWaitForAWriterHoldingTheStoresLock()
     {
         TestScene scene = NewScene();
         WindModule module = ModuleOn(scene, "ConfigurableWind", weather: true);
         SetPlugin(module, new ConstantPlugin(new Vector3(1f, 0f, 0f)));
         Assert.True(module.WindVolumes.Create(UUID.Random(), Owner, Sphere(new Vector3(100, 100, 50), 10f, new Vector3(5f, 0f, 0f))) > 0);
 
-        object writeLock = typeof(WindVolumeStore).GetField("m_writeLock", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(module.WindVolumes);
+        object writeLock = typeof(WindVolumeStore).GetField("m_writeLock", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(module.WindVolumes)!;
         Vector3 seen = default, seenInt = default;
-        lock (writeLock)
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Task writer = Task.Run(() =>
         {
-            Task reader = Task.Run(() =>
+            lock (writeLock)
             {
-                seen = module.WindSpeedAt(new Vector3(100f, 100f, 50f));
-                seenInt = module.WindSpeed(100, 100, 50);
-            });
-            Assert.True(reader.Wait(TimeSpan.FromSeconds(10)), "a sample waited for the store's write lock");
+                entered.Set();
+                release.Wait();
+            }
+        });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(10)), "the writer did not acquire the store lock");
+        Task reader = Task.Run(() =>
+        {
+            seen = module.WindSpeedAt(new Vector3(100f, 100f, 50f));
+            seenInt = module.WindSpeed(100, 100, 50);
+        });
+        try
+        {
+            await reader.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            release.Set();
+            await writer.WaitAsync(TimeSpan.FromSeconds(10));
         }
         Assert.Equal(new Vector3(6f, 0f, 0f), seen);
         Assert.Equal(new Vector3(6f, 0f, 0f), seenInt);
     }
 
     [Fact]
-    public void SamplingWhileAnotherThreadCreatesAndRemovesVolumesNeverSeesAHalfMadeResult()
+    public async Task SamplingWhileAnotherThreadCreatesAndRemovesVolumesNeverSeesAHalfMadeResult()
     {
         TestScene scene = NewScene();
         WindModule module = ModuleOn(scene, "ConfigurableWind", weather: true);
@@ -363,7 +382,7 @@ public class WindModuleVolumeTests : OpenSimTestCase
 
         long samples = 0;
         var clock = Stopwatch.StartNew();
-        string failure = null;
+        string? failure = null;
         while (clock.ElapsedMilliseconds < 400 && failure == null)
         {
             for (int i = 0; i < 500; i++)
@@ -379,7 +398,7 @@ public class WindModuleVolumeTests : OpenSimTestCase
             }
         }
         stop.Cancel();
-        Assert.True(writer.Wait(TimeSpan.FromSeconds(10)));
+        await writer.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Null(failure);
         Assert.True(samples > 1000, $"only {samples} samples");
     }
@@ -389,7 +408,7 @@ public class WindModuleVolumeTests : OpenSimTestCase
     private sealed class IntegerOnlyModule : IWindModule
     {
         public string Name => "IntegerOnly";
-        public Type ReplaceableInterface => null;
+        public Type? ReplaceableInterface => null;
         public void Initialise(IConfigSource source) { }
         public void Close() { }
         public void AddRegion(Scene scene) { }

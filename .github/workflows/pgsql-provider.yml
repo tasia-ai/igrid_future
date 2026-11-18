@@ -23,15 +23,15 @@ jobs:
     env:
       IGRID_PGSQL_TEST_CONNECTION: Host=127.0.0.1;Port=55432;Database=igrid_provider_test;Username=postgres
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
       - name: Review repository quality
         run: tools/quality-review.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: pgsql-test-results

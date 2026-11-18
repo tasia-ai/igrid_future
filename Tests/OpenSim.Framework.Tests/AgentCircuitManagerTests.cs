@@ -31,8 +31,8 @@ namespace OpenSim.Framework.Tests
 {
     public class AgentCircuitManagerTests : IDisposable
     {
-        private AgentCircuitData m_agentCircuitData1;
-        private AgentCircuitData m_agentCircuitData2;
+        private AgentCircuitData m_agentCircuitData1 = new();
+        private AgentCircuitData m_agentCircuitData2 = new();
         private UUID AgentId1;
         private UUID AgentId2;
         private uint circuitcode1;
@@ -47,7 +47,7 @@ namespace OpenSim.Framework.Tests
             Setup();
         }
 
-        public void Setup()
+        private void Setup()
         {
             AgentId1 = UUID.Random();
             AgentId2 = UUID.Random();
@@ -141,7 +141,7 @@ namespace OpenSim.Framework.Tests
             agentCircuitManager.RemoveCircuit(circuitcode2);
 
             AgentCircuitData agent = agentCircuitManager.GetAgentCircuitData(circuitcode2);
-            Assert.Equal(null, agent);
+            Assert.Null(agent);
 
         }
 

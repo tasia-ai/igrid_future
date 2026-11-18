@@ -32,6 +32,7 @@ public sealed record ParsedWearable(WearableKind Kind, string Name, IReadOnlyDic
 /// </summary>
 public static class WearableParser
 {
+    /// <summary>Parses an LLWearable asset's type, parameters and texture references.</summary>
     public static ParsedWearable Parse(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) throw new FormatException("wearable: empty asset");

@@ -86,13 +86,16 @@ public sealed partial class AvatarBakeCompositor
     /// <summary>A compositor over the embedded avatar_lad.xml and character images.</summary>
     public AvatarBakeCompositor() : this(AvatarLad.Embedded, BakeResourceFiles.Embedded) { }
 
+    /// <summary>Creates a compositor using avatar definitions and bundled resource access.</summary>
     public AvatarBakeCompositor(AvatarLad lad, BakeResourceFiles files)
     {
         _lad = lad;
         _files = files;
     }
 
+    /// <summary>Avatar definition data used by this compositor.</summary>
     public AvatarLad Lad => _lad;
+    /// <summary>Bundled resource provider used by this compositor.</summary>
     public BakeResourceFiles Files => _files;
 
     /// <summary>The texture slot a layer's local_texture name stands for (SPEC.md 3.5), or null for a name the table does not list.</summary>

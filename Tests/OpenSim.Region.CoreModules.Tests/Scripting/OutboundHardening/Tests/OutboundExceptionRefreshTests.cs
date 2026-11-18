@@ -46,7 +46,7 @@ public class OutboundExceptionRefreshTests
         private readonly Dictionary<string, int> m_calls = new();
 
         /// <summary>When set, the lookup of the exception host waits for this before it answers.</summary>
-        public TaskCompletionSource Gate;
+        public TaskCompletionSource? Gate;
         public TaskCompletionSource GateEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Dns Host(string host, params string[] addresses)

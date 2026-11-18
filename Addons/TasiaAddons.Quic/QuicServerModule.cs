@@ -605,6 +605,8 @@ namespace TasiaAddons.Quic
 
         private void StartListener()
         {
+            if (!QuicListener.IsSupported)
+                return;
             m_cts = new CancellationTokenSource();
 
             try
@@ -646,6 +648,8 @@ namespace TasiaAddons.Quic
 
         private async Task AcceptLoopAsync(CancellationToken ct)
         {
+            if (!QuicListener.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             try
             {
                 while (!ct.IsCancellationRequested)
@@ -672,6 +676,8 @@ namespace TasiaAddons.Quic
 
         private async Task HandleAcceptedConnectionAsync(QuicConnection quicConnection, CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             if (m_config.LogHandshake)
             {
                 IPEndPoint remoteEp = quicConnection.RemoteEndPoint as IPEndPoint;
@@ -710,6 +716,13 @@ namespace TasiaAddons.Quic
 
         private void StopListener()
         {
+            if (!QuicListener.IsSupported)
+            {
+                m_cts?.Cancel();
+                m_cts?.Dispose();
+                m_cts = null;
+                return;
+            }
             try
             {
                 m_cts?.Cancel();
@@ -751,6 +764,8 @@ namespace TasiaAddons.Quic
             SslClientHelloInfo clientHello,
             CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             var serverAuthOptions = new SslServerAuthenticationOptions
             {
                 ServerCertificateContext = m_config.LoadCertificateContext(),

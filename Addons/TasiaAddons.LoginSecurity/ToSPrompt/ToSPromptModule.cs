@@ -1,3 +1,5 @@
+#nullable enable
+
 using System;
 using System.Collections;
 using System.Net;
@@ -15,7 +17,7 @@ namespace TasiaAddons.LoginSecurity.ToSPrompt
 {
     public class ToSPromptModule : ISharedRegionModule
     {
-        private static readonly ILog Log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+        private static readonly ILog Log = LogManager.GetLogger(typeof(ToSPromptModule));
 
         private string m_TOS_URL = string.Empty;
         private int m_TOS_Date = 0;
@@ -24,7 +26,7 @@ namespace TasiaAddons.LoginSecurity.ToSPrompt
         private string m_dbConnectionString = string.Empty;
 
         public string Name => "ToSPromptModule";
-        public Type ReplaceableInterface => null;
+        public Type? ReplaceableInterface => null;
 
         // Static so all region instances share the same enabled state
         private static bool s_initialized = false;

@@ -159,8 +159,10 @@ namespace TasiaAddons.Quic
 
                 // P12 fallback ( central bin/SSL/quic/quic-cert.p12 ) if no PEM key
                 if (!string.IsNullOrEmpty(effP12) && File.Exists(effP12))
-                    return new X509Certificate2(effP12, CertificatePassword, importFlags);
-                return new X509Certificate2(effCert, CertificatePassword, importFlags);
+                    return X509CertificateLoader.LoadPkcs12FromFile(effP12, CertificatePassword, importFlags);
+                return IsPkcs12(effCert)
+                    ? X509CertificateLoader.LoadPkcs12FromFile(effCert, CertificatePassword, importFlags)
+                    : X509CertificateLoader.LoadCertificateFromFile(effCert);
             }
 
             // No implicit self-signed fallback.
@@ -269,7 +271,9 @@ namespace TasiaAddons.Quic
                     try
                     {
                         X509Certificate2Collection pemCertificates = new X509Certificate2Collection();
-                        if (IsPkcs12(effForChain)) pemCertificates.Import(effForChain, CertificatePassword, X509KeyStorageFlags.EphemeralKeySet);
+                        if (IsPkcs12(effForChain))
+                            pemCertificates = X509CertificateLoader.LoadPkcs12CollectionFromFile(
+                                effForChain, CertificatePassword, X509KeyStorageFlags.EphemeralKeySet);
                         else pemCertificates.ImportFromPemFile(effForChain);
                         foreach (X509Certificate2 cert in pemCertificates)
                             if (!string.Equals(cert.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase))
@@ -278,7 +282,7 @@ namespace TasiaAddons.Quic
                     catch { }
                 }
             }
-            catch (Exception ex)
+            catch
             {
                 lock (m_certLock)
                 {

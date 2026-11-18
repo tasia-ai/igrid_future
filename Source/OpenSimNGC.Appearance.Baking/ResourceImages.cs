@@ -57,6 +57,7 @@ public sealed class ResourceImages
         }
     }
 
+    /// <summary>Whether a named bundled image can be opened and decoded.</summary>
     public bool Exists(string file) => Load(file) is not null;
 
     /// <summary>Grey (mask) reading of a file: grey files as-is, RGBA files by their alpha, RGB files as solid 255.</summary>

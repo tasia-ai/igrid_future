@@ -13,8 +13,41 @@ namespace OpenSimNGC.Appearance.Baking;
 /// </summary>
 public enum WearableKind
 {
-    Shape = 0, Skin = 1, Hair = 2, Eyes = 3, Shirt = 4, Pants = 5, Shoes = 6, Socks = 7, Jacket = 8, Gloves = 9,
-    Undershirt = 10, Underpants = 11, Skirt = 12, Alpha = 13, Tattoo = 14, Physics = 15, Universal = 16,
+    /// <summary>Avatar shape wearable.</summary>
+    Shape = 0,
+    /// <summary>Avatar skin wearable.</summary>
+    Skin = 1,
+    /// <summary>Avatar hair wearable.</summary>
+    Hair = 2,
+    /// <summary>Avatar eyes wearable.</summary>
+    Eyes = 3,
+    /// <summary>Shirt wearable.</summary>
+    Shirt = 4,
+    /// <summary>Pants wearable.</summary>
+    Pants = 5,
+    /// <summary>Shoes wearable.</summary>
+    Shoes = 6,
+    /// <summary>Socks wearable.</summary>
+    Socks = 7,
+    /// <summary>Jacket wearable.</summary>
+    Jacket = 8,
+    /// <summary>Gloves wearable.</summary>
+    Gloves = 9,
+    /// <summary>Undershirt wearable.</summary>
+    Undershirt = 10,
+    /// <summary>Underpants wearable.</summary>
+    Underpants = 11,
+    /// <summary>Skirt wearable.</summary>
+    Skirt = 12,
+    /// <summary>Alpha-mask wearable.</summary>
+    Alpha = 13,
+    /// <summary>Tattoo wearable.</summary>
+    Tattoo = 14,
+    /// <summary>Physics wearable.</summary>
+    Physics = 15,
+    /// <summary>Universal wearable.</summary>
+    Universal = 16,
+    /// <summary>Not a valid wearable kind.</summary>
     Invalid = 255,
 }
 
@@ -24,16 +57,98 @@ public enum WearableKind
 /// </summary>
 public enum TextureSlot
 {
+    /// <summary>Unknown or unmapped texture slot.</summary>
     Unknown = -1,
-    HeadBodypaint = 0, UpperShirt = 1, LowerPants = 2, EyesIris = 3, Hair = 4, UpperBodypaint = 5, LowerBodypaint = 6, LowerShoes = 7,
-    HeadBaked = 8, UpperBaked = 9, LowerBaked = 10, EyesBaked = 11,
-    LowerSocks = 12, UpperJacket = 13, LowerJacket = 14, UpperGloves = 15, UpperUndershirt = 16, LowerUnderpants = 17, Skirt = 18,
-    SkirtBaked = 19, HairBaked = 20,
-    LowerAlpha = 21, UpperAlpha = 22, HeadAlpha = 23, EyesAlpha = 24, HairAlpha = 25,
-    HeadTattoo = 26, UpperTattoo = 27, LowerTattoo = 28,
-    HeadUniversalTattoo = 29, UpperUniversalTattoo = 30, LowerUniversalTattoo = 31, SkirtTattoo = 32, HairTattoo = 33, EyesTattoo = 34,
-    LeftArmTattoo = 35, LeftLegTattoo = 36, Aux1Tattoo = 37, Aux2Tattoo = 38, Aux3Tattoo = 39,
-    LeftArmBaked = 40, LeftLegBaked = 41, Aux1Baked = 42, Aux2Baked = 43, Aux3Baked = 44,
+    /// <summary>Head body-paint texture.</summary>
+    HeadBodypaint = 0,
+    /// <summary>Upper-body shirt texture.</summary>
+    UpperShirt = 1,
+    /// <summary>Lower-body pants texture.</summary>
+    LowerPants = 2,
+    /// <summary>Eye iris texture.</summary>
+    EyesIris = 3,
+    /// <summary>Hair texture.</summary>
+    Hair = 4,
+    /// <summary>Upper-body paint texture.</summary>
+    UpperBodypaint = 5,
+    /// <summary>Lower-body paint texture.</summary>
+    LowerBodypaint = 6,
+    /// <summary>Lower-body shoe texture.</summary>
+    LowerShoes = 7,
+    /// <summary>Baked head texture.</summary>
+    HeadBaked = 8,
+    /// <summary>Baked upper-body texture.</summary>
+    UpperBaked = 9,
+    /// <summary>Baked lower-body texture.</summary>
+    LowerBaked = 10,
+    /// <summary>Baked eyes texture.</summary>
+    EyesBaked = 11,
+    /// <summary>Lower-body socks texture.</summary>
+    LowerSocks = 12,
+    /// <summary>Upper-body jacket texture.</summary>
+    UpperJacket = 13,
+    /// <summary>Lower-body jacket texture.</summary>
+    LowerJacket = 14,
+    /// <summary>Upper-body gloves texture.</summary>
+    UpperGloves = 15,
+    /// <summary>Upper-body undershirt texture.</summary>
+    UpperUndershirt = 16,
+    /// <summary>Lower-body underpants texture.</summary>
+    LowerUnderpants = 17,
+    /// <summary>Skirt texture.</summary>
+    Skirt = 18,
+    /// <summary>Baked skirt texture.</summary>
+    SkirtBaked = 19,
+    /// <summary>Baked hair texture.</summary>
+    HairBaked = 20,
+    /// <summary>Lower-body alpha mask.</summary>
+    LowerAlpha = 21,
+    /// <summary>Upper-body alpha mask.</summary>
+    UpperAlpha = 22,
+    /// <summary>Head alpha mask.</summary>
+    HeadAlpha = 23,
+    /// <summary>Eye alpha mask.</summary>
+    EyesAlpha = 24,
+    /// <summary>Hair alpha mask.</summary>
+    HairAlpha = 25,
+    /// <summary>Head tattoo texture.</summary>
+    HeadTattoo = 26,
+    /// <summary>Upper-body tattoo texture.</summary>
+    UpperTattoo = 27,
+    /// <summary>Lower-body tattoo texture.</summary>
+    LowerTattoo = 28,
+    /// <summary>Head universal tattoo texture.</summary>
+    HeadUniversalTattoo = 29,
+    /// <summary>Upper-body universal tattoo texture.</summary>
+    UpperUniversalTattoo = 30,
+    /// <summary>Lower-body universal tattoo texture.</summary>
+    LowerUniversalTattoo = 31,
+    /// <summary>Skirt universal tattoo texture.</summary>
+    SkirtTattoo = 32,
+    /// <summary>Hair universal tattoo texture.</summary>
+    HairTattoo = 33,
+    /// <summary>Eye universal tattoo texture.</summary>
+    EyesTattoo = 34,
+    /// <summary>Left-arm tattoo texture.</summary>
+    LeftArmTattoo = 35,
+    /// <summary>Left-leg tattoo texture.</summary>
+    LeftLegTattoo = 36,
+    /// <summary>First auxiliary tattoo texture.</summary>
+    Aux1Tattoo = 37,
+    /// <summary>Second auxiliary tattoo texture.</summary>
+    Aux2Tattoo = 38,
+    /// <summary>Third auxiliary tattoo texture.</summary>
+    Aux3Tattoo = 39,
+    /// <summary>Baked left-arm texture.</summary>
+    LeftArmBaked = 40,
+    /// <summary>Baked left-leg texture.</summary>
+    LeftLegBaked = 41,
+    /// <summary>Baked first auxiliary texture.</summary>
+    Aux1Baked = 42,
+    /// <summary>Baked second auxiliary texture.</summary>
+    Aux2Baked = 43,
+    /// <summary>Baked third auxiliary texture.</summary>
+    Aux3Baked = 44,
 }
 
 /// <summary>Well-known texture ids the bake pipeline treats specially.</summary>
@@ -55,6 +170,7 @@ public static class BakeConstants
     };
 }
 
+/// <summary>Conversions and classifications for wearable types.</summary>
 public static class WearableKinds
 {
     /// <summary>The wearable type name avatar_lad.xml uses in <c>wearable=</c> attributes and LLWearable files.</summary>
@@ -66,6 +182,7 @@ public static class WearableKinds
         WearableKind.Tattoo => "tattoo", WearableKind.Physics => "physics", WearableKind.Universal => "universal", _ => "",
     };
 
+    /// <summary>Parses a wearable name from avatar_lad.xml or LLWearable data.</summary>
     public static WearableKind? FromName(string name)
     {
         foreach (WearableKind t in Enum.GetValues<WearableKind>())
@@ -73,5 +190,6 @@ public static class WearableKinds
         return null;
     }
 
+    /// <summary>Whether the wearable is one of the unique avatar body-part types.</summary>
     public static bool IsBodyPart(WearableKind t) => t is WearableKind.Shape or WearableKind.Skin or WearableKind.Hair or WearableKind.Eyes;
 }

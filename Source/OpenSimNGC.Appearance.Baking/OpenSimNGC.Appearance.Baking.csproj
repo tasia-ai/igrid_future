@@ -24,7 +24,6 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <!-- CS1591: the compositor's data classes mirror avatar_lad.xml attributes one to one; the file-level docs cover them. -->
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <IsPackable>true</IsPackable>
     <PackageId>OpenSimNGC.Appearance.Baking</PackageId>
     <Description>Server-side avatar bake compositor shared by OpenSim-Tranquillity regions and the NGC web-viewer gateway.</Description>

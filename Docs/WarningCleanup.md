@@ -10,11 +10,42 @@ vulnerabilities. Review each occurrence before changing behavior. Close a batch
 only after its diagnostics disappear from a full rebuild and relevant tests pass;
 do not close warnings by blanket suppression.
 
-Closeout: full non-incremental Release and Debug rebuilds of `Tranquillity.sln`
-are **warning-free (0 warnings, 0 errors)** on .NET SDK 10.0.112. All seven
-batches are closed. This inventory covers projects built by the solution,
-not every standalone project in the repository; see the excluded-project
-backlog below.
+## Current integration-branch status
+
+On .NET SDK 10.0.402, a clean non-incremental Windows x64 Release rebuild of
+`Tranquillity.sln` succeeds with **2 warnings and 0 errors**. Both are CS8981
+on the public `LSL_Types.list` and `LSL_Types.key` CLR types. Their lowercase
+names are part of script compilation and serialized-state compatibility. The
+previous scoped warning suppressions have been removed as required; renaming
+the types would break that compatibility. No clean Linux x64 build is available
+in this environment: the installed WSL distro has no .NET SDK, and the cached
+Linux container has only .NET 8 while the solution targets .NET 10.
+A Windows-hosted `linux-x64` cross-build was also attempted; the offline NuGet
+cache lacks the .NET 10 Linux runtime and host packs, so restore cannot produce
+Linux RID assets without fetching new packages.
+
+The earlier zero-warning closeout below records a different revision and used
+three declaration-scoped warning suppressions. It is historical, not the
+current integration-branch verification result. This inventory covers
+projects built by the solution, not every standalone project; see the
+excluded-project backlog below.
+
+### Current verification
+
+- Full non-incremental Windows x64 Release build on .NET SDK 10.0.402:
+  **succeeded, 0 errors, 2 CS8981 compatibility warnings**.
+- Framework tests: **202/202 passed**; migration resource audit: **8/8 passed**.
+- ServerSideBaking tests: **164 passed, 3 skipped**; HypergridService tests:
+  **36/36 passed**.
+- Phlox list-hash/table-key regressions: **7/7 passed**.
+- Full CoreModules serial run: **854 passed, 2 failed**. Both failures are the
+  local Windows TLS 1.3 handshake cases (`no common algorithm`); both pass when
+  run individually. The selected offline CoreModules regressions passed 291/291.
+- Full Phlox serial run: **5,144 passed, 154 failed, 2 skipped**. Failures span
+  physics/status, experience-state, shutdown, inventory-churn and script API
+  tests; this full-suite run is not counted as passing.
+- Linux x64 build remains unverified: the offline cache lacks the .NET 10 Linux
+  runtime/host packs. No database, simulator server or grid was started.
 
 ## Ranked task list
 
@@ -58,9 +89,9 @@ backlog below.
   - xUnit2013 (22), xUnit1031 (6), xUnit2017 (2), xUnit2029 (1),
     xUnit2009 (1).
   - Preserve assertion meaning and remove blocking async test operations.
-- [x] **Batch 7 / Tier 4: cosmetic, documentation and dead code - 33 closed, 0 remaining**
-  - CS3021 (12), CS8981 (12), CS0067 (1), CS0414 (3), CS0168 (2),
-    CS1573 (3).
+- [ ] **Batch 7 / Tier 4: cosmetic, documentation and dead code - 31 corrected, 2 remaining**
+  - CS3021 (12), CS8981 (10 corrected, 2 compatibility warnings remain),
+    CS0067 (1), CS0414 (3), CS0168 (2), CS1573 (3).
   - Check generated-source ownership before editing or removing declarations.
 
 The original analysis overcounted nullability by two: the verified total is
@@ -88,8 +119,10 @@ After Batch 3d it was 661 occurrences: 398 closed and 263 remaining.
 After Batch 4 it was 661 occurrences: 411 closed and 250 remaining.
 After Batch 5 it was 661 occurrences: 596 closed and 65 remaining.
 After Batch 6 it was 661 occurrences: 628 closed and 33 remaining.
-After Batch 7 it is **661 occurrences: 661 closed and 0 remaining**:
-658 corrected and three accepted, declaration-specific compatibility exceptions.
+The historical Batch 7 closeout counted 661 occurrences: 658 corrected and
+three accepted declaration-specific compatibility exceptions. The current
+strict build removes those suppressions and therefore reports the two
+compatibility diagnostics described above.
 Use the current counts above for future batches, rather than subtracting 264
 from the incomplete original 648-warning baseline.
 
@@ -117,25 +150,26 @@ Batch 7:
   `LSL_Rotation` convention and `LSL_Vector`. The underlying CLR types, public
   signatures, parameter names and script-facing names are unchanged.
 - Retains the public `LSL_Types.list` and `LSL_Types.key` names for compiled
-  scripts and serialized-state compatibility. With user approval, CS8981 is
-  disabled only around each declaration, then immediately restored.
+  scripts and serialized-state compatibility. The scoped CS8981 suppressions
+  from the earlier closeout are removed; these two warnings remain because the
+  public CLR names cannot be changed without a compatibility break.
 - Retains Phlox's required `IScriptModule.OnObjectRemoved` event and existing
-  subscription behavior. As in YEngine, the unused-event diagnostic is handled
-  locally: CS0067 is disabled only around that declaration, then restored.
-  No speculative object-removal notification behavior is introduced.
+  subscription behavior. Phlox now raises it for each part when its containing
+  object is removed, so subscribers receive the notification and CS0067 no
+  longer needs a local suppression.
 - Removes three unused certificate-path/password fields in the DTL money module,
   one unused particle-system local and an unused exception variable, retaining
   the narrow exception catch and existing failure result.
 - Documents all parameters of the compositor's `Bake` overload.
 
-The three scoped exceptions above are intentional compatibility decisions, not
-project-wide suppression or missing implementations claimed as runtime fixes.
-No project-level `NoWarn` entries were added.
+The earlier closeout used three scoped exceptions. The current strict cleanup
+adds no warning suppressions or project-level `NoWarn` entries and records the
+two compatibility warnings rather than claiming them closed.
 
 ### Verification
 
-- Full non-incremental Release rebuild: **0 warnings, 0 errors**.
-- Full non-incremental Debug rebuild: **0 warnings, 0 errors**.
+- Historical full non-incremental Release rebuild: **0 warnings, 0 errors**.
+- Historical full non-incremental Debug rebuild: **0 warnings, 0 errors**.
   The first Debug attempt aborted with an internal CLR error (`0x80131506`);
   retrying with MSBuild server reuse disabled and one worker succeeded.
 - Selected Release tests: **207 passed, 0 failed**:
@@ -168,6 +202,11 @@ Selected LSL type/list and OSSL API tests in that project produced **51 passed,
 Neither the float converter nor those tests was changed by this cleanup.
 These failures are not counted as successful verification and remain outside
 this batch.
+
+`Tests/OpenSim.Framework.Serialization.Tests` is also outside the solution. An
+offline build attempt found stale test-package references and pre-existing
+incomplete assertions in its test sources (including `Assert.Equal(,)`), so it
+was left unchanged and is not counted as verified.
 
 Linux tests used the already cached Skia native asset via `LD_LIBRARY_PATH`,
 as in the earlier batches. No dependency manifests were changed.

@@ -5,6 +5,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+#nullable enable annotations
+
 using OpenMetaverse;
 using OpenSim.Region.Framework.Interfaces;
 
@@ -33,7 +35,7 @@ public sealed class WindVolumeStore : IWindVolumeStore
     /// <param name="enabled">False makes a store that accepts nothing.</param>
     /// <param name="limits">The caps; defaults when null.</param>
     /// <param name="clockMs">Milliseconds from a steady clock; the environment's tick count when null. Tests pass their own.</param>
-    public WindVolumeStore(bool enabled, WindVolumeLimits limits = null, Func<long> clockMs = null)
+    public WindVolumeStore(bool enabled, WindVolumeLimits? limits = null, Func<long>? clockMs = null)
     {
         Enabled = enabled;
         Limits = limits ?? new WindVolumeLimits();
@@ -218,3 +220,4 @@ public sealed class WindVolumeStore : IWindVolumeStore
         }
     }
 }
+#nullable enable annotations

@@ -29,9 +29,6 @@ namespace TasiaAddons.MetricsConnector
         private string m_apiPath;
         private Timer m_collectTimer;
 
-        // Endpoint tracking: key = HTTP path, value = (callCount, totalMs, recentMs)
-        private readonly ConcurrentDictionary<string, EndpointStats> m_endpoints = new();
-
         // Current snapshot
         private MetricsSnapshot m_snapshot = new();
 
@@ -203,14 +200,16 @@ namespace TasiaAddons.MetricsConnector
             // Endpoint stats
             sb.Append("\"endpoints\":{");
             bool first = true;
-            foreach (var kv in m_endpoints)
+            foreach (var kv in m_requestCounts)
             {
-                var es = kv.Value;
-                if (es.TotalCalls == 0) continue;
+                long calls = kv.Value;
+                if (calls == 0) continue;
+                m_requestTimeAccum.TryGetValue(kv.Key, out long totalMicroseconds);
+                double totalMs = totalMicroseconds / 1000.0;
                 if (!first) sb.Append(',');
                 first = false;
                 sb.AppendFormat("\"{0}\":{{\"calls\":{1},\"avg_ms\":{2:F1},\"total_ms\":{3:F0}}}",
-                    Escape(kv.Key), es.TotalCalls, es.AvgMs, es.TotalMs);
+                    Escape(kv.Key), calls, totalMs / calls, totalMs);
             }
             sb.Append("}");
 
@@ -377,12 +376,5 @@ namespace TasiaAddons.MetricsConnector
             public double WorkingSetMB;
         }
 
-        private class EndpointStats
-        {
-            public long TotalCalls;
-            public long TotalMsAccum;
-            public double AvgMs => TotalCalls > 0 ? (double)TotalMsAccum / TotalCalls / 1000.0 : 0;
-            public double TotalMs => (double)TotalMsAccum / 1000.0;
-        }
     }
 }

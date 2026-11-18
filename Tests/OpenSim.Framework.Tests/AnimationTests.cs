@@ -32,8 +32,8 @@ namespace OpenSim.Framework.Tests
 {
     public class AnimationTests : IDisposable
     {
-        private Animation anim1;
-        private Animation anim2;
+        private Animation anim1 = new(UUID.Zero, 1, UUID.Zero);
+        private Animation anim2 = new(UUID.Zero, 1, UUID.Zero);
         private UUID animUUID1 = UUID.Zero;
         private UUID objUUID1 = UUID.Zero;
         private UUID animUUID2 = UUID.Zero;
@@ -44,7 +44,7 @@ namespace OpenSim.Framework.Tests
             Setup();
         }
 
-        public void Setup()
+        private void Setup()
         {
             animUUID1 = UUID.Random();
             animUUID2 = UUID.Random();

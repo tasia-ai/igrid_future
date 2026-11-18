@@ -30,8 +30,10 @@ public sealed class SkiaBakeBackend : IBakeBackend
     /// <summary>A backend over the embedded avatar_lad.xml and character images.</summary>
     public SkiaBakeBackend() : this(new AvatarBakeCompositor()) { }
 
+    /// <summary>Creates a backend using the supplied compositor.</summary>
     public SkiaBakeBackend(AvatarBakeCompositor compositor) { _compositor = compositor; }
 
+    /// <summary>Compositor used to render bake channels.</summary>
     public AvatarBakeCompositor Compositor => _compositor;
 
     /// <summary>JPEG 2000 quality for the encoded bakes (0..1).</summary>

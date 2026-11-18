@@ -133,7 +133,8 @@ public class ZephyrWindSnapshotTests : OpenSimTestCase
     {
         Assembly assembly = typeof(ZephyrWindSnapshotTests).Assembly;
         string resource = assembly.GetManifestResourceNames().Single(n => n.EndsWith(name, StringComparison.Ordinal));
-        using Stream stream = assembly.GetManifestResourceStream(resource);
+        using Stream stream = assembly.GetManifestResourceStream(resource)
+            ?? throw new InvalidOperationException($"Missing embedded fixture '{resource}'.");
         using var reader = new BinaryReader(stream);
         var values = new float[stream.Length / sizeof(float)];
         for (int i = 0; i < values.Length; i++)
@@ -229,8 +230,8 @@ public class ZephyrWindSnapshotTests : OpenSimTestCase
         public ZephyrWind Plugin;
         public TestScene Scene;
         public float Day = 0.3f;
-        public StallingTerrain Stall;
-        public Task<bool> Update;
+        public StallingTerrain? Stall;
+        public Task<bool>? Update;
 
         public Rig(uint size = 256)
         {
@@ -248,19 +249,19 @@ public class ZephyrWindSnapshotTests : OpenSimTestCase
             Stall = new StallingTerrain(Scene.Heightmap);
             Scene.Heightmap = Stall;     // a replaced heightmap is noticed by the next update, which then rescans it
             Update = Task.Run(() => Plugin.WindUpdate(1));
-            Assert.True(Stall.Entered.Wait(Cap), "the update should have reached the terrain scan");
+            Assert.True(Stall!.Entered.Wait(Cap), "the update should have reached the terrain scan");
         }
 
         public void FinishUpdate()
         {
-            Stall.Release.Set();
-            Assert.True(Update.Wait(Cap), "the update should finish once released");
+            Stall!.Release.Set();
+            Assert.True(Update!.Wait(Cap), "the update should finish once released");
             Assert.True(Update.Result);
         }
     }
 
     [Fact]
-    public void SamplersFinishWhileAnUpdateIsStuckInTheTerrainScan()
+    public async Task SamplersFinishWhileAnUpdateIsStuckInTheTerrainScan()
     {
         var rig = new Rig();
         float[] before = Observe(rig.Plugin);
@@ -270,8 +271,8 @@ public class ZephyrWindSnapshotTests : OpenSimTestCase
         {
             // Everything a sampler calls, from other threads, while the update holds the writers' lock.
             Task<float[]> reader = Task.Run(() => Observe(rig.Plugin));
-            Assert.True(reader.Wait(Cap), "a sampler must not wait for the update");
-            Assert.Equal(before, reader.Result);        // it sees the last published wind, not a half-made one
+            await reader.WaitAsync(Cap);
+            Assert.Equal(before, await reader);           // it sees the last published wind, not a half-made one
         }
         finally
         {
@@ -283,7 +284,7 @@ public class ZephyrWindSnapshotTests : OpenSimTestCase
     }
 
     [Fact]
-    public void AWindSetMadeDuringAnUpdateIsNotLost()
+    public async Task AWindSetMadeDuringAnUpdateIsNotLost()
     {
         var rig = new Rig();
         var cellOrigin = new Vector3(2 * 16 + 1, 2 * 16 + 1, 500f);
@@ -294,14 +295,14 @@ public class ZephyrWindSnapshotTests : OpenSimTestCase
         {
             set = Task.Run(() => rig.Plugin.WindSet((int)WindConstants.WindSpeedFixed, cellOrigin, new Vector3(9f, 1f, 0f)));
             // The set takes its turn behind the update: still waiting after a while, not finished and not dropped.
-            Assert.False(set.Wait(TimeSpan.FromMilliseconds(300)), "the set should wait for the update that is running");
+            Assert.NotSame(set, await Task.WhenAny(set, Task.Delay(TimeSpan.FromMilliseconds(300))));
         }
         finally
         {
             rig.FinishUpdate();
         }
 
-        Assert.True(set.Wait(Cap), "the set should finish after the update");
+        await set.WaitAsync(Cap);
 
         // Right after, the fixed wind is in the cell's wind aloft ...
         Vector3 aloft = rig.Plugin.WindSpeed(2 * 16, 2 * 16, 10000f);
@@ -326,7 +327,7 @@ public class ZephyrWindSnapshotTests : OpenSimTestCase
     }
 
     [Fact]
-    public void ManySamplersAndWritersTogetherNeverSeeAnythingBroken()
+    public async Task ManySamplersAndWritersTogetherNeverSeeAnythingBroken()
     {
         var rig = new Rig();
         using var stop = new CancellationTokenSource();
@@ -358,9 +359,9 @@ public class ZephyrWindSnapshotTests : OpenSimTestCase
             }
         });
 
-        Assert.True(writer.Wait(Cap), "the writer should finish");
+        await writer.WaitAsync(Cap);
         stop.Cancel();
-        Assert.True(Task.WaitAll(readers, Cap), "the samplers should finish");
+        await Task.WhenAll(readers).WaitAsync(Cap);
         Assert.Empty(failures);
     }
 

@@ -10,34 +10,6 @@
       <HintPath>$(SolutionDir)/bin/log4net.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="OpenSim.Framework">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="OpenSim.Framework.Servers">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.Servers.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="OpenSim.Framework.Servers.HttpServer">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.Servers.HttpServer.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="OpenSim.Region.Framework">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Region.Framework.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="OpenSim.Services.Interfaces">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Services.Interfaces.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="OpenSim.Server.Base">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Server.Base.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="OpenSim.Server.Handlers">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Server.Handlers.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
   </ItemGroup>
 
   <ItemGroup>

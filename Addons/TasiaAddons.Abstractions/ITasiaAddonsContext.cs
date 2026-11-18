@@ -1,6 +1,8 @@
 using Nini.Config;
 using OpenMetaverse;
 
+#nullable enable
+
 namespace TasiaAddons.Abstractions;
 
 public interface ITasiaAddonsContext

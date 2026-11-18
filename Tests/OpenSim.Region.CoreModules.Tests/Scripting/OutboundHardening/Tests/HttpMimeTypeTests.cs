@@ -202,8 +202,10 @@ public class HttpMimeTypeTests : OpenSimTestCase
         using var key = RSA.Create(2048);
         var certRequest = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256,
             RSASignaturePadding.Pkcs1);
-        using var certificate = certRequest.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1),
+        using var generatedCertificate = certRequest.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1),
             DateTimeOffset.UtcNow.AddDays(1));
+        using var certificate = X509CertificateLoader.LoadPkcs12(
+            generatedCertificate.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.UserKeySet);
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(15));

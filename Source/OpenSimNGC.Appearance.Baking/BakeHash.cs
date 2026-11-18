@@ -29,6 +29,7 @@ public static class BakeHash
     /// </summary>
     public static string Compute(BakeChannel ch, BakeRequest r) => Compute(ch, r, new AvatarBakeCompositor());
 
+    /// <summary>Computes the channel-specific input hash with the supplied compositor definition.</summary>
     public static string Compute(BakeChannel ch, BakeRequest r, AvatarBakeCompositor compositor)
     {
         ArgumentNullException.ThrowIfNull(r);

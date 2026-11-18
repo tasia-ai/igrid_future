@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable annotations
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -871,8 +873,11 @@ namespace InWorldz.Phlox.Types
 
         #region IEquatable<LSLList> Members
 
-        public bool Equals(LSLList other)
+        public bool Equals(LSLList? other)
         {
+            if (other is null)
+                return false;
+
             if (other.Length != this.Length)
             {
                 return false;
@@ -880,7 +885,7 @@ namespace InWorldz.Phlox.Types
 
             for (int i = 0; i < _members.Count; i++)
             {
-                if (!this.Members[i].Equals(other.Members[i]))
+                if (!object.Equals(this.Members[i], other.Members[i]))
                 {
                     return false;
                 }
@@ -889,7 +894,7 @@ namespace InWorldz.Phlox.Types
             return true;
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             LSLList other = obj as LSLList;
             if (other == null)
@@ -898,6 +903,14 @@ namespace InWorldz.Phlox.Types
             }
 
             return this.Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            var hash = new HashCode();
+            foreach (object member in _members)
+                hash.Add(member);
+            return hash.ToHashCode();
         }
 
         #endregion

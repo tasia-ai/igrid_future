@@ -22,6 +22,12 @@ namespace OpenSimNGC.Appearance.Baking;
 /// </summary>
 public static class VisualParamEncoder
 {
+    /// <summary>Encoded visual-parameter bytes and the source used for each value.</summary>
+    /// <param name="Bytes">The bytes in viewer transmission order.</param>
+    /// <param name="FromWearables">Count of values read from worn wearables.</param>
+    /// <param name="Carried">Count of values retained from the previously stored block.</param>
+    /// <param name="Defaults">Count of values supplied by avatar_lad.xml defaults.</param>
+    /// <param name="Ids">Parameter ids in byte order.</param>
     public sealed record Result(byte[] Bytes, int FromWearables, int Carried, int Defaults, IReadOnlyList<int> Ids);
 
     /// <summary>The transmitted parameters in send order.</summary>

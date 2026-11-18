@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Threading;
 using log4net;
 using Nini.Config;
@@ -17,6 +18,10 @@ namespace TasiaAddons.MACAudit;
 public class MacAuditRegionModule : ISharedRegionModule, ITasiaAddonsAuditService, ITasiaAddonsFeature
 {
     private static readonly ILog Log = LogManager.GetLogger(typeof(MacAuditRegionModule));
+    private static readonly HttpClient WelcomeHttpClient = new(new HttpClientHandler { AllowAutoRedirect = true })
+    {
+        Timeout = Timeout.InfiniteTimeSpan
+    };
 
     private readonly object m_sync = new();
     private readonly ConcurrentDictionary<UUID, DateTime> m_recordedHgSessions = new();
@@ -286,17 +291,12 @@ public class MacAuditRegionModule : ISharedRegionModule, ITasiaAddonsAuditServic
     {
         try
         {
-            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(m_welcomeUrl);
-            req.Timeout = m_welcomeTimeoutMs;
-            req.ReadWriteTimeout = m_welcomeTimeoutMs;
-            req.AllowAutoRedirect = true;
-            req.UserAgent = "TasiaNGC-RegionWelcome";
-            using HttpWebResponse resp = (HttpWebResponse)req.GetResponse();
-            using Stream stream = resp.GetResponseStream();
-            if (stream is null)
-                return string.Empty;
-            using StreamReader reader = new(stream);
-            return reader.ReadToEnd().Trim();
+            using CancellationTokenSource timeout = new(m_welcomeTimeoutMs);
+            using HttpRequestMessage request = new(HttpMethod.Get, m_welcomeUrl);
+            request.Headers.UserAgent.ParseAdd("TasiaNGC-RegionWelcome");
+            using HttpResponseMessage response = WelcomeHttpClient.Send(request, timeout.Token);
+            response.EnsureSuccessStatusCode();
+            return response.Content.ReadAsStringAsync(timeout.Token).GetAwaiter().GetResult().Trim();
         }
         catch
         {

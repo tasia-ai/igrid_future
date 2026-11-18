@@ -12,10 +12,15 @@ namespace OpenSimNGC.Appearance.Baking;
 /// <summary>One worn wearable as the plane-based callers hold it: its type, stored parameters and decoded textures by slot.</summary>
 public sealed class WornWearable
 {
+    /// <summary>Wearable type.</summary>
     public WearableKind Kind;
+    /// <summary>Diagnostic label for the wearable.</summary>
     public string Label = "";
+    /// <summary>Stored parameter values keyed by parameter id.</summary>
     public IReadOnlyDictionary<int, float> Params = new Dictionary<int, float>();
+    /// <summary>Texture identifiers keyed by texture slot.</summary>
     public IReadOnlyDictionary<TextureSlot, UUID> TextureIds = new Dictionary<TextureSlot, UUID>();
+    /// <summary>Decoded texture planes keyed by texture slot.</summary>
     public IReadOnlyDictionary<TextureSlot, RgbaPlanes> Textures = new Dictionary<TextureSlot, RgbaPlanes>();
 }
 
@@ -25,8 +30,11 @@ public sealed record LayerReport(string Layer, string Status, string Detail, Wea
 /// <summary>One finished composite in the library's plane types.</summary>
 public sealed class CompositeResult
 {
+    /// <summary>Composited image planes.</summary>
     public required RgbaPlanes Image;
+    /// <summary>Per-layer outcomes in compositor order.</summary>
     public required List<LayerReport> Layers;
+    /// <summary>Whether an alpha wearable hid the entire region.</summary>
     public bool Invisible;
     /// <summary>True when no layer drew anything (see <see cref="BakeComposite.NothingDrawn"/>).</summary>
     public bool NothingDrawn;

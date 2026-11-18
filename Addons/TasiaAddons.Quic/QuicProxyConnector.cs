@@ -623,6 +623,8 @@ namespace TasiaAddons.Quic
 
         private void StartListener()
         {
+            if (!QuicListener.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             m_cts = new CancellationTokenSource();
 
             try
@@ -664,6 +666,8 @@ namespace TasiaAddons.Quic
             SslClientHelloInfo clientHello,
             CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             var serverAuthOptions = new SslServerAuthenticationOptions
             {
                 ServerCertificateContext = m_cts != null ? LoadCertificateContext() : null,
@@ -687,6 +691,8 @@ namespace TasiaAddons.Quic
 
         private async Task AcceptLoopAsync(CancellationToken ct)
         {
+            if (!QuicListener.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             try
             {
                 while (!ct.IsCancellationRequested)
@@ -707,6 +713,8 @@ namespace TasiaAddons.Quic
 
         private async Task HandleConnectionAsync(QuicConnection viewerConn, CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             QuicStream viewerStream = null;
             ProxySession session = null;
             try
@@ -1003,6 +1011,8 @@ namespace TasiaAddons.Quic
         /// </summary>
         private async Task BridgeViewerToSim(ProxySession session, CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             try
             {
                 byte[] headerBuf = new byte[4];
@@ -1053,6 +1063,8 @@ namespace TasiaAddons.Quic
         /// </summary>
         private async Task BridgeSimToViewer(ProxySession session, CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             try
             {
                 byte[] headerBuf = new byte[4];
@@ -1100,6 +1112,8 @@ namespace TasiaAddons.Quic
         /// </summary>
         private void CleanupSession(uint circuitCode, ProxySession session)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             if (session == null)
                 return;
 
@@ -1142,6 +1156,8 @@ namespace TasiaAddons.Quic
         /// </summary>
         private async Task KeepaliveLoopAsync(ProxySession session, CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             int intervalMs = Math.Max(m_idleTimeoutMs / 3, 15000); // flush every 1/3 of idle timeout, min 15s
             byte[] keepalive = s_keepaliveFrame;
             try
@@ -1341,14 +1357,18 @@ namespace TasiaAddons.Quic
                         certificate = X509CertificateLoader.LoadPkcs12(pem.Export(X509ContentType.Pkcs12), (string)null, importFlags);
                 }
                 else if (!string.IsNullOrEmpty(effP12) && File.Exists(effP12))
-                    certificate = new X509Certificate2(effP12, m_certPassword, importFlags);
+                    certificate = X509CertificateLoader.LoadPkcs12FromFile(effP12, m_certPassword, importFlags);
                 else
-                    certificate = new X509Certificate2(eff, m_certPassword, importFlags);
+                    certificate = IsPkcs12(eff)
+                        ? X509CertificateLoader.LoadPkcs12FromFile(eff, m_certPassword, importFlags)
+                        : X509CertificateLoader.LoadCertificateFromFile(eff);
 
                 try
                 {
                     X509Certificate2Collection pemCertificates = new();
-                    if (IsPkcs12(eff)) pemCertificates.Import(eff, m_certPassword, X509KeyStorageFlags.EphemeralKeySet);
+                    if (IsPkcs12(eff))
+                        pemCertificates = X509CertificateLoader.LoadPkcs12CollectionFromFile(
+                            eff, m_certPassword, X509KeyStorageFlags.EphemeralKeySet);
                         else pemCertificates.ImportFromPemFile(eff);
                     foreach (X509Certificate2 c in pemCertificates)
                         if (!string.Equals(c.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase))
@@ -1425,15 +1445,19 @@ namespace TasiaAddons.Quic
                             certificate = X509CertificateLoader.LoadPkcs12(pem.Export(X509ContentType.Pkcs12), (string)null, importFlags);
                     }
                     else if (!string.IsNullOrEmpty(effLP12) && System.IO.File.Exists(effLP12))
-                        certificate = new X509Certificate2(effLP12, m_certPassword, importFlags);
+                        certificate = X509CertificateLoader.LoadPkcs12FromFile(effLP12, m_certPassword, importFlags);
                     else
-                        certificate = new X509Certificate2(effLC, m_certPassword, importFlags);
+                        certificate = IsPkcs12(effLC)
+                            ? X509CertificateLoader.LoadPkcs12FromFile(effLC, m_certPassword, importFlags)
+                            : X509CertificateLoader.LoadCertificateFromFile(effLC);
 
                     // Load the full chain from the fullchain PEM to extract intermediate CA certs.
                     try
                     {
                         X509Certificate2Collection pemCertificates = new();
-                        if (IsPkcs12(effLC)) pemCertificates.Import(effLC, m_certPassword, X509KeyStorageFlags.EphemeralKeySet);
+                        if (IsPkcs12(effLC))
+                            pemCertificates = X509CertificateLoader.LoadPkcs12CollectionFromFile(
+                                effLC, m_certPassword, X509KeyStorageFlags.EphemeralKeySet);
                         else pemCertificates.ImportFromPemFile(effLC);
                         foreach (X509Certificate2 c in pemCertificates)
                         {
@@ -1500,6 +1524,8 @@ namespace TasiaAddons.Quic
             QuicConnection viewerConn, QuicStream viewerStream, uint circuitCode,
             byte[] firstPayload, IPEndPoint simEndpoint, CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             m_log.Info($"[QuicProxy] Bridging circuit {circuitCode} viewer QUIC -> sim LLUDP {simEndpoint} (no QUIC backend registered)");
             using var udp = new UdpClient();
             try
@@ -1546,6 +1572,8 @@ namespace TasiaAddons.Quic
             }, linked.Token);
             var simToViewer = Task.Run(async () =>
             {
+                if (!QuicConnection.IsSupported)
+                    throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
                 int packets = 0;
                 try
                 {
@@ -1595,6 +1623,8 @@ namespace TasiaAddons.Quic
 
         private static async Task<int> ReadExactlyAsync(QuicStream stream, byte[] buffer, int offset, int count, CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             int totalRead = 0;
             while (totalRead < count)
             {

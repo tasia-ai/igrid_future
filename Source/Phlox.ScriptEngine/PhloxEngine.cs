@@ -17,6 +17,7 @@ using OpenSim.Region.Framework.Scenes;
 using OpenSim.Region.ScriptEngine.Interfaces;
 using OpenSim.Region.ScriptEngine.Shared;
 using OpenSim.Region.ScriptEngine.Shared.Api;
+using Phlox.ScriptEngine.AsyncCommand;
 using OpenSim.Services.Interfaces;
 
 using Microsoft.Extensions.Logging;
@@ -50,7 +51,7 @@ namespace Phlox.ScriptEngine
         private InWorldz.Phlox.Types.SupportedEventList m_EventList = new InWorldz.Phlox.Types.SupportedEventList();
 
         internal PhloxListenManager ListenManager { get; private set; }
-        internal AsyncCommandManager AsyncCommands { get; private set; }
+        internal Phlox.ScriptEngine.AsyncCommand.AsyncCommandManager AsyncCommands { get; private set; }
 		internal StateManager StateManager { get; private set; }
 
         #region INonSharedRegionModule
@@ -288,7 +289,7 @@ namespace Phlox.ScriptEngine
             m_MasterScheduler = new PhloxMasterScheduler(m_ExeScheduler, m_ScriptLoader);
             ListenManager = new PhloxListenManager(m_ExeScheduler, scene,
                 m_WhisperDistance, m_SayDistance, m_ShoutDistance, m_MaxListensPerScript, m_MaxListensPerRegion);
-            AsyncCommands = new AsyncCommandManager(this);
+            AsyncCommands = new Phlox.ScriptEngine.AsyncCommand.AsyncCommandManager(this);
             StateManager = new StateManager(this);
             StateManager.Start();
             m_MasterScheduler.Start();
@@ -696,6 +697,7 @@ namespace Phlox.ScriptEngine
             UUID regionID = scene.RegionInfo.RegionID;
             foreach (SceneObjectPart part in obj.Parts)
             {
+                OnObjectRemoved?.Invoke(part.UUID);
                 UUID botID = LSLSystemAPI.ClearCharacter(regionID, part.LocalId);
                 if (botID != UUID.Zero)
                     mgr?.RemoveBot(botID, obj.OwnerID);

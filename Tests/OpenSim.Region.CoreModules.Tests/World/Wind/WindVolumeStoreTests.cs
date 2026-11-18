@@ -31,7 +31,7 @@ public class WindVolumeStoreTests
     private static readonly UUID ObjB = UUID.Random();
     private static readonly UUID Owner = UUID.Random();
 
-    private static WindVolumeStore Store(Clock clock = null, WindVolumeLimits limits = null, bool enabled = true)
+    private static WindVolumeStore Store(Clock? clock = null, WindVolumeLimits? limits = null, bool enabled = true)
         => new WindVolumeStore(enabled, limits, clock == null ? null : clock.Now);
 
     private static WindVolumeSpec Sphere(float radius = 10f, float falloff = 0.5f, float lifetime = 60f, Vector3? velocity = null, Vector3? center = null)
@@ -480,7 +480,7 @@ public class WindVolumeStoreTests
     // ---- concurrency ----
 
     [Fact]
-    public void SamplingWhileOtherThreadsAddAndRemoveNeverSeesATornVolume()
+    public async Task SamplingWhileOtherThreadsAddAndRemoveNeverSeesATornVolume()
     {
         // Every volume's velocity has three equal components, and every volume covers the sampled point at full
         // strength, so any sample must have X == Y == Z, and a whole number of volumes' worth.
@@ -525,7 +525,7 @@ public class WindVolumeStoreTests
         var deadline = DateTime.UtcNow.AddSeconds(20);
         while (Interlocked.Read(ref samples) < 300_000 && DateTime.UtcNow < deadline) Thread.Sleep(20);
         stop.Cancel();
-        Task.WaitAll(writers.Concat(readers).ToArray());
+        await Task.WhenAll(writers.Concat(readers));
 
         Assert.True(Interlocked.Read(ref samples) >= 300_000, "the readers did not make enough samples");
         Assert.Equal(0, bad);
@@ -546,7 +546,7 @@ public class WindVolumeStoreTests
     }
 
     [Fact]
-    public void ASamplerDoesNotWaitForAWriterThatHoldsTheStoreBusy()
+    public async Task ASamplerDoesNotWaitForAWriterThatHoldsTheStoreBusy()
     {
         // A reader that finishes while a writer is stuck inside the write lock proves reads take no lock.
         var inside = new ManualResetEventSlim();
@@ -560,11 +560,11 @@ public class WindVolumeStoreTests
 
         // The sampler uses the explicit-time overload, so it does not touch the blocked clock; it must not need the lock.
         var read = Task.Run(() => s2.Sample(new Vector3(100, 100, 50), 1500));
-        Assert.True(read.Wait(TimeSpan.FromSeconds(20)), "the sampler waited for the writer");
-        Near(new Vector3(10, 0, 0), read.Result);
+        await read.WaitAsync(TimeSpan.FromSeconds(20));
+        Near(new Vector3(10, 0, 0), await read);
 
         release.Set();
-        Assert.True(writer.Wait(TimeSpan.FromSeconds(20)));
+        await writer.WaitAsync(TimeSpan.FromSeconds(20));
     }
 
     private class BlockingClock

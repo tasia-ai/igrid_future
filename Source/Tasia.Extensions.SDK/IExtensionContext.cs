@@ -1,3 +1,5 @@
+#nullable enable
+
 namespace Tasia.Extensions.SDK;
 
 public interface IExtensionContext

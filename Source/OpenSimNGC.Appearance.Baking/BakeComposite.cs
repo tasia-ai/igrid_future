@@ -15,14 +15,20 @@ namespace OpenSimNGC.Appearance.Baking;
 /// </summary>
 public sealed class BakeBitmap
 {
+    /// <summary>Image width in pixels.</summary>
     public int Width { get; }
+    /// <summary>Image height in pixels.</summary>
     public int Height { get; }
+    /// <summary>Red channel bytes.</summary>
     public byte[] R { get; }
+    /// <summary>Green channel bytes.</summary>
     public byte[] G { get; }
+    /// <summary>Blue channel bytes.</summary>
     public byte[] B { get; }
     /// <summary>The alpha plane, or null when the image has none.</summary>
     public byte[]? A { get; }
 
+    /// <summary>Creates an image from row-major channel planes.</summary>
     public BakeBitmap(int width, int height, byte[] r, byte[] g, byte[] b, byte[]? a)
     {
         if (width <= 0 || height <= 0) throw new ArgumentException("bitmap size must be positive");
@@ -36,6 +42,7 @@ public sealed class BakeBitmap
 /// <summary>One worn wearable as the compositor needs it (SPEC.md section 2, "Inputs", item 3).</summary>
 public sealed class BakeWearable
 {
+    /// <summary>Wearable type.</summary>
     public WearableKind Kind { get; init; }
     /// <summary>Diagnostic only.</summary>
     public string Label { get; init; } = "";
@@ -57,10 +64,15 @@ public sealed record BakeLayerReport(string Layer, string Status, string Detail,
 /// <summary>The result of compositing one channel (SPEC.md section 2, "Outputs").</summary>
 public sealed class BakeComposite
 {
+    /// <summary>Square output dimensions in pixels.</summary>
     public int Size { get; init; }
+    /// <summary>Red output plane.</summary>
     public required byte[] R { get; init; }
+    /// <summary>Green output plane.</summary>
     public required byte[] G { get; init; }
+    /// <summary>Blue output plane.</summary>
     public required byte[] B { get; init; }
+    /// <summary>Alpha output plane.</summary>
     public required byte[] A { get; init; }
     /// <summary>The morph mask, Size x Size, 255 where nothing carves it (SPEC.md section 10).</summary>
     public required byte[] MorphMask { get; init; }
@@ -68,5 +80,6 @@ public sealed class BakeComposite
     public bool Invisible { get; init; }
     /// <summary>No layer drew anything (SPEC.md section 13).</summary>
     public bool NothingDrawn { get; init; }
+    /// <summary>Per-layer rendering outcomes.</summary>
     public required IReadOnlyList<BakeLayerReport> Layers { get; init; }
 }

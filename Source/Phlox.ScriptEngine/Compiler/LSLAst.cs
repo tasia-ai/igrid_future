@@ -75,11 +75,9 @@ namespace InWorldz.Phlox.Compiler
     }
 
     /// <summary>
-    /// Compatibility shim - kept so existing code that references LSLAst compiles.
-    /// In the new ANTLR4 pipeline, LSLNodeAnnotations is used instead.
-    /// This class will be removed once all compiler passes are rewritten.
+    /// Compatibility node retained for the generated ANTLR3 compiler sources and the
+    /// symbol-definition location contract. The ANTLR4 pipeline uses LSLNodeAnnotations.
     /// </summary>
-	[Obsolete("Use LSLNodeAnnotations side-table instead. This class exists only for compilation compatibility during migration.")]
 	public class LSLAst
 	{
 		public IScope scope;

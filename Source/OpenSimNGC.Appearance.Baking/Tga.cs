@@ -10,7 +10,9 @@ namespace OpenSimNGC.Appearance.Baking;
 /// <summary>A decoded TGA: planar 8-bit channels plus what the file actually carried.</summary>
 public sealed class TgaImage
 {
+    /// <summary>Image dimensions in pixels.</summary>
     public readonly int W, H;
+    /// <summary>Whether the source image is grayscale and whether it contains alpha.</summary>
     public readonly bool IsGray, HasAlpha;
     /// <summary>Grey files: the grey values. Colour files: red.</summary>
     public readonly byte[] R, G, B, A;
@@ -24,6 +26,7 @@ public sealed class TgaImage
 /// </summary>
 public static class Tga
 {
+    /// <summary>Decodes a supported TGA image.</summary>
     public static TgaImage Decode(byte[] data)
     {
         if (data.Length < 18) throw new FormatException("TGA: header too short");

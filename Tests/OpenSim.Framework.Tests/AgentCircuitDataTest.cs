@@ -34,14 +34,14 @@ namespace OpenSim.Framework.Tests
     public class AgentCircuitDataTest : IDisposable
     {
         private UUID AgentId;
-        private AvatarAppearance AvAppearance;
-        private byte[] VisualParams;
-        private UUID BaseFolder;
-        private string CapsPath;
-        private Dictionary<ulong, string> ChildrenCapsPaths;
+        private AvatarAppearance AvAppearance = new();
+        private byte[] VisualParams = Array.Empty<byte>();
+        private UUID BaseFolder = UUID.Zero;
+        private string CapsPath = "";
+        private Dictionary<ulong, string> ChildrenCapsPaths = new();
         private uint circuitcode = 0949030;
-        private string firstname;
-        private string lastname;
+        private string firstname = "";
+        private string lastname = "";
         private UUID SecureSessionId;
         private UUID SessionId;
         private Vector3 StartPos;
@@ -51,7 +51,7 @@ namespace OpenSim.Framework.Tests
             Setup();
         }
 
-        public void Setup()
+        private void Setup()
         {
             AgentId = UUID.Random();
             BaseFolder = UUID.Random();

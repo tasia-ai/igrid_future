@@ -12,20 +12,42 @@ using System.Xml.Linq;
 namespace OpenSimNGC.Appearance.Baking;
 
 /// <summary>Which avatars a parameter applies to (the `sex` attribute); the other sex sees the default weight.</summary>
-public enum ParamSex { Both, Male, Female }
+public enum ParamSex
+{
+    /// <summary>Parameter applies to avatars of both sexes.</summary>
+    Both,
+    /// <summary>Parameter applies to male avatars.</summary>
+    Male,
+    /// <summary>Parameter applies to female avatars.</summary>
+    Female
+}
 
 /// <summary>How a colour parameter combines into a layer's net colour (`operation` attribute; add is the default).</summary>
-public enum ColorOp { Add, Multiply, Blend }
+public enum ColorOp
+{
+    /// <summary>Adds parameter color values.</summary>
+    Add,
+    /// <summary>Multiplies parameter color values.</summary>
+    Multiply,
+    /// <summary>Blends parameter color values.</summary>
+    Blend
+}
 
 /// <summary>A colour with components in 0..1.</summary>
 public readonly record struct Rgba(float R, float G, float B, float A)
 {
+    /// <summary>Opaque white.</summary>
     public static readonly Rgba White = new(1, 1, 1, 1);
+    /// <summary>Fully transparent black.</summary>
     public static readonly Rgba Transparent = new(0, 0, 0, 0);
 
+    /// <summary>Clamps each channel to the inclusive range from zero to one.</summary>
     public Rgba Clamp() => new(Math.Clamp(R, 0, 1), Math.Clamp(G, 0, 1), Math.Clamp(B, 0, 1), Math.Clamp(A, 0, 1));
+    /// <summary>Adds corresponding color channels.</summary>
     public static Rgba operator +(Rgba a, Rgba b) => new(a.R + b.R, a.G + b.G, a.B + b.B, a.A + b.A);
+    /// <summary>Multiplies corresponding color channels.</summary>
     public static Rgba operator *(Rgba a, Rgba b) => new(a.R * b.R, a.G * b.G, a.B * b.B, a.A * b.A);
+    /// <summary>Linearly interpolates between two colors.</summary>
     public static Rgba Lerp(Rgba a, Rgba b, float t) => new(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t, a.A + (b.A - a.A) * t);
 
     /// <summary>"r, g, b, a" with byte components, as avatar_lad.xml writes colours.</summary>
@@ -37,6 +59,7 @@ public readonly record struct Rgba(float R, float G, float B, float A)
         return new Rgba(B(0), B(1), B(2), B(3));
     }
 
+    /// <summary>Returns the color as normalized channel values.</summary>
     public override string ToString() => $"({R:F2},{G:F2},{B:F2},{A:F2})";
 }
 
@@ -52,46 +75,73 @@ public sealed record DrivenInfo(int Id, float Min1, float Max1, float Max2, floa
 /// <summary>One visual parameter as avatar_lad.xml defines it (every occurrence of the id merged).</summary>
 public sealed class ParamDef
 {
+    /// <summary>Visual parameter identifier.</summary>
     public int Id;
+    /// <summary>Parameter name.</summary>
     public string Name = "";
     /// <summary>The wearable type that owns the parameter ("shirt", "skin", ...); null for parameters no wearable stores.</summary>
     public string? Wearable;
+    /// <summary>Avatar sex this parameter applies to.</summary>
     public ParamSex Sex = ParamSex.Both;
+    /// <summary>Viewer parameter group.</summary>
     public int Group;
+    /// <summary>Minimum supported parameter weight.</summary>
     public float Min;
+    /// <summary>Maximum supported parameter weight.</summary>
     public float Max = 1f;
+    /// <summary>Default parameter weight.</summary>
     public float Default;
+    /// <summary>Optional alpha-mask behavior.</summary>
     public AlphaParamInfo? Alpha;
+    /// <summary>Optional color behavior.</summary>
     public ColorParamInfo? Color;
+    /// <summary>Parameters driven by this parameter.</summary>
     public readonly List<DrivenInfo> Driven = new();
 }
 
 /// <summary>One `layer` of a `layer_set`, in file order.</summary>
 public sealed class LayerDef
 {
+    /// <summary>Layer name.</summary>
     public string Name = "";
     /// <summary>`local_texture`: the wearable texture slot this layer draws (upper_shirt, head_bodypaint, ...).</summary>
     public string? LocalTexture;
+    /// <summary>Whether the local texture contributes only its alpha channel.</summary>
     public bool LocalTextureAlphaOnly;
     /// <summary>`tga_file`: a bundled image; with file_is_mask it is an alpha mask for the layer colour.</summary>
     public string? StaticImage;
+    /// <summary>Whether the static image is interpreted as a mask.</summary>
     public bool StaticIsMask;
+    /// <summary>Fixed color applied to the layer.</summary>
     public Rgba FixedColor = Rgba.Transparent;
+    /// <summary>Name of the global color used by the layer, when present.</summary>
     public string? GlobalColor;
+    /// <summary>Whether the layer is a bump-map pass.</summary>
     public bool Bump;
+    /// <summary>Whether the layer writes all color channels.</summary>
     public bool WriteAllChannels;
+    /// <summary>Whether the layer contributes to visibility masking.</summary>
     public bool VisibilityMask;
+    /// <summary>Color parameter ids used by the layer.</summary>
     public readonly List<int> ColorParams = new();
+    /// <summary>Alpha parameter ids used by the layer.</summary>
     public readonly List<int> AlphaParams = new();
 }
 
+/// <summary>Dimensions, alpha behavior and ordered layers for one avatar body region.</summary>
 public sealed class LayerSetDef
 {
+    /// <summary>Body-region name.</summary>
     public string BodyRegion = "";
+    /// <summary>Output width in pixels.</summary>
     public int Width = 512;
+    /// <summary>Output height in pixels.</summary>
     public int Height = 512;
+    /// <summary>Whether the layer set starts with cleared alpha.</summary>
     public bool ClearAlpha = true;
+    /// <summary>Optional static alpha image resource.</summary>
     public string? StaticAlphaFile;
+    /// <summary>Layers in viewer rendering order.</summary>
     public readonly List<LayerDef> Layers = new();
 }
 
@@ -110,8 +160,11 @@ public sealed class AvatarLad
     /// <summary>The avatar_lad.xml that ships with the library, parsed once.</summary>
     public static AvatarLad Embedded => s_embedded.Value;
 
+    /// <summary>Visual parameter definitions keyed by parameter id.</summary>
     public readonly Dictionary<int, ParamDef> Params = new();
+    /// <summary>Layer sets keyed by body-region name.</summary>
     public readonly Dictionary<string, LayerSetDef> LayerSets = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Global-color parameter ids keyed by color name.</summary>
     public readonly Dictionary<string, List<int>> GlobalColors = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>
     /// The <c>&lt;morph_masks&gt;</c> block: per body_region, the layer names whose alpha mask also drives a mesh
@@ -119,8 +172,10 @@ public sealed class AvatarLad
     /// </summary>
     public readonly Dictionary<string, HashSet<string>> MorphMaskLayers = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Loads and parses avatar_lad.xml from a file path.</summary>
     public static AvatarLad Load(string path) => Parse(XDocument.Load(path));
 
+    /// <summary>Loads and parses avatar_lad.xml from a stream.</summary>
     public static AvatarLad Load(Stream stream) => Parse(XDocument.Load(stream));
 
     private static AvatarLad LoadEmbedded()
@@ -130,6 +185,7 @@ public sealed class AvatarLad
         return Load(s);
     }
 
+    /// <summary>Parses the compositor-relevant definitions from an avatar_lad.xml document.</summary>
     public static AvatarLad Parse(XDocument doc)
     {
         var lad = new AvatarLad();

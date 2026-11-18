@@ -12,21 +12,29 @@ namespace OpenSimNGC.Appearance.Baking;
 /// <summary>A single 8-bit channel.</summary>
 public sealed class Plane
 {
+    /// <summary>Plane dimensions in pixels.</summary>
     public readonly int W, H;
+    /// <summary>Row-major channel bytes.</summary>
     public readonly byte[] Data;
+    /// <summary>Creates a plane, allocating zeroed pixels when data is omitted.</summary>
     public Plane(int w, int h, byte[]? data = null) { W = w; H = h; Data = data ?? new byte[w * h]; }
+    /// <summary>Creates a plane filled with the specified channel value.</summary>
     public static Plane Filled(int w, int h, byte v) { var p = new Plane(w, h); if (v != 0) Array.Fill(p.Data, v); return p; }
 }
 
 /// <summary>Four planar 8-bit channels. `HasAlpha` false means the source had no alpha (A is all 255).</summary>
 public sealed class RgbaPlanes
 {
+    /// <summary>Plane dimensions in pixels.</summary>
     public readonly int W, H;
+    /// <summary>Red, green, blue and alpha channel bytes.</summary>
     public readonly byte[] R, G, B, A;
+    /// <summary>Whether the source image had an alpha channel.</summary>
     public readonly bool HasAlpha;
     /// <summary>A fifth 8-bit plane when the source carried one: the morph mask of a viewer bake (Docs/MORPH-MASK-PASS.md). Null otherwise.</summary>
     public byte[]? Mask;
 
+    /// <summary>Creates empty RGBA planes with the specified dimensions.</summary>
     public RgbaPlanes(int w, int h, bool hasAlpha)
     {
         W = w; H = h; HasAlpha = hasAlpha;
@@ -56,6 +64,7 @@ public sealed class RgbaPlanes
         return p;
     }
 
+    /// <summary>Resamples all channels and the optional morph mask to the requested dimensions.</summary>
     public RgbaPlanes Resample(int w, int h)
     {
         if (w == W && h == H) return this;
@@ -71,6 +80,7 @@ public sealed class RgbaPlanes
 /// <summary>Pixel helpers: resampling and the byte product.</summary>
 public static class Raster
 {
+    /// <summary>Multiplies two 8-bit channel values with rounded normalization.</summary>
     public static byte Mul(byte a, byte b) => (byte)((a * b + 127) / 255);
 
     /// <summary>
@@ -120,5 +130,6 @@ public static class Raster
         return dst;
     }
 
+    /// <summary>Resamples a channel plane to the requested dimensions.</summary>
     public static Plane Resample(Plane p, int w, int h) => w == p.W && h == p.H ? p : new Plane(w, h, Resample(p.Data, p.W, p.H, w, h));
 }

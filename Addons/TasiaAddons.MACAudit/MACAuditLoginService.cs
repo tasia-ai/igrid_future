@@ -377,7 +377,7 @@ public class MACAuditLoginService : ILoginService
         return false;
     }
 
-    private MacAuditRecord BuildRecord(string firstName, string lastName, string clientVersion, string channel, string mac, string id0, IPEndPoint clientIp, LoginResponse response)
+    private MacAuditRecord BuildRecord(string firstName, string lastName, string clientVersion, string channel, string mac, string? id0, IPEndPoint? clientIp, LoginResponse response)
     {
         string username = string.Format(CultureInfo.InvariantCulture, "{0} {1}", firstName, lastName);
         string? macNorm = NormalizeMac(mac);
@@ -409,7 +409,7 @@ public class MACAuditLoginService : ILoginService
             MacAddress = macStored,
             MacTail = macTail,
             Id0 = string.IsNullOrWhiteSpace(id0) ? null : id0,
-            IpAddress = m_settings.IncludeIp ? clientIp.Address.ToString() : null,
+            IpAddress = m_settings.IncludeIp ? clientIp?.Address.ToString() : null,
             ViewerChannel = channel,
             ViewerVersion = clientVersion
         };

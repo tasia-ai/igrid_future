@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace InWorldz.Phlox.Types
 {
@@ -20,6 +21,17 @@ namespace InWorldz.Phlox.Types
     /// </summary>
     public class LSLTable
     {
+        private sealed class KeyComparer : IEqualityComparer<object>
+        {
+            public new bool Equals(object x, object y)
+                => x is LSLList || y is LSLList ? ReferenceEquals(x, y) : object.Equals(x, y);
+
+            public int GetHashCode(object key)
+                => key is LSLList ? RuntimeHelpers.GetHashCode(key) : key?.GetHashCode() ?? 0;
+        }
+
+        private static readonly IEqualityComparer<object> s_keyComparer = new KeyComparer();
+
         public const int MEM_OVERHEAD = 32;
 
         private readonly Dictionary<object, object> _map;
@@ -43,7 +55,7 @@ namespace InWorldz.Phlox.Types
 
         public LSLTable()
         {
-            _map = new Dictionary<object, object>();
+            _map = new Dictionary<object, object>(s_keyComparer);
             _keys = new List<object>();
             _memorySize = 0;
         }
@@ -51,7 +63,7 @@ namespace InWorldz.Phlox.Types
         /// <summary>Rebuild from ordered (key,value) pairs — used by deserialization.</summary>
         public LSLTable(IList<object> keys, IList<object> values)
         {
-            _map = new Dictionary<object, object>(keys.Count);
+            _map = new Dictionary<object, object>(keys.Count, s_keyComparer);
             _keys = new List<object>(keys.Count);
             for (int i = 0; i < keys.Count; i++)
             {
@@ -97,7 +109,12 @@ namespace InWorldz.Phlox.Types
 
             if (value == null)
             {
-                if (_map.Remove(k)) _keys.Remove(k);
+                if (_map.Remove(k))
+                {
+                    int index = _keys.FindIndex(existing => _map.Comparer.Equals(existing, k));
+                    if (index >= 0)
+                        _keys.RemoveAt(index);
+                }
             }
             else
             {
@@ -136,7 +153,7 @@ namespace InWorldz.Phlox.Types
             else
             {
                 object k = NormalizeKey(key);
-                idx = _keys.IndexOf(k);
+                idx = _keys.FindIndex(existing => _map.Comparer.Equals(existing, k));
             }
 
             int ni = idx + 1;

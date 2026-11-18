@@ -25,6 +25,10 @@ public static class FidelityCheck
         WearableKind.Alpha, WearableKind.Tattoo, WearableKind.Physics, WearableKind.Universal,
     };
 
+    /// <summary>Wearable type, diagnostic label and textures supplied by one worn item.</summary>
+    /// <param name="Kind">The wearable type.</param>
+    /// <param name="Label">A diagnostic label.</param>
+    /// <param name="Textures">Texture identifiers keyed by slot.</param>
     public sealed record WornSummary(WearableKind Kind, string Label, IReadOnlyDictionary<TextureSlot, UUID> Textures);
 
     /// <summary>Every reason the outfit cannot be baked faithfully for the given channels; empty means supported.</summary>

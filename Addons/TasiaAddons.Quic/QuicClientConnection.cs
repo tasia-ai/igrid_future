@@ -92,6 +92,9 @@ namespace TasiaAddons.Quic
         {
             get
             {
+                if (!QuicConnection.IsSupported)
+                    throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
+
                 if (m_connection.RemoteEndPoint is IPEndPoint ep)
                     return ep;
                 return new IPEndPoint(IPAddress.Any, 0);
@@ -103,6 +106,9 @@ namespace TasiaAddons.Quic
         /// </summary>
         public async Task StartAsync()
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
+
             try
             {
                 if (m_config.LogHandshake)
@@ -163,6 +169,8 @@ namespace TasiaAddons.Quic
         /// </summary>
         public void Close(string reason)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             if (m_disposed)
                 return;
 
@@ -218,6 +226,8 @@ namespace TasiaAddons.Quic
 
         private async Task ReadStreamLoopAsync(CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             var buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
 
             try
@@ -302,6 +312,8 @@ namespace TasiaAddons.Quic
 
         private async Task AcceptAdditionalStreamsAsync(CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             try
             {
                 while (!ct.IsCancellationRequested)
@@ -334,6 +346,8 @@ namespace TasiaAddons.Quic
         /// </summary>
         private async Task KeepaliveLoopAsync(CancellationToken ct)
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             byte[] keepalive = PacketFraming.KeepaliveFrame;
             try
             {
@@ -371,6 +385,8 @@ namespace TasiaAddons.Quic
 
         private async Task FlushPendingSendsAsync()
         {
+            if (!QuicConnection.IsSupported)
+                throw new PlatformNotSupportedException("QUIC is not supported on this platform.");
             try
             {
                 while (true)

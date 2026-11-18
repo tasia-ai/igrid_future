@@ -44,7 +44,7 @@ public class HomeLaunchAuthorizationTests
             bool travelSessionExists = true,
             UUID? travelUser = null,
             string storedToken = IssuedToken,
-            string presentedToken = IssuedToken,
+            string? presentedToken = IssuedToken,
             string travelGrid = ForeignGrid,
             string targetGrid = ForeignGrid)
     {

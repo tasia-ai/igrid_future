@@ -1,3 +1,5 @@
+#nullable enable
+
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -153,7 +155,7 @@ namespace TasiaAddons.ChatAudit
 
         public string Name => "ChatAuditModule";
 
-        public Type ReplaceableInterface => null;
+        public Type? ReplaceableInterface => null;
 
         private void OnNewClient(IClientAPI client)
         {
@@ -394,7 +396,7 @@ namespace TasiaAddons.ChatAudit
         {
             public DateTime Generated { get; init; }
             public int Count { get; set; }
-            public List<ChatAuditRecord> Records { get; init; }
+            public List<ChatAuditRecord> Records { get; init; } = new();
         }
 
         private record ChatAuditRecord

@@ -32,7 +32,7 @@ namespace OpenSim.Framework.Tests
 {
     public class CacheTests : IDisposable
     {
-        private Cache cache;
+        private Cache cache = new();
         private UUID cacheItemUUID;
 
         public CacheTests()
@@ -40,7 +40,7 @@ namespace OpenSim.Framework.Tests
             Setup();
         }
 
-        public void Setup()
+        private void Setup()
         {
             cache = new Cache();
             cache = new Cache(CacheMedium.Memory,CacheStrategy.Aggressive,CacheFlags.AllowUpdate);

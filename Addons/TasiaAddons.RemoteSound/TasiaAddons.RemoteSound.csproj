@@ -15,18 +15,6 @@
       <HintPath>$(SolutionDir)/bin/log4net.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="OpenSim.Framework">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Framework.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="OpenSim.Region.Framework">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Region.Framework.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="OpenSim.Services.Interfaces">
-      <HintPath>$(SolutionDir)/bin/OpenSim.Services.Interfaces.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../TasiaAddons.Abstractions/TasiaAddons.Abstractions.csproj" />

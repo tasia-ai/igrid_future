@@ -23,9 +23,13 @@ public static class J2kCodec
     /// <summary>Codestream size fields from the SIZ marker segment.</summary>
     public sealed record SizInfo(int Xsiz, int Ysiz, int XOsiz, int YOsiz, int XTsiz, int YTsiz, int XTOsiz, int YTOsiz, int Csiz)
     {
+        /// <summary>Number of tiles across the image.</summary>
         public int TilesX => (int)Math.Ceiling((Xsiz - XTOsiz) / (double)XTsiz);
+        /// <summary>Number of tiles down the image.</summary>
         public int TilesY => (int)Math.Ceiling((Ysiz - YTOsiz) / (double)YTsiz);
+        /// <summary>Total number of image tiles.</summary>
         public int TileCount => TilesX * TilesY;
+        /// <summary>Whether the codestream contains one tile.</summary>
         public bool SingleTile => TileCount == 1;
     }
 

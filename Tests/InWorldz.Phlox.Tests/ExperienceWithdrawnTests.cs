@@ -54,7 +54,7 @@ public class ExperienceWithdrawnTests
     internal class ChangingEstate : DispatchProxy
     {
         public UUID Experience, Visitor;
-        public bool VisitorBlocked;
+        public bool VisitorBlocked { get; set; }
         public readonly List<UUID> Allowed = new(), Trusted = new(), Blocked = new();
 
         public static ChangingEstate Create(UUID experience, UUID visitor, out IExperienceModule module)

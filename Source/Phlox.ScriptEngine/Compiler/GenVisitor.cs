@@ -189,7 +189,7 @@ namespace InWorldz.Phlox.Compiler
         public override string VisitDefaultStateDef([NotNull] LSLParser.DefaultStateDefContext context)
             => VisitStateBlock(context.stateBlock());
 
-        private string VisitStateBlock(LSLParser.StateBlockContext block)
+        public override string VisitStateBlock(LSLParser.StateBlockContext block)
         {
             var events = new List<string>();
             if (block != null)

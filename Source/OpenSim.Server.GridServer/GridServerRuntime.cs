@@ -56,7 +56,6 @@ public sealed class GridServerRuntime : IGridServerRuntime
     private readonly object _initializeLock = new();
     private bool _initialized;
 
-    private PluginLoader _loader;
     private readonly List<IServiceConnector> _serviceConnectors = new();
 
     private bool _noVerifyCertChain;
@@ -127,7 +126,6 @@ public sealed class GridServerRuntime : IGridServerRuntime
 
             // Temporarily disable PluginLoader due to native crash (AccessViolation in DotNetCorePluginLoader)
             // _loader = new PluginLoader(config, registryLocation);
-            _loader = null;
 
             _initialized = true;
         }

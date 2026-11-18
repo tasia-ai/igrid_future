@@ -68,9 +68,9 @@ public class WindParamValueTests : OpenSimTestCase
         {
             private readonly Capture m_c;
             public L(Capture c) => m_c = c;
-            public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
             public bool IsEnabled(LogLevel logLevel) => true;
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
             {
                 lock (m_c.Lines) m_c.Lines.Add((logLevel, formatter(state, exception)));
             }
@@ -151,6 +151,7 @@ public class WindParamValueTests : OpenSimTestCase
         TestScene scene = NewScene();
         WindModule module = ModuleOn(scene, plugin);
 
+        Assert.Equal(initial, module.WindParamGet(plugin, param));
         module.WindParamSet(plugin, param, 12.5f);
         Assert.Equal(12.5f, module.WindParamGet(plugin, param));
 
@@ -221,7 +222,9 @@ public class WindParamValueTests : OpenSimTestCase
         m_capture.Clear();
         WindModule module = ModuleOn(scene, plugin, (key, "7.25"));
 
-        Assert.Equal(7.25f, module.WindParamGet(plugin, param));
+        float configured = module.WindParamGet(plugin, param);
+        Assert.NotEqual(defaultValue, configured);
+        Assert.Equal(7.25f, configured);
         Assert.DoesNotContain(m_capture.Wind(), l => l.Level == LogLevel.Warning);
         module.RemoveRegion(scene);
     }

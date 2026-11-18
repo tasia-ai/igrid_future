@@ -23,7 +23,6 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks><!-- 2.19.x HeightFieldShapeSettings takes float* -->
     <Deterministic>true</Deterministic>
-    <NoWarn>$(NoWarn);CS0168</NoWarn>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
