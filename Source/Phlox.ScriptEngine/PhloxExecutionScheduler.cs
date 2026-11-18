@@ -970,6 +970,8 @@ namespace Phlox.ScriptEngine
                 m_AllScripts.Remove(itemId);
                 m_HeldFresh.Remove(itemId);
             }
+            if (m_Apis.TryGetValue(itemId, out LSLSystemAPI api))
+                api.OnScriptUnloaded();
             m_Apis.Remove(itemId);
             m_ControlsExempt.Remove(itemId);
         }

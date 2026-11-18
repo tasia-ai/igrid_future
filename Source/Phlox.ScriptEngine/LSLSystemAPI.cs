@@ -199,7 +199,20 @@ namespace Phlox.ScriptEngine
         protected UUID m_itemID;
 
         private Interpreter m_thisScript;
-        public Interpreter Script { get => m_thisScript; set => m_thisScript = value; }
+        private bool m_experienceParcelHandlerAttached;
+        public Interpreter Script
+        {
+            get => m_thisScript;
+            set
+            {
+                m_thisScript = value;
+                if (value != null && !m_experienceParcelHandlerAttached && World?.EventManager != null)
+                {
+                    World.EventManager.OnAvatarEnteringNewParcel += OnExperienceParcelChanged;
+                    m_experienceParcelHandlerAttached = true;
+                }
+            }
+        }
         public Scene World => m_ScriptEngine.World;
 
         // Thread-local Random so each scheduler thread gets its own seeded instance;
@@ -2778,7 +2791,38 @@ namespace Phlox.ScriptEngine
             TaskInventoryItem item = GetInventorySelf();
             if (item == null) return 0;
             // AutomaticLinkPermission reports PERMISSION_CHANGE_LINKS (YEngine LSL_Api.cs:4755, Halcyon :4702).
-            return AutomaticLinkPermission ? item.PermsMask | PERMISSION_CHANGE_LINKS : item.PermsMask;
+            int permissions = item.PermsMask == EXPERIENCE_PERMISSION_MASK
+                ? EXPERIENCE_SCRIPT_PERMISSION_MASK
+                : item.PermsMask;
+            return AutomaticLinkPermission ? permissions | PERMISSION_CHANGE_LINKS : permissions;
+        }
+
+        internal void OnScriptUnloaded()
+        {
+            if (!m_experienceParcelHandlerAttached) return;
+            Scene world = World;
+            if (world?.EventManager != null)
+                world.EventManager.OnAvatarEnteringNewParcel -= OnExperienceParcelChanged;
+            m_experienceParcelHandlerAttached = false;
+        }
+
+        private void OnExperienceParcelChanged(ScenePresence avatar, int localLandId, UUID regionId)
+        {
+            if (avatar == null || avatar.IsChildAgent) return;
+            TaskInventoryItem item = GetInventorySelf();
+            if (item == null || item.PermsGranter != avatar.UUID ||
+                item.PermsMask != EXPERIENCE_PERMISSION_MASK || item.ExperienceID == UUID.Zero)
+                return;
+
+            PhloxExperienceAdapter experience = GetExperienceAdapter();
+            bool blocked = experience?.GetBlockedExperiences(regionId).Contains(item.ExperienceID) ?? false;
+            bool admitted = experience != null &&
+                (experience.GetAllowedExperiences(regionId).Contains(item.ExperienceID) ||
+                 experience.GetTrustedExperiences(regionId).Contains(item.ExperienceID));
+            if (!blocked && admitted) return;
+
+            EndPermissions(ALL_PERMISSIONS, releaseControls: true, forgetControls: true);
+            PostExperiencePermissionDenied(avatar.UUID.ToString(), XP_ERROR_NOT_PERMITTED_LAND);
         }
         public void llTakeControls(int controls, int accept, int pass_on)
         {
@@ -19318,9 +19362,7 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
         //    Script-surface conformance with SL. ──
         // SL key-value key length cap (SL wiki llCreateKeyValue): 1011 bytes (was 255).
         private const int MAX_EXPERIENCE_KEY_LENGTH = 1011;
-        // Viewer experience-property bit PROPERTY_DISABLED (indra VP_DISABLED = 1<<6);
-        // used to report the llGetExperienceDetails state field.
-        private const int VP_DISABLED = 1 << 6;
+        // ExperienceFlags.Disabled and Suspended map the viewer's PROPERTY_DISABLED and suspended state.
         // SL per-experience KV quota: 128 MiB (was NGC's 16 MiB).
         private const long MAX_DATA_QUOTA = 128L * 1024 * 1024;
 
@@ -20738,6 +20780,10 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
         //    script instance (LSLSystemAPI is per-script), keyed by ItemID; the ScriptAnswerYes packet
         //    carries no ExperienceID, so the answer is correlated by TaskID + ItemID via OnScriptAnswer. ──
         private const int PERMISSION_EXPERIENCE = 0x2000;       // JoinAnExperience bit
+        private const int EXPERIENCE_PERMISSION_MASK = 408628;
+        private const int EXPERIENCE_SCRIPT_PERMISSION_MASK =
+            PERMISSION_TAKE_CONTROLS | PERMISSION_TRIGGER_ANIMATION | PERMISSION_ATTACH |
+            PERMISSION_TRACK_CAMERA | PERMISSION_CONTROL_CAMERA | PERMISSION_TELEPORT;
         private const int EXPERIENCE_PERM_TIMEOUT_MS = 300000;  // 300s (SL: "at least 5 minutes")
         private sealed class PendingExperiencePerm
         {
@@ -20763,10 +20809,35 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
             // No experience associated with this script -> XP_ERROR_NO_EXPERIENCE (5).
             if (expService == null || experienceId == UUID.Zero)
             {
-                m_ScriptEngine.PostScriptEvent(m_itemID, new EventParams(
-                    "experience_permissions_denied",
-                    new object[] { agent, XP_ERROR_NO_EXPERIENCE },
-                    new DetectParams[0]));
+                DenyExperiencePermission(agentId, agent, XP_ERROR_NO_EXPERIENCE);
+                return;
+            }
+
+            PhloxExperienceAdapter.PhloxExperienceInfo experience;
+            try
+            {
+                experience = expService.GetExperience(experienceId);
+            }
+            catch (Exception e)
+            {
+                m_log.LogWarning("[PhloxAPI]: Experience lookup for {0} failed: {1}", experienceId, e.Message);
+                DenyExperiencePermission(agentId, agent, XP_ERROR_NOT_FOUND);
+                return;
+            }
+
+            if (experience == null)
+            {
+                DenyExperiencePermission(agentId, agent, XP_ERROR_INVALID_EXPERIENCE);
+                return;
+            }
+            if ((experience.Properties & (int)ExperienceFlags.Disabled) != 0)
+            {
+                DenyExperiencePermission(agentId, agent, XP_ERROR_EXPERIENCE_DISABLED);
+                return;
+            }
+            if ((experience.Properties & (int)ExperienceFlags.Suspended) != 0)
+            {
+                DenyExperiencePermission(agentId, agent, XP_ERROR_EXPERIENCE_SUSPENDED);
                 return;
             }
 
@@ -20776,10 +20847,7 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
             // block tier at this precedence — deferred; Tranquillity has no parcel-experience source.)
             if (IsExperienceBlockedInRegion(expService, experienceId))
             {
-                m_ScriptEngine.PostScriptEvent(m_itemID, new EventParams(
-                    "experience_permissions_denied",
-                    new object[] { agent, XP_ERROR_NOT_PERMITTED_LAND },
-                    new DetectParams[0]));
+                DenyExperiencePermission(agentId, agent, XP_ERROR_NOT_PERMITTED_LAND);
                 return;
             }
 
@@ -20792,10 +20860,7 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
             // Not admitted -> land-scope XP_ERROR_NOT_PERMITTED_LAND (17).
             if (!IsExperienceAdmitted(expService, experienceId))
             {
-                m_ScriptEngine.PostScriptEvent(m_itemID, new EventParams(
-                    "experience_permissions_denied",
-                    new object[] { agent, XP_ERROR_NOT_PERMITTED_LAND },
-                    new DetectParams[0]));
+                DenyExperiencePermission(agentId, agent, XP_ERROR_NOT_PERMITTED_LAND);
                 return;
             }
 
@@ -20803,10 +20868,7 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
             ScenePresence sp = World.GetScenePresence(agentId);
             if (sp == null || sp.IsChildAgent)
             {
-                m_ScriptEngine.PostScriptEvent(m_itemID, new EventParams(
-                    "experience_permissions_denied",
-                    new object[] { agent, XP_ERROR_NOT_PERMITTED },
-                    new DetectParams[0]));
+                DenyExperiencePermission(agentId, agent, XP_ERROR_NOT_PERMITTED);
                 return;
             }
 
@@ -20815,18 +20877,14 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
             // is never re-granted (SL code 4).
             if (expService.IsAgentBlocked(experienceId, agentId))
             {
-                m_ScriptEngine.PostScriptEvent(m_itemID, new EventParams(
-                    "experience_permissions_denied",
-                    new object[] { agent, XP_ERROR_NOT_PERMITTED }, // 4 — agent's personal block
-                    new DetectParams[0]));
+                DenyExperiencePermission(agentId, agent, XP_ERROR_NOT_PERMITTED);
                 return;
             }
 
             // Already granted -> notify immediately, no dialog.
             if (expService.IsAgentGranted(experienceId, agentId))
             {
-                m_ScriptEngine.PostScriptEvent(m_itemID, new EventParams(
-                    "experience_permissions", new object[] { agent }, new DetectParams[0]));
+                GrantExperienceAndNotify(expService, experienceId, agentId, agent);
                 return;
             }
 
@@ -20861,11 +20919,42 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
         {
             expService.GrantPermission(experienceId, agentId);
             expService.InvalidatePermission(experienceId, agentId);
+            TaskInventoryItem item = GetInventorySelf();
+            if (item != null)
+            {
+                if (item.PermsGranter != UUID.Zero && item.PermsGranter != agentId)
+                    EndPermissions(ALL_PERMISSIONS, releaseControls: true, forgetControls: true);
+                PermsChange(item, agentId, EXPERIENCE_PERMISSION_MASK);
+            }
             m_ScriptEngine.PostScriptEvent(m_itemID, new EventParams(
                 "experience_permissions", new object[] { agent }, new DetectParams[0]));
             var expInfo = expService.GetExperience(experienceId);
             m_log.LogInformation("[PhloxAPI]: Experience permission granted: agent={0} experience={1}",
                 agentId, expInfo?.Name ?? experienceId.ToString());
+        }
+
+        private void DenyExperiencePermission(UUID agentId, string agent, int errorCode)
+        {
+            TaskInventoryItem item = GetInventorySelf();
+            bool withdrewExperienceGrant = item != null &&
+                item.PermsGranter == agentId &&
+                item.PermsMask == EXPERIENCE_PERMISSION_MASK;
+            if (withdrewExperienceGrant)
+                EndPermissions(ALL_PERMISSIONS, releaseControls: true, forgetControls: true);
+
+            // One notification answers this request; the other reports that the existing grant
+            // ended because this experience can no longer run.
+            PostExperiencePermissionDenied(agent, errorCode);
+            if (withdrewExperienceGrant)
+                PostExperiencePermissionDenied(agent, errorCode);
+        }
+
+        private void PostExperiencePermissionDenied(string agent, int errorCode)
+        {
+            m_ScriptEngine.PostScriptEvent(m_itemID, new EventParams(
+                "experience_permissions_denied",
+                new object[] { agent, errorCode },
+                new DetectParams[0]));
         }
 
         // Record the pending request (keyed by m_itemID) and start its 300s timeout. Hooks the client's
@@ -21003,6 +21092,10 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
             UUID expId;
             if (!UUID.TryParse(experienceId, out expId))
                 return new LSLList();
+            if (expId == UUID.Zero)
+                expId = GetScriptExperienceId();
+            if (expId == UUID.Zero)
+                return new LSLList();
 
             var expService = GetExperienceAdapter();
             if (expService == null)
@@ -21018,9 +21111,11 @@ public int llSetLinkGLTFOverrides(int link, int face, LSLList overrides)
             // State uses the XP_ERROR vocabulary: NONE(0) for a valid enabled experience,
             // EXPERIENCE_DISABLED(8) when the viewer PROPERTY_DISABLED bit is set. The message comes
             // from llGetExperienceErrorMessage so the state and its text can never drift apart.
-            int state = (exp.Properties & VP_DISABLED) != 0
+            int state = (exp.Properties & (int)ExperienceFlags.Disabled) != 0
                 ? XP_ERROR_EXPERIENCE_DISABLED
-                : XP_ERROR_NONE;
+                : (exp.Properties & (int)ExperienceFlags.Suspended) != 0
+                    ? XP_ERROR_EXPERIENCE_SUSPENDED
+                    : XP_ERROR_NONE;
             return new LSLList(new object[]
             {
                 exp.Name ?? string.Empty,

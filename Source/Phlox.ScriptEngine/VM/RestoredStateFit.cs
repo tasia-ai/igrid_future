@@ -80,6 +80,32 @@ namespace InWorldz.Phlox.VM
                     if (bad != null) return bad;
                     if (f.ReturnAddress < 0 || f.ReturnAddress > codeLength) return "a return address is outside the script's code";
                     if (f.Locals == null) return "a call frame has no locals";
+                    if (f.Wanted < -1 || f.Wanted > MaxFrameSlots) return "a call frame's wanted result count is out of range";
+                    if (f.Wanted == -1)
+                    {
+                        if (f.OperandBase != 0) return "a named call frame has an operand base";
+                    }
+                    else
+                    {
+                        if (f.Closure == null) return "a value-call frame has no closure";
+                        if (f.OperandBase < 0 || f.OperandBase > (st.Operands?.Count ?? 0))
+                            return "a value-call frame's operand base is outside the stack";
+
+                        int callStart = f.ReturnAddress - 9;
+                        if (callStart < 0 || callStart >= codeLength ||
+                            script.ByteCode[callStart] != (byte)OpCode.callv ||
+                            Encoding.GetInt(script.ByteCode, f.ReturnAddress - 4) != f.Wanted)
+                            return "a value-call frame does not match its call site";
+                    }
+                    if (f.Closure != null)
+                    {
+                        bad = CheckFunctionInfo(f.Closure.Fn, codeLength);
+                        if (bad != null) return bad;
+                        if (f.Closure.Fn.Address != f.FunctionInfo.Address ||
+                            f.Closure.Fn.NumberOfArguments != f.FunctionInfo.NumberOfArguments ||
+                            f.Closure.Fn.NumberOfLocals != f.FunctionInfo.NumberOfLocals)
+                            return "a call frame's closure does not match its function";
+                    }
                 }
             }
             if (st.RunningEvent != null && !Enum.IsDefined(typeof(SupportedEventList.Events), st.RunningEvent.EventType))
@@ -200,6 +226,11 @@ namespace InWorldz.Phlox.VM
                     case LuaClosure closure:
                         Problem = CheckFunctionInfo(closure.Fn, m_CodeLength);
                         if (closure.Upvals != null) foreach (UpvalCell c in closure.Upvals) One(c, depth + 1);
+                        break;
+                    case LuaGmatch gmatch:
+                        if (gmatch.Src == null || gmatch.Pat == null ||
+                            gmatch.Pos < 0 || (long)gmatch.Pos > (long)gmatch.Src.Length + 1)
+                            Problem = "a string.gmatch iterator is out of range";
                         break;
                     case UpvalCell cell:
                         One(cell.Value, depth + 1);

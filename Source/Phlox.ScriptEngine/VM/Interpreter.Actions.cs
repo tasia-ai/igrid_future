@@ -17,6 +17,9 @@ namespace InWorldz.Phlox.VM
             if (obj == null)
                 throw new VMException("Attempt to push null operand.\n" + DumpState());
 
+            if (_state.Operands.Count >= MemoryInfo.MAX_MEMORY / sizeof(int))
+                throw new VMException("Out of memory");
+
             /*if (obj is Sentinel)
                 throw new VMException("Attempt to push sentinel operand.\n" + DumpState());*/
 
