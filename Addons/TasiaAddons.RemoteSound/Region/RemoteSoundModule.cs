@@ -73,7 +73,7 @@ public class RemoteSoundModule : INonSharedRegionModule, ITasiaAddonsFeature, IR
     public void Initialise(IConfigSource source)
     {
         IConfig? config = source.Configs["NGC.Sound"];
-        if (config is null || !config.GetBoolean("Enable", true))
+        if (config is null || !config.GetBoolean("Enable", false))
         {
             Log.Info("[NGC.SOUND]: Module disabled by configuration");
             m_enabled = false;
@@ -479,6 +479,7 @@ public class RemoteSoundModule : INonSharedRegionModule, ITasiaAddonsFeature, IR
                 process.WaitForExit();
                 throw new IOException("Remote sound encoding timed out");
             }
+            _ = errors.GetAwaiter().GetResult();
             if (process.ExitCode != 0 || !File.Exists(output))
                 throw new IOException("FFmpeg could not encode remote audio");
             byte[] bytes = File.ReadAllBytes(output);
@@ -572,19 +573,15 @@ internal class RemoteSoundSettings
     public RateLimiter ObjectRateLimiter { get; } = new();
     public RateLimiter RegionRateLimiter { get; } = new();
 
-    public bool EnableTranscode { get; private set; }
-    public bool ForceReencodeWav { get; private set; }
     public string FfmpegPath { get; private set; } = "ffmpeg";
 
-    public double MaxChunkSeconds { get; private set; }
-    public bool EnableStreaming { get; private set; }
 
     public static RemoteSoundSettings FromConfig(IConfig config)
     {
         RemoteSoundSettings settings = new();
         settings.AllowHttp = !config.GetBoolean("AllowHTTPSOnly", true);
-        settings.CacheTtl = config.GetInt("CacheTTLSeconds", 3600);
-        settings.MaxFileBytes = config.GetLong("MaxFileBytes", 20 * 1024 * 1024);
+        settings.CacheTtl = Math.Clamp(config.GetInt("CacheTTLSeconds", 3600), 1, 86400);
+        settings.MaxFileBytes = Math.Clamp(config.GetLong("MaxFileBytes", 20 * 1024 * 1024), 1L, 64L * 1024 * 1024);
         settings.CacheDirectory = config.GetString("CacheDir", settings.CacheDirectory);
         settings.PerObjectRatePerSecond = Math.Max(0.1, config.GetDouble("PerObjectRatePerSec", 2));
         settings.PerRegionRatePerSecond = Math.Max(0.1, config.GetDouble("PerRegionRatePerSec", 20));
@@ -598,12 +595,8 @@ internal class RemoteSoundSettings
         settings.ScriptOwnerWhitelist = ScriptOwnerWhitelist.FromConfig(
             config.GetString("AllowScriptOwners", string.Empty));
 
-        settings.EnableTranscode = config.GetBoolean("TranscodeToWav", true);
         settings.FfmpegPath = config.GetString("FfmpegPath", settings.FfmpegPath);
-        settings.ForceReencodeWav = config.GetBoolean("ForceReencodeWav", false);
 
-        settings.MaxChunkSeconds = Math.Max(2.0, config.GetDouble("MaxChunkSeconds", 8.0));
-        settings.EnableStreaming = config.GetBoolean("EnableStreaming", true);
 
         return settings;
     }
