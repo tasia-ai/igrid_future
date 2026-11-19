@@ -136,6 +136,17 @@ public class EventManager
     public Action<IClientAPI> OnClientLogin;
 
     /// <summary>
+    /// Fired only after Scene.NewUserConnection has accepted and installed an
+    /// agent circuit, before the viewer's first UseCircuitCode packet arrives.
+    /// Login and teleport transports can use this to pre-register a route.
+    /// The teleportFlags distinguish an actual teleport destination from an
+    /// automatically established neighbouring child circuit. Both have
+    /// circuit.child=true until the viewer moves.
+    /// Handlers must not block the scene: schedule remote I/O asynchronously.
+    /// </summary>
+    public event Action<AgentCircuitData, uint> OnAuthorizedAgentCircuit;
+
+    /// <summary>
     /// Triggered when a new presence is added to the scene
     /// </summary>
     /// <remarks>
@@ -1303,6 +1314,37 @@ public class EventManager
                         "[EVENT MANAGER]: Delegate for TriggerOnFrame failed - continuing.  {0} {1}",
                         e.Message, e.StackTrace);
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// An incoming teleport initially has circuit.child=true, just like a
+    /// neighbour. Non-default teleport flags identify the actual destination,
+    /// which must replace the old proxy route before UseCircuitCode arrives.
+    /// Neighbour-only child circuits use the Default (zero) flag.
+    /// </summary>
+    public static bool IsActiveDestinationCircuit(AgentCircuitData circuit, uint teleportFlags)
+    {
+        return circuit != null && (!circuit.child || teleportFlags != 0);
+    }
+
+    public void TriggerOnAuthorizedAgentCircuit(AgentCircuitData circuit, uint teleportFlags)
+    {
+        Action<AgentCircuitData, uint> handlers = OnAuthorizedAgentCircuit;
+        if (handlers == null)
+            return;
+
+        foreach (Action<AgentCircuitData, uint> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(circuit, teleportFlags);
+            }
+            catch (Exception ex)
+            {
+                m_log.LogError("[EVENT MANAGER]: Authorized circuit handler failed for {0}: {1}",
+                    circuit?.circuitcode, ex);
             }
         }
     }
