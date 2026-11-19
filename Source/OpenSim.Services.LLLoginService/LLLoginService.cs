@@ -92,6 +92,8 @@ public class LLLoginService : ILoginService
     protected string m_MessageUrl;
     protected string m_DSTZone;
 
+    private readonly bool m_preRegisterQuicCircuits;
+
     protected bool m_allowDuplicatePresences = false;
     protected string m_messageKey;
     protected bool m_allowLoginFallbackToAnyRegion = true;  // if login requested region if not found and there are no Default or fallback regions,
@@ -105,6 +107,10 @@ public class LLLoginService : ILoginService
         m_LoginServerConfig = config.Configs["LoginService"];
         if (m_LoginServerConfig is null)
             throw new Exception(string.Format("No section LoginService in config file"));
+
+        // Only ROBUST processes hosting the public QUIC proxy need this
+        // process-local registry. Simulators make their own HTTP registrations.
+        m_preRegisterQuicCircuits = config.Configs["QuicProxy"]?.GetBoolean("Enabled", false) ?? false;
 
         string accountService = m_LoginServerConfig.GetString("UserAccountService", string.Empty);
         string gridUserService = m_LoginServerConfig.GetString("GridUserService", string.Empty);
@@ -641,6 +647,26 @@ public class LLLoginService : ILoginService
 
             }
 
+            // The viewer may open QUIC immediately after the login response.
+            // The proxy needs at least the LLUDP fallback route before that
+            // first UseCircuitCode. Native sim QUIC routing is pre-registered
+            // separately by QuicServerModule when the scene authorizes a circuit.
+            if (m_preRegisterQuicCircuits && destinationIsLocal)
+            {
+                try
+                {
+                    if (TryPreRegisterQuicLoginCircuit(destination, aCircuit, true, true))
+                        m_log.LogInformation(
+                            "[LLOGIN SERVICE]: Pre-registered QUIC login circuit {0} for region {1}, LLUDP {2}",
+                            aCircuit.circuitcode, destination.RegionName, destination.ExternalEndPoint);
+                }
+                catch (Exception ex)
+                {
+                    // Login must not fail if routing/DNS is briefly unavailable.
+                    m_log.LogWarning("[LLOGIN SERVICE]: QUIC login pre-registration failed: {0}", ex.Message);
+                }
+            }
+
             // only now we can assume a login
             guinfo = m_GridUserService.LoggedIn(PrincipalIDstr);
 
@@ -685,6 +711,28 @@ public class LLLoginService : ILoginService
             m_PresenceService?.LogoutAgent(session);
             return LLFailedLoginResponse.InternalError;
         }
+    }
+
+    /// <summary>
+    /// Register the local simulator's LLUDP fallback route before a QUIC viewer
+    /// is told to connect. No entry is added for foreign destinations or grids
+    /// without an enabled QUIC proxy. Simulator-side pre-registration supplies
+    /// the separate native QUIC port.
+    /// </summary>
+    public static bool TryPreRegisterQuicLoginCircuit(
+        GridRegion destination, AgentCircuitData circuit, bool localDestination, bool proxyEnabled)
+    {
+        if (!proxyEnabled || !localDestination || destination == null || circuit == null
+            || circuit.circuitcode == 0 || destination.QuicPort == 0)
+            return false;
+
+        IPEndPoint simEndpoint = destination.ExternalEndPoint;
+        if (simEndpoint == null || simEndpoint.Port <= 0
+            || IPAddress.Any.Equals(simEndpoint.Address) || IPAddress.IPv6Any.Equals(simEndpoint.Address))
+            return false;
+
+        QuicCircuitRegistry.Register(circuit.circuitcode, simEndpoint);
+        return true;
     }
 
     private static readonly Regex URIRegex = new(@"^uri:(?<region>[^&]+)&(?<x>\d+[.]?\d*)&(?<y>\d+[.]?\d*)&(?<z>\d+[.]?\d*)$", RegexOptions.Compiled);
